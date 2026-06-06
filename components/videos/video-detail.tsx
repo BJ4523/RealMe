@@ -1,0 +1,178 @@
+"use client";
+
+import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  Clapperboard,
+  Download,
+  Share2,
+  Sparkles,
+  RotateCcw,
+} from "lucide-react";
+import { toast } from "sonner";
+import {
+  submitVideo,
+  updateScript,
+  pollVideoStatus,
+} from "@/app/(app)/videos/actions";
+import type { Tables } from "@/lib/types/database";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { StatusBadge } from "./status-badge";
+
+type Video = Tables<"videos">;
+
+export function VideoDetail({ initialVideo }: { initialVideo: Video }) {
+  const [video, setVideo] = useState<Video>(initialVideo);
+  const [script, setScript] = useState(initialVideo.script ?? "");
+  const [pending, startTransition] = useTransition();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isWorking =
+    video.status === "processing" || video.status === "submitting";
+
+  // Poll while the job is in flight.
+  useEffect(() => {
+    if (!isWorking) return;
+    pollRef.current = setInterval(async () => {
+      const latest = await pollVideoStatus(video.id);
+      if (latest) setVideo(latest);
+    }, 2500);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [isWorking, video.id]);
+
+  function handleSubmit() {
+    startTransition(async () => {
+      await updateScript(video.id, script);
+      setVideo((v) => ({ ...v, status: "submitting" }));
+      await submitVideo(video.id);
+      const latest = await pollVideoStatus(video.id);
+      if (latest) setVideo(latest);
+    });
+  }
+
+  function handleShare() {
+    const url = `${window.location.origin}/videos/${video.id}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Link copied to clipboard");
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <StatusBadge status={video.status} />
+        {video.duration ? (
+          <span className="font-mono text-xs text-muted-foreground">
+            {Math.round(Number(video.duration))}s
+          </span>
+        ) : null}
+      </div>
+
+      {/* Player / progress surface */}
+      <div className="overflow-hidden rounded-3xl border border-border bg-foreground">
+        {video.status === "completed" && video.video_url ? (
+          <video
+            src={video.video_url}
+            poster={video.thumbnail_url ?? undefined}
+            controls
+            className="aspect-video w-full bg-black"
+          />
+        ) : (
+          <div className="flex aspect-video w-full flex-col items-center justify-center gap-4 text-background">
+            {video.status === "failed" ? (
+              <p className="text-destructive">
+                {video.error ?? "Generation failed."}
+              </p>
+            ) : isWorking ? (
+              <>
+                <div className="flex size-16 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                  <Sparkles className="size-7 animate-pulse" />
+                </div>
+                <p className="font-mono text-xs uppercase tracking-widest text-background/70">
+                  Generating your video…
+                </p>
+              </>
+            ) : (
+              <>
+                <Clapperboard className="size-10 text-background/60" />
+                <p className="font-mono text-xs uppercase tracking-widest text-background/70">
+                  Review the script, then generate
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Completed actions */}
+      {video.status === "completed" && video.video_url ? (
+        <div className="flex flex-wrap gap-3">
+          <Button
+            asChild
+            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+          >
+            <a href={video.video_url} download target="_blank" rel="noreferrer">
+              <Download className="size-4" /> Download
+            </a>
+          </Button>
+          <Button onClick={handleShare} variant="outline" className="rounded-full">
+            <Share2 className="size-4" /> Share link
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Script editor (pre-generation) */}
+      {(video.status === "script_ready" ||
+        video.status === "pending_script") && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-lg font-bold">Narration script</h2>
+            <span className="text-xs text-muted-foreground">
+              Edit before generating
+            </span>
+          </div>
+          <Textarea
+            value={script}
+            onChange={(e) => setScript(e.target.value)}
+            rows={8}
+            className="rounded-2xl"
+          />
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSubmit}
+              disabled={pending || !script.trim()}
+              size="lg"
+              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              <Clapperboard className="size-5" />
+              {pending ? "Submitting…" : "Generate video"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Retry on failure */}
+      {video.status === "failed" ? (
+        <div className="flex flex-col gap-3">
+          <Textarea
+            value={script}
+            onChange={(e) => setScript(e.target.value)}
+            rows={6}
+            className="rounded-2xl"
+          />
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSubmit}
+              disabled={pending}
+              className="rounded-full"
+              variant="outline"
+            >
+              <RotateCcw className="size-4" /> Try again
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
