@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
-import { createAvatarFromAsset, cloneVoiceFromAudio } from "@/lib/heygen/avatar";
+import {
+  createAvatarFromAsset,
+  cloneVoiceFromAudio,
+  deleteTalkingPhoto,
+} from "@/lib/heygen/avatar";
 
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
 
@@ -107,11 +111,28 @@ export async function createAvatar(
       }
     }
 
-    // Deactivate any previous active avatar, then activate this one.
-    await supabase
+    // Replace: remove the user's previous avatar(s) from HeyGen + Storage + DB
+    // so this new one supersedes them and the (small, account-wide) HeyGen
+    // photo-avatar quota doesn't fill with stale avatars. Best-effort cleanup;
+    // failures here never fail the create.
+    const { data: previous } = await supabase
       .from("avatars")
-      .update({ is_active: false })
-      .eq("user_id", userId);
+      .select("id, heygen_avatar_id, source_path")
+      .eq("user_id", userId)
+      .neq("id", avatar.id);
+    for (const prev of previous ?? []) {
+      await deleteTalkingPhoto(prev.heygen_avatar_id);
+      if (prev.source_path) {
+        await supabase.storage.from("avatar-sources").remove([prev.source_path]);
+      }
+    }
+    if (previous && previous.length > 0) {
+      await supabase
+        .from("avatars")
+        .delete()
+        .eq("user_id", userId)
+        .neq("id", avatar.id);
+    }
 
     await supabase
       .from("avatars")
@@ -147,5 +168,32 @@ export async function setActiveAvatar(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("avatars").update({ is_active: false }).eq("user_id", userId);
   await supabase.from("avatars").update({ is_active: true }).eq("id", id);
+  revalidatePath("/settings/avatar");
+}
+
+/**
+ * Delete one of the user's own avatars: removes the HeyGen talking photo
+ * (freeing a quota slot), the uploaded source in Storage, and the DB row.
+ * Owner-scoped — a user can only delete their own avatars.
+ */
+export async function deleteAvatar(formData: FormData) {
+  const { userId } = await requireUser();
+  const id = formData.get("id") as string;
+  if (!id) return;
+
+  const supabase = await createClient();
+  const { data: avatar } = await supabase
+    .from("avatars")
+    .select("id, heygen_avatar_id, source_path")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!avatar) return;
+
+  await deleteTalkingPhoto(avatar.heygen_avatar_id);
+  if (avatar.source_path) {
+    await supabase.storage.from("avatar-sources").remove([avatar.source_path]);
+  }
+  await supabase.from("avatars").delete().eq("id", id).eq("user_id", userId);
   revalidatePath("/settings/avatar");
 }

@@ -86,6 +86,60 @@ export async function getAvatarStatus(
   return "ready";
 }
 
+/**
+ * Delete a HeyGen talking photo (frees a slot against the plan's photo-avatar
+ * quota). Best-effort: returns false on any failure so callers never block the
+ * primary flow on cleanup. No-op in mock mode.
+ */
+export async function deleteTalkingPhoto(
+  id: string | null | undefined,
+): Promise<boolean> {
+  if (!id) return false;
+  if (isMock) return true;
+  try {
+    await heygenFetch(ENDPOINTS.deleteTalkingPhoto(id), { method: "DELETE" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface CustomTalkingPhoto {
+  id: string;
+  name: string;
+  previewUrl: string | null;
+}
+
+/**
+ * List the account's CUSTOM talking photos for the admin cleanup view.
+ *
+ * HeyGen's avatar list mixes the account's uploads with thousands of stock
+ * avatars and exposes no owner flag — the only signal is that API-uploaded
+ * talking photos default to the name "Photo Avatar" (stock ones have real
+ * names). This filter is therefore a heuristic; the preview thumbnail lets an
+ * admin eyeball each before deleting.
+ */
+export async function listCustomTalkingPhotos(): Promise<CustomTalkingPhoto[]> {
+  if (isMock) return [];
+  const res = await heygenFetch<{
+    data?: {
+      talking_photos?: Array<{
+        talking_photo_id: string;
+        talking_photo_name?: string;
+        preview_image_url?: string;
+      }>;
+    };
+  }>(ENDPOINTS.listAvatars, { method: "GET" });
+
+  return (res.data?.talking_photos ?? [])
+    .filter((t) => (t.talking_photo_name ?? "") === "Photo Avatar")
+    .map((t) => ({
+      id: t.talking_photo_id,
+      name: t.talking_photo_name ?? "Photo Avatar",
+      previewUrl: t.preview_image_url ?? null,
+    }));
+}
+
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {

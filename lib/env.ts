@@ -20,6 +20,12 @@ export const env = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   cronSecret: process.env.CRON_SECRET ?? "",
 
+  // Comma-separated allowlist of emails permitted to use the /admin routes.
+  adminEmails: (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+
   // Flags
   heygenMock: (process.env.HEYGEN_MOCK ?? "1") !== "0",
 } as const;

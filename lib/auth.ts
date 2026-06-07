@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { env } from "@/lib/env";
 import type { Tables } from "@/lib/types/database";
 
 /**
@@ -34,5 +35,16 @@ export async function requireUser(): Promise<{
 export async function requireOnboarded() {
   const ctx = await requireUser();
   if (!ctx.profile?.onboarding_completed) redirect("/onboarding");
+  return ctx;
+}
+
+/**
+ * Like requireUser, but restricts access to the email allowlist in
+ * ADMIN_EMAILS. Non-admins are bounced to /app (no hint the route exists).
+ */
+export async function requireAdmin() {
+  const ctx = await requireUser();
+  const email = ctx.email?.toLowerCase();
+  if (!email || !env.adminEmails.includes(email)) redirect("/app");
   return ctx;
 }

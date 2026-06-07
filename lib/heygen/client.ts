@@ -19,6 +19,9 @@ export const ENDPOINTS = {
   uploadAsset: `${HEYGEN_UPLOAD_BASE}/v1/asset`,
   voiceClone: `${HEYGEN_BASE}/v2/voices/clone`,
   listVoices: `${HEYGEN_BASE}/v2/voices`,
+  listAvatars: `${HEYGEN_BASE}/v2/avatars`,
+  // Verified live: DELETE /v2/talking_photo/{id} → 200 {"error":null,"data":null}.
+  deleteTalkingPhoto: (id: string) => `${HEYGEN_BASE}/v2/talking_photo/${id}`,
   generateVideo: `${HEYGEN_BASE}/v2/video/generate`,
   videoStatus: (id: string) =>
     `${HEYGEN_BASE}/v1/video_status.get?video_id=${id}`,

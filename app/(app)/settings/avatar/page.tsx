@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Trash2 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { setActiveAvatar } from "@/app/(app)/onboarding/actions";
+import { setActiveAvatar, deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,18 @@ export default async function AvatarSettingsPage() {
                     </Button>
                   </form>
                 ) : null}
+                <form action={deleteAvatar}>
+                  <input type="hidden" name="id" value={a.id} />
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full text-muted-foreground hover:text-destructive"
+                    aria-label={`Delete ${a.name ?? "avatar"}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </form>
               </div>
             </div>
           ))}
