@@ -2,7 +2,7 @@
 /* eslint-disable */
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { AGENT, LISTINGS, CheckIcon, listingBg, priceShort, useCount } from "@/components/site/shared";
+import { AGENT, LISTINGS, CheckIcon, listingBg, priceShort, useCount, useIsMobile } from "@/components/site/shared";
 
 // RealMe — Landing page
 
@@ -25,38 +25,42 @@ export function Logo({ size = 22 }) {
 }
 
 export function TopNav({ onOpenApp, onOpenLive }) {
+  const isMobile = useIsMobile();
   return (
     <nav style={{
       position: "sticky", top: 0, zIndex: 50,
       background: "rgba(242,238,229,0.85)",
       backdropFilter: "blur(12px)",
       borderBottom: "1px solid var(--rule-soft)",
+      maxWidth: "100%", overflowX: "hidden",
     }}>
       <div style={{
-        maxWidth: 1400, margin: "0 auto", padding: "14px 32px",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        maxWidth: 1400, margin: "0 auto", padding: isMobile ? "12px 20px" : "14px 32px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: isMobile ? 10 : 0,
       }}>
         <Logo size={26} />
-        <div style={{ display: "flex", gap: 24, alignItems: "center", fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
-          <a href="#how">How it works</a>
-          <a href="#demo">Live demo</a>
-          <a href="#calendar">Calendar</a>
-          <a href="#email">Email</a>
-          <a href="#rentals" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            Rentals
-            <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 5px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700, letterSpacing: "0.04em" }}>NEW</span>
-          </a>
-          <a href="#pricing">Pricing</a>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {onOpenLive && (
+        {!isMobile && (
+          <div style={{ display: "flex", gap: 24, alignItems: "center", fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+            <a href="#how">How it works</a>
+            <a href="#demo">Live demo</a>
+            <a href="#calendar">Calendar</a>
+            <a href="#email">Email</a>
+            <a href="#rentals" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              Rentals
+              <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 5px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700, letterSpacing: "0.04em" }}>NEW</span>
+            </a>
+            <a href="#pricing">Pricing</a>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: isMobile ? 8 : 10, alignItems: "center" }}>
+          {onOpenLive && !isMobile && (
             <button className="btn btn-ghost btn-sm" onClick={onOpenLive} style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
               realme.live ↗
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={onOpenApp}>Sign in</button>
+          {!isMobile && <button className="btn btn-ghost btn-sm" onClick={onOpenApp}>Sign in</button>}
           <button className="btn btn-primary btn-sm" onClick={onOpenApp}>
-            Open dashboard →
+            {isMobile ? "Dashboard →" : "Open dashboard →"}
           </button>
         </div>
       </div>
@@ -67,14 +71,15 @@ export function TopNav({ onOpenApp, onOpenLive }) {
 // ====== HERO ======
 
 export function Hero({ onOpenApp }) {
+  const isMobile = useIsMobile();
   return (
     <section style={{
       maxWidth: 1400, margin: "0 auto",
-      padding: "84px 32px 40px",
+      padding: isMobile ? "48px 20px 32px" : "84px 32px 40px",
       position: "relative",
     }}>
       <h1 className="display" style={{
-        fontSize: "clamp(72px, 11vw, 168px)",
+        fontSize: isMobile ? "clamp(40px, 13vw, 72px)" : "clamp(72px, 11vw, 168px)",
         margin: 0,
         maxWidth: 1300,
       }}>
@@ -90,7 +95,7 @@ export function Hero({ onOpenApp }) {
       </h1>
 
       <div style={{
-        display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 80, marginTop: 64,
+        display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 1fr", gap: isMobile ? 40 : 80, marginTop: isMobile ? 36 : 64,
         alignItems: "end",
       }}>
         <div>
@@ -136,6 +141,7 @@ function Stat({ n, suffix = "", label, decimals = 0 }) {
 // Hero centerpiece: phone with AI-generated reel + ONE floating moment
 function HeroDemo() {
   const [tick, setTick] = useState(0);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const i = setInterval(() => setTick(t => t + 1), 80);
@@ -145,11 +151,12 @@ function HeroDemo() {
   return (
     <div style={{
       position: "relative",
-      minHeight: 620,
+      minHeight: isMobile ? 560 : 620,
+      width: "100%", maxWidth: "100%", overflowX: "hidden",
       display: "flex", alignItems: "center", justifyContent: "center",
     }}>
       {/* The phone */}
-      <div className="phone" style={{ zIndex: 3 }}>
+      <div className="phone" style={{ zIndex: 3, maxWidth: "100%" }}>
         <div className="phone-notch"></div>
         <div className="phone-screen">
           <PhoneReel tick={tick} />
@@ -158,8 +165,8 @@ function HeroDemo() {
 
       {/* ONE floating moment: the listing this reel is about */}
       <div style={{
-        position: "absolute", top: 80, right: 0, zIndex: 4,
-        width: 220, background: "var(--bg-card)",
+        position: "absolute", top: 80, right: isMobile ? 0 : 0, zIndex: 4,
+        width: isMobile ? 180 : 220, maxWidth: "calc(100% - 16px)", background: "var(--bg-card)",
         borderRadius: 14, boxShadow: "var(--shadow-pop)",
         transform: "rotate(3deg)",
         border: "1px solid var(--rule)",
@@ -180,7 +187,8 @@ function HeroDemo() {
 
       {/* ONE status pill — calm, white card */}
       <div style={{
-        position: "absolute", bottom: 50, left: -8, zIndex: 4,
+        position: "absolute", bottom: 50, left: isMobile ? 0 : -8, zIndex: 4,
+        maxWidth: "calc(100% - 16px)",
         background: "var(--ink)", color: "var(--bg-warm)",
         padding: "10px 16px", borderRadius: 999,
         display: "flex", alignItems: "center", gap: 10,
@@ -297,11 +305,12 @@ export function TrustMarquee() {
     "RIDGELINE HOMES", "HARBOR & GROVE", "MAINLINE",
   ];
   const all = [...logos, ...logos];
+  const isMobile = useIsMobile();
   return (
-    <div style={{ background: "var(--bg)", marginTop: 80, borderTop: "8px solid var(--ink)", borderBottom: "8px solid var(--ink)" }}>
+    <div style={{ background: "var(--bg)", marginTop: 80, borderTop: "8px solid var(--ink)", borderBottom: "8px solid var(--ink)", maxWidth: "100%", overflowX: "hidden" }}>
       {/* Stats row */}
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "44px 32px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "32px 20px" : "44px 32px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: isMobile ? 24 : 0 }}>
           <BigNumber n={4200} suffix="+" label="agents posting daily" />
           <BigNumber n={1.2} suffix="M" label="videos generated" decimals={1} divider />
           <BigNumber n={38} suffix="%" label="avg lift in showings booked" divider />
@@ -363,22 +372,24 @@ export function HowItWorks() {
       body: "Daily, weekly, or whenever a listing drops. RealMe writes the script, generates the video, schedules the posts, sends the blast, books the showings.",
     },
   ];
+  const isMobile = useIsMobile();
   return (
-    <section id="how" style={{ maxWidth: 1400, margin: "0 auto", padding: "140px 32px 80px" }}>
-      <div style={{ marginBottom: 64 }}>
+    <section id="how" style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "80px 20px 60px" : "140px 32px 80px" }}>
+      <div style={{ marginBottom: isMobile ? 40 : 64 }}>
         <span className="eyebrow">How it works</span>
-        <h2 className="display" style={{ fontSize: "clamp(56px, 7vw, 108px)", margin: "16px 0 0", maxWidth: 1100 }}>
+        <h2 className="display" style={{ fontSize: isMobile ? "clamp(36px, 9vw, 56px)" : "clamp(56px, 7vw, 108px)", margin: "16px 0 0", maxWidth: 1100 }}>
           Three steps.<br />Then it runs without you.
         </h2>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)" }}>
         {steps.map((s, i) => (
           <div key={i} style={{
-            padding: "36px 28px 36px 0",
-            paddingLeft: i > 0 ? 36 : 0,
-            borderLeft: i > 0 ? "1px solid var(--rule)" : "none",
-            minHeight: 300, display: "flex", flexDirection: "column",
+            padding: isMobile ? "24px 0" : "36px 28px 36px 0",
+            paddingLeft: !isMobile && i > 0 ? 36 : 0,
+            borderLeft: !isMobile && i > 0 ? "1px solid var(--rule)" : "none",
+            borderTop: isMobile && i > 0 ? "1px solid var(--rule)" : "none",
+            minHeight: isMobile ? 0 : 300, display: "flex", flexDirection: "column",
           }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
               <div className="display" style={{ fontSize: 84, color: "var(--ink)", lineHeight: 1 }}>{s.n}</div>

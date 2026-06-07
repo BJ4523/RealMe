@@ -16,6 +16,7 @@ import {
   unitsOf,
   buildingOf,
   findUnit,
+  useIsMobile,
 } from "@/components/site/shared";
 
 function statusPillUnit(status) {
@@ -59,8 +60,9 @@ function ChannelChip({ ch, big = false }) {
 
 // ====== RENTAL TODAY VIEW ======
 export function RentalTodayView({ setSection }) {
+  const isMobile = useIsMobile();
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: 20 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <RentalHeroToday setSection={setSection} />
         <RentalOccupancyBoard />
@@ -76,18 +78,19 @@ export function RentalTodayView({ setSection }) {
 }
 
 function RentalHeroToday({ setSection }) {
+  const isMobile = useIsMobile();
   const stale = UNITS.find(u => u.daysOnMarket > 12 && u.status === "available");
   const building = BUILDINGS.find(b => b.id === stale.buildingId);
   return (
     <div style={{
       background: "var(--ink)", color: "var(--bg-warm)",
-      borderRadius: 20, padding: 28, position: "relative", overflow: "hidden",
+      borderRadius: 20, padding: isMobile ? 20 : 28, position: "relative", overflow: "hidden",
     }}>
       <div style={{
         position: "absolute", right: -60, top: -60, width: 280, height: 280, borderRadius: "50%",
         background: "radial-gradient(circle, rgba(255,90,60,0.28), transparent 60%)",
       }} />
-      <div style={{ display: "flex", alignItems: "start", gap: 28 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "start", gap: isMobile ? 16 : 28 }}>
         <div style={{ flex: 1, position: "relative", zIndex: 1 }}>
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 8,
@@ -100,7 +103,7 @@ function RentalHeroToday({ setSection }) {
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--coral)" }} />
             Slow mover · {stale.daysOnMarket} days listed
           </span>
-          <h2 className="display" style={{ fontSize: 44, margin: "16px 0 12px", letterSpacing: "-0.03em", lineHeight: 0.98 }}>
+          <h2 className="display" style={{ fontSize: isMobile ? 30 : 44, margin: "16px 0 12px", letterSpacing: "-0.03em", lineHeight: 0.98 }}>
             {building.name} {stale.unit} isn't<br />moving. Add a concession?
           </h2>
           <p style={{ fontSize: 15, color: "rgba(246,242,234,0.75)", maxWidth: 540, lineHeight: 1.5 }}>
@@ -116,7 +119,7 @@ function RentalHeroToday({ setSection }) {
           </div>
         </div>
         <div style={{
-          width: 180, height: 220, borderRadius: 14, flexShrink: 0,
+          width: isMobile ? "100%" : 180, height: isMobile ? 160 : 220, borderRadius: 14, flexShrink: 0,
           backgroundImage: `url(${stale.img})`, backgroundSize: "cover", backgroundPosition: "center",
           border: "1px solid rgba(246,242,234,0.1)",
           position: "relative", zIndex: 1, overflow: "hidden",
@@ -132,8 +135,9 @@ function RentalHeroToday({ setSection }) {
 }
 
 function RentalOccupancyBoard() {
+  const isMobile = useIsMobile();
   return (
-    <div className="card" style={{ padding: 24 }}>
+    <div className="card" style={{ padding: isMobile ? 18 : 24 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
         <div>
           <span className="eyebrow">Portfolio · live occupancy</span>
@@ -144,7 +148,7 @@ function RentalOccupancyBoard() {
           <span style={{ fontSize: 11, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>OCCUPIED</span>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12 }}>
         {BUILDINGS.map(b => {
           const occupied = b.units - b.vacant;
           const pct = occupied / b.units;
@@ -187,8 +191,9 @@ function RentalOccupancyBoard() {
 }
 
 function RentalPerformance() {
+  const isMobile = useIsMobile();
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
       <PerfCardRental label="Inquiries · 30d" value="1,240" delta="+38%" data={[22,28,34,30,42,48,56,62,58,72,84,90,96]} />
       <PerfCardRental label="Tours booked" value="187" delta="+24" data={[8,10,12,11,14,16,15,18,21,19,22,24]} />
       <PerfCardRental label="Days vacant · avg" value="12.4" delta="−4.2 days" good data={[24,22,21,19,18,16,15,14,13,12,12]} />
@@ -296,14 +301,15 @@ function RentalDigest() {
 
 // ====== PORTFOLIO VIEW (Buildings → Units) ======
 export function PortfolioView({ setSection }) {
+  const isMobile = useIsMobile();
   const [activeBuilding, setActiveBuilding] = useState("b-1");
   const building = BUILDINGS.find(b => b.id === activeBuilding);
   const units = unitsOf(activeBuilding);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "320px 1fr", gap: 20 }}>
       {/* Buildings list */}
-      <div className="card" style={{ padding: 18, alignSelf: "start", position: "sticky", top: 100 }}>
+      <div className="card" style={{ padding: 18, alignSelf: "start", position: isMobile ? "static" : "sticky", top: 100 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
           <span className="eyebrow">Buildings</span>
           <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{BUILDINGS.length}</span>
@@ -347,6 +353,7 @@ export function PortfolioView({ setSection }) {
 }
 
 function BuildingHeader({ building }) {
+  const isMobile = useIsMobile();
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
       <div style={{
@@ -359,7 +366,7 @@ function BuildingHeader({ building }) {
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: "0.12em", opacity: 0.85, textTransform: "uppercase" }}>
             {building.style} · Built {building.yearBuilt}
           </div>
-          <div className="display" style={{ fontSize: 44, marginTop: 4, textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
+          <div className="display" style={{ fontSize: isMobile ? 30 : 44, marginTop: 4, textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
             {building.name}
           </div>
           <div style={{ fontSize: 13, opacity: 0.9, marginTop: 2 }}>
@@ -373,7 +380,7 @@ function BuildingHeader({ building }) {
           </button>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", padding: "0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", padding: "0" }}>
         {[
           { l: "Units",     v: building.units, sub: `${building.vacant} vacant` },
           { l: "Occupancy", v: Math.round((1 - building.vacant / building.units) * 100) + "%", sub: building.vacant > 5 ? "Below target" : "On target" },
@@ -410,7 +417,8 @@ function UnitsTable({ units, setSection }) {
           <button className="btn btn-primary btn-sm">+ List a unit</button>
         </div>
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 880 }}>
         <thead>
           <tr style={{ background: "var(--bg)" }}>
             {["Unit", "Type", "Sq ft", "Rent", "Available", "Status", "Reels", "Inquiries", "Apps", "Days listed", ""].map(h => (
@@ -452,19 +460,23 @@ function UnitsTable({ units, setSection }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
 // ====== LEASE PIPELINE VIEW ======
 export function LeasePipelineView() {
+  const isMobile = useIsMobile();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div className="card" style={{ padding: 22, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0 }}>
+      <div className="card" style={isMobile
+        ? { padding: 18, display: "flex", gap: 0, overflowX: "auto", maxWidth: "100%" }
+        : { padding: 22, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0 }}>
         {LEASE_STAGES.map((s, i) => {
           const count = RENTAL_LEADS.filter(l => l.stage === s.id).length;
           return (
-            <div key={s.id} style={{ padding: "0 18px", borderLeft: i > 0 ? "1px solid var(--rule-soft)" : "none" }}>
+            <div key={s.id} style={{ padding: "0 18px", borderLeft: i > 0 ? "1px solid var(--rule-soft)" : "none", flexShrink: isMobile ? 0 : undefined, minWidth: isMobile ? 110 : undefined }}>
               <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
                 <span className="display" style={{ fontSize: 30 }}>{count}</span>
@@ -475,7 +487,9 @@ export function LeasePipelineView() {
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+      <div style={isMobile
+        ? { display: "flex", gap: 14, overflowX: "auto", maxWidth: "100%", alignItems: "start", paddingBottom: 4 }
+        : { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
         {LEASE_STAGES.map(stage => {
           const items = RENTAL_LEADS.filter(l => l.stage === stage.id);
           return (
@@ -483,6 +497,7 @@ export function LeasePipelineView() {
               background: "var(--bg-warm)", borderRadius: 16, padding: 14,
               border: "1px solid var(--rule)", minHeight: 400,
               display: "flex", flexDirection: "column", gap: 10,
+              ...(isMobile ? { width: 240, flexShrink: 0 } : null),
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -543,21 +558,22 @@ export function LeasePipelineView() {
 
 // ====== SYNDICATION VIEW ======
 export function SyndicationView() {
+  const isMobile = useIsMobile();
   const channels = ILS_CHANNELS;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Hero summary */}
-      <div className="card" style={{ padding: 24, background: "var(--ink)", color: "var(--bg-warm)", overflow: "hidden", position: "relative" }}>
+      <div className="card" style={{ padding: isMobile ? 18 : 24, background: "var(--ink)", color: "var(--bg-warm)", overflow: "hidden", position: "relative" }}>
         <div style={{
           position: "absolute", right: -80, top: -80, width: 320, height: 320, borderRadius: "50%",
           background: "radial-gradient(circle, rgba(214,255,61,0.18), transparent 60%)",
         }} />
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 32, alignItems: "end", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: isMobile ? 20 : 32, alignItems: isMobile ? "start" : "end", position: "relative", zIndex: 1 }}>
           <div>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(246,242,234,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
               Syndication · last 30 days
             </span>
-            <h2 className="display" style={{ fontSize: 56, margin: "12px 0 8px", lineHeight: 0.95 }}>
+            <h2 className="display" style={{ fontSize: isMobile ? 34 : 56, margin: "12px 0 8px", lineHeight: 0.95 }}>
               Your listings shipped<br />to {channels.filter(c => c.syndicated).length} channels.
             </h2>
             <p style={{ fontSize: 15, color: "rgba(246,242,234,0.75)", maxWidth: 540 }}>
@@ -568,11 +584,11 @@ export function SyndicationView() {
           </div>
           <div style={{ display: "flex", gap: 28, alignItems: "baseline" }}>
             <div>
-              <div className="display" style={{ fontSize: 56 }}>54.3k</div>
+              <div className="display" style={{ fontSize: isMobile ? 40 : 56 }}>54.3k</div>
               <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "rgba(246,242,234,0.55)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Total views</div>
             </div>
             <div>
-              <div className="display" style={{ fontSize: 56, color: "var(--lime)" }}>1,240</div>
+              <div className="display" style={{ fontSize: isMobile ? 40 : 56, color: "var(--lime)" }}>1,240</div>
               <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "rgba(246,242,234,0.55)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Inquiries</div>
             </div>
           </div>
@@ -588,12 +604,12 @@ export function SyndicationView() {
           </div>
           <button className="btn btn-primary btn-sm">+ Connect channel</button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)" }}>
           {channels.map((c, i) => (
             <div key={c.id} style={{
               padding: 22,
-              borderLeft: i % 3 > 0 ? "1px solid var(--rule-soft)" : "none",
-              borderTop: i >= 3 ? "1px solid var(--rule-soft)" : "none",
+              borderLeft: !isMobile && i % 3 > 0 ? "1px solid var(--rule-soft)" : "none",
+              borderTop: (isMobile ? i > 0 : i >= 3) ? "1px solid var(--rule-soft)" : "none",
               opacity: c.syndicated ? 1 : 0.55,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
@@ -654,7 +670,7 @@ export function SyndicationView() {
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{row.action}</div>
                   <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>{b.name} {u.unit} · {u.type}</div>
                 </div>
-                <div style={{ display: "flex", gap: 4 }}>
+                <div style={{ display: "flex", gap: 4, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "flex-end", maxWidth: isMobile ? 120 : undefined }}>
                   {row.channels.map(cid => {
                     const ch = ILS_CHANNELS.find(c => c.id === cid);
                     return (
@@ -678,6 +694,7 @@ export function SyndicationView() {
 
 // ====== CONCESSIONS BUILDER ======
 export function ConcessionsView() {
+  const isMobile = useIsMobile();
   const [selectedUnit, setSelectedUnit] = useState("u-3");
   const [picked, setPicked] = useState("c-1");
   const unit = findUnit(selectedUnit);
@@ -685,7 +702,7 @@ export function ConcessionsView() {
   const concession = CONCESSION_PRESETS.find(c => c.id === picked);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1.2fr", gap: 20 }}>
       {/* Left: pick unit + concession */}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="card" style={{ padding: 22 }}>
@@ -742,7 +759,7 @@ export function ConcessionsView() {
       </div>
 
       {/* Right: preview */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 100, alignSelf: "start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, position: isMobile ? "static" : "sticky", top: 100, alignSelf: "start" }}>
         <div className="card" style={{ padding: 22 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <span className="eyebrow">3 · Preview reel</span>

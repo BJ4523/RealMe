@@ -2,7 +2,7 @@
 /* eslint-disable */
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { AGENT, LISTINGS, VIDEO_TEMPLATES, POSTS_WEEK, LEADS, STAGES, CheckIcon, listingBg, priceShort, useCount, PlatformIcon, ListingThumb } from "@/components/site/shared";
+import { AGENT, LISTINGS, VIDEO_TEMPLATES, POSTS_WEEK, LEADS, STAGES, CheckIcon, listingBg, priceShort, useCount, PlatformIcon, ListingThumb, useIsMobile } from "@/components/site/shared";
 
 // RealMe — Landing page lower sections
 
@@ -16,6 +16,7 @@ const stepLbl = { fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: "
 
 // ====== LIVE DEMO: Video generator ======
 export function LiveDemoSection({ onOpenApp }) {
+  const isMobile = useIsMobile();
   const [selected, setSelected] = useState(LISTINGS[0].id);
   const [template, setTemplate] = useState("walkthru");
   const [generating, setGenerating] = useState(false);
@@ -68,26 +69,26 @@ export function LiveDemoSection({ onOpenApp }) {
   return (
     <section id="demo" style={{
       background: "var(--ink)", color: "var(--bg-warm)",
-      padding: "100px 0", marginTop: 100, position: "relative", overflow: "hidden",
+      padding: isMobile ? "64px 0" : "100px 0", marginTop: isMobile ? 64 : 100, position: "relative", overflow: "hidden",
     }}>
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 48 }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: isMobile ? "0 20px" : "0 32px" }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 16 : 0, justifyContent: "space-between", alignItems: isMobile ? "start" : "end", marginBottom: isMobile ? 32 : 48 }}>
           <div>
             <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>Live · try it</span>
-            <h2 className="display" style={{ fontSize: "clamp(48px, 6vw, 84px)", margin: "12px 0 0", maxWidth: 900 }}>
+            <h2 className="display" style={{ fontSize: isMobile ? "clamp(34px, 9vw, 48px)" : "clamp(48px, 6vw, 84px)", margin: "12px 0 0", maxWidth: 900 }}>
               Make a reel.<br />
               In real time. Right now.
             </h2>
           </div>
-          <div style={{ maxWidth: 320, color: "rgba(246,242,234,0.7)", fontSize: 14 }}>
+          <div style={{ maxWidth: isMobile ? "100%" : 320, color: "rgba(246,242,234,0.7)", fontSize: 14 }}>
             Pick a listing. Pick a template. Watch yourself appear in 14 seconds.
             This is the actual product.
           </div>
         </div>
 
         <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr 380px", gap: 24,
-          background: "#1a1817", borderRadius: 24, padding: 24,
+          display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 380px", gap: isMobile ? 16 : 24,
+          background: "#1a1817", borderRadius: 24, padding: isMobile ? 16 : 24,
           border: "1px solid #2a2725",
         }}>
           {/* Column 1: Listing picker */}
@@ -186,7 +187,7 @@ export function LiveDemoSection({ onOpenApp }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 32, display: "flex", gap: 40, color: "rgba(246,242,234,0.55)", fontSize: 13 }}>
+        <div style={{ marginTop: 32, display: "flex", flexWrap: "wrap", gap: isMobile ? 16 : 40, color: "rgba(246,242,234,0.55)", fontSize: 13 }}>
           <div><strong style={{ color: "var(--bg-warm)" }}>14s</strong> &nbsp;average render time</div>
           <div><strong style={{ color: "var(--bg-warm)" }}>$0.32</strong> &nbsp;cost per reel</div>
           <div><strong style={{ color: "var(--bg-warm)" }}>9 platforms</strong> &nbsp;auto-cross-posted</div>
@@ -311,6 +312,7 @@ function FinishedReel({ listing, template, done }) {
 
 // ====== CALENDAR PREVIEW — auto-filling moment ======
 export function CalendarPreview() {
+  const isMobile = useIsMobile();
   const ref = useRef(null);
   const [filled, setFilled] = useState(0); // index of last filled item
   const [running, setRunning] = useState(false);
@@ -356,22 +358,22 @@ export function CalendarPreview() {
 
   return (
     <section id="calendar" ref={ref} style={{
-      maxWidth: 1400, margin: "0 auto", padding: "140px 32px 100px",
+      maxWidth: 1400, margin: "0 auto", padding: isMobile ? "80px 20px 60px" : "140px 32px 100px",
     }}>
-      <div style={{ display: "flex", alignItems: "end", justifyContent: "space-between", marginBottom: 56, gap: 40 }}>
-        <h2 className="display" style={{ fontSize: "clamp(56px, 8vw, 128px)", margin: 0, lineHeight: 0.92, maxWidth: 880 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "start" : "end", justifyContent: "space-between", marginBottom: isMobile ? 32 : 56, gap: isMobile ? 20 : 40 }}>
+        <h2 className="display" style={{ fontSize: isMobile ? "clamp(38px, 11vw, 64px)" : "clamp(56px, 8vw, 128px)", margin: 0, lineHeight: 0.92, maxWidth: 880 }}>
           Watch a week<br />of content fill itself.
         </h2>
-        <div style={{ maxWidth: 360, fontSize: 16, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+        <div style={{ maxWidth: isMobile ? "100%" : 360, fontSize: 16, color: "var(--ink-soft)", lineHeight: 1.5 }}>
           Pick a cadence. RealMe drafts the mix — walkthroughs, neighborhood
           stories, just-listed pops — across every channel you connect.
           You approve, or you don't even open the app.
         </div>
       </div>
 
-      <CalendarVisual filled={filled} allItems={allItems} />
+      <CalendarVisual filled={filled} allItems={allItems} isMobile={isMobile} />
 
-      <div style={{ marginTop: 28, display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24, borderTop: "4px solid var(--ink)" }}>
+      <div style={{ marginTop: 28, display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center", paddingTop: 24, borderTop: "4px solid var(--ink)" }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--ink-soft)" }}>
           <span style={{ color: "var(--ink)", fontWeight: 600 }}>{Math.min(filled, allItems.length)}</span> / {allItems.length} posts scheduled
         </div>
@@ -381,10 +383,10 @@ export function CalendarPreview() {
   );
 }
 
-function CalendarVisual({ filled, allItems }) {
+function CalendarVisual({ filled, allItems, isMobile }) {
   return (
-    <div style={{ background: "var(--bg-warm)", borderRadius: 18, padding: 20, border: "1px solid var(--rule)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid var(--rule)" }}>
+    <div style={{ background: "var(--bg-warm)", borderRadius: 18, padding: isMobile ? 14 : 20, border: "1px solid var(--rule)", maxWidth: "100%", overflowX: isMobile ? "auto" : "visible" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid var(--rule)", minWidth: isMobile ? 700 : 0 }}>
         <div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-soft)", letterSpacing: "0.1em" }}>WEEK OF</div>
           <div className="display" style={{ fontSize: 28 }}>May 13 – 19, 2026</div>
@@ -396,7 +398,7 @@ function CalendarVisual({ filled, allItems }) {
           </span>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, minWidth: isMobile ? 700 : 0 }}>
         {POSTS_WEEK.map((day, di) => (
           <div key={di} style={{
             background: "var(--bg-card)", borderRadius: 10, padding: 10,
@@ -453,19 +455,20 @@ function CalendarVisual({ filled, allItems }) {
 
 // ====== EMAIL ======
 export function EmailSection() {
+  const isMobile = useIsMobile();
   return (
     <section id="email" style={{
-      background: "var(--bg-warm)", padding: "120px 0",
+      background: "var(--bg-warm)", padding: isMobile ? "72px 0" : "120px 0",
       borderTop: "8px solid var(--ink)",
     }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 32px",
-        display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 80, alignItems: "start" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "0 20px" : "0 32px",
+        display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr", gap: isMobile ? 48 : 80, alignItems: "start" }}>
         <div>
           <EmailMockup />
         </div>
-        <div style={{ position: "sticky", top: 100 }}>
+        <div style={{ position: isMobile ? "static" : "sticky", top: 100 }}>
           <span className="eyebrow">Email & SMS in lockstep</span>
-          <h2 className="display" style={{ fontSize: "clamp(56px, 6.5vw, 96px)", margin: "16px 0 24px", lineHeight: 0.92 }}>
+          <h2 className="display" style={{ fontSize: isMobile ? "clamp(36px, 9vw, 56px)" : "clamp(56px, 6.5vw, 96px)", margin: "16px 0 24px", lineHeight: 0.92 }}>
             The reel posts. The blast goes out 4 minutes later.
           </h2>
           <p style={{ fontSize: 17, color: "var(--ink-soft)", maxWidth: 480, lineHeight: 1.5 }}>
@@ -555,26 +558,27 @@ function EmailMockup() {
 
 // ====== LEADS / PIPELINE ======
 export function LeadsSection() {
+  const isMobile = useIsMobile();
   return (
-    <section id="leads" style={{ maxWidth: 1400, margin: "0 auto", padding: "140px 32px 100px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 56, gap: 40 }}>
-        <h2 className="display" style={{ fontSize: "clamp(56px, 7vw, 108px)", margin: 0, lineHeight: 0.92, maxWidth: 1000 }}>
+    <section id="leads" style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "80px 20px 60px" : "140px 32px 100px" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "start" : "end", marginBottom: isMobile ? 32 : 56, gap: isMobile ? 20 : 40 }}>
+        <h2 className="display" style={{ fontSize: isMobile ? "clamp(38px, 11vw, 56px)" : "clamp(56px, 7vw, 108px)", margin: 0, lineHeight: 0.92, maxWidth: 1000 }}>
           Every reel is a<br />lead-gen machine.
         </h2>
-        <div style={{ maxWidth: 360, color: "var(--ink-soft)", fontSize: 15, lineHeight: 1.5 }}>
+        <div style={{ maxWidth: isMobile ? "100%" : 360, color: "var(--ink-soft)", fontSize: 15, lineHeight: 1.5 }}>
           DM replies, comments, email clicks, website visits — all pulled into one pipeline.
           RealMe scores each lead and tells you who to call before noon.
         </div>
       </div>
 
-      <PipelineMini />
+      <PipelineMini isMobile={isMobile} />
     </section>
   );
 }
 
-function PipelineMini() {
+function PipelineMini({ isMobile }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(5, minmax(180px, 1fr))" : "repeat(5, 1fr)", gap: 14, maxWidth: "100%", overflowX: isMobile ? "auto" : "visible" }}>
       {STAGES.map(stage => {
         const items = LEADS.filter(l => l.stage === stage.id);
         return (
@@ -644,27 +648,29 @@ export function Pricing({ onOpenApp }) {
       cta: "Book a walkthrough",
     },
   ];
+  const isMobile = useIsMobile();
   return (
-    <section id="pricing" style={{ maxWidth: 1400, margin: "0 auto", padding: "140px 32px 80px" }}>
-      <div style={{ marginBottom: 56 }}>
+    <section id="pricing" style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "80px 20px 60px" : "140px 32px 80px" }}>
+      <div style={{ marginBottom: isMobile ? 36 : 56 }}>
         <span className="eyebrow">Pricing</span>
-        <h2 className="display" style={{ fontSize: "clamp(64px, 8vw, 128px)", margin: "16px 0 16px", lineHeight: 0.92 }}>
+        <h2 className="display" style={{ fontSize: isMobile ? "clamp(40px, 11vw, 64px)" : "clamp(64px, 8vw, 128px)", margin: "16px 0 16px", lineHeight: 0.92 }}>
           One reel pays for the month.
         </h2>
         <p style={{ fontSize: 17, color: "var(--ink-soft)", maxWidth: 600 }}>
           Every plan includes a 14-day trial. No card up front. Cancel any time.
         </p>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr", gap: 0, alignItems: "stretch", borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1.2fr 1fr", gap: 0, alignItems: "stretch", borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
         {tiers.map((t, i) => (
           <div key={t.name} style={{
             padding: t.featured ? "44px 32px 36px" : "44px 28px 36px",
             position: "relative",
             background: t.featured ? "var(--ink)" : "transparent",
             color: t.featured ? "var(--bg-warm)" : "var(--ink)",
-            borderLeft: i > 0 ? "1px solid var(--rule)" : "none",
+            borderLeft: !isMobile && i > 0 ? "1px solid var(--rule)" : "none",
+            borderTop: isMobile && i > 0 ? "1px solid var(--rule)" : "none",
             display: "flex", flexDirection: "column",
-            minHeight: 540,
+            minHeight: isMobile ? 0 : 540,
           }}>
             {t.featured && (
               <div style={{
@@ -704,16 +710,17 @@ export function Pricing({ onOpenApp }) {
 
 // ====== FINAL CTA + FOOTER ======
 export function FinalCTA({ onOpenApp }) {
+  const isMobile = useIsMobile();
   return (
     <section style={{
       background: "var(--lime)",
-      padding: "140px 0 140px",
+      padding: isMobile ? "80px 0" : "140px 0 140px",
       position: "relative", overflow: "hidden",
     }}>
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", textAlign: "center", position: "relative", zIndex: 2 }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: isMobile ? "0 20px" : "0 32px", textAlign: "center", position: "relative", zIndex: 2 }}>
         <span className="eyebrow">Your move</span>
         <h2 className="display" style={{
-          fontSize: "clamp(72px, 10vw, 160px)",
+          fontSize: isMobile ? "clamp(48px, 14vw, 72px)" : "clamp(72px, 10vw, 160px)",
           margin: "16px auto 24px",
           maxWidth: 1100,
         }}>
@@ -736,12 +743,13 @@ export function FinalCTA({ onOpenApp }) {
 }
 
 export function Footer() {
+  const isMobile = useIsMobile();
   return (
-    <footer style={{ background: "var(--ink)", color: "var(--bg-warm)", padding: "100px 0 40px", overflow: "hidden" }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 32px" }}>
+    <footer style={{ background: "var(--ink)", color: "var(--bg-warm)", padding: isMobile ? "64px 0 40px" : "100px 0 40px", overflow: "hidden" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "0 20px" : "0 32px" }}>
         {/* Massive wordmark */}
         <div className="display" style={{
-          fontSize: "clamp(120px, 22vw, 360px)",
+          fontSize: isMobile ? "clamp(72px, 26vw, 120px)" : "clamp(120px, 22vw, 360px)",
           lineHeight: 0.85,
           letterSpacing: "-0.05em",
           marginBottom: -20,
@@ -759,14 +767,14 @@ export function Footer() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 40, paddingTop: 40 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 28 : 40, paddingTop: 40 }}>
           <FooterCol title="Product" links={["AI Reels", "Calendar", "Email", "Pipeline", "Integrations"]} />
           <FooterCol title="For" links={["Solo agents", "Top producers", "Brokerages", "Property managers"]} />
           <FooterCol title="Company" links={["About", "Customers", "Careers", "Press"]} />
           <FooterCol title="Legal" links={["Privacy", "Terms", "MLS compliance", "AI policy"]} />
         </div>
 
-        <div style={{ marginTop: 48, paddingTop: 20, borderTop: "1px solid rgba(246,242,234,0.1)", display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(246,242,234,0.45)", fontFamily: "var(--font-mono)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+        <div style={{ marginTop: 48, paddingTop: 20, borderTop: "1px solid rgba(246,242,234,0.1)", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "space-between", fontSize: 11, color: "rgba(246,242,234,0.45)", fontFamily: "var(--font-mono)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
           <span>© 2026 RealMe Labs · MLS compliant in 47 states</span>
           <span>Made in Oakland · 100% on-device avatar training</span>
         </div>

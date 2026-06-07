@@ -15,10 +15,12 @@ import {
   listingBg,
   priceShort,
   statusPill,
+  useIsMobile,
 } from "@/components/site/shared";
 
 // ====== CALENDAR VIEW ======
 export function CalendarView() {
+  const isMobile = useIsMobile();
   const [posts, setPosts] = useState(POSTS_WEEK);
   const [autopilot, setAutopilot] = useState(true);
   const [showAdd, setShowAdd] = useState(null);
@@ -39,7 +41,7 @@ export function CalendarView() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 12 : 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button className="btn btn-outline btn-sm">‹</button>
           <span className="display" style={{ fontSize: 22 }}>May 13 – 19, 2026</span>
@@ -73,16 +75,16 @@ export function CalendarView() {
       </div>
 
       {/* Channels strip */}
-      <div className="card" style={{ padding: 14, marginBottom: 18, display: "flex", gap: 14, alignItems: "center" }}>
+      <div className="card" style={{ padding: 14, marginBottom: 18, display: "flex", gap: 14, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap" }}>
         <span className="eyebrow">Channels</span>
-        <div style={{ flex: 1, display: "flex", gap: 8 }}>
+        <div style={{ flex: 1, display: "flex", gap: 8, overflowX: isMobile ? "auto" : "visible", maxWidth: "100%", minWidth: 0 }}>
           {[
             { p: "ig", n: "@jordan.maes", c: 8420 },
             { p: "tt", n: "@jordanm.realestate", c: 5210 },
             { p: "yt", n: "@JordanMaesHomes", c: 1840 },
             { p: "li", n: "Jordan Maes", c: 2418 },
           ].map(c => (
-            <div key={c.p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", border: "1px solid var(--rule)", borderRadius: 8, background: "var(--bg-warm)" }}>
+            <div key={c.p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", border: "1px solid var(--rule)", borderRadius: 8, background: "var(--bg-warm)", flexShrink: 0, whiteSpace: "nowrap" }}>
               <PlatformIcon p={c.p} size={16} />
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600 }}>{c.n}</div>
@@ -96,7 +98,7 @@ export function CalendarView() {
       </div>
 
       {/* Calendar grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(7, 1fr)", gap: 10 }}>
         {posts.map((day, di) => (
           <div key={di}
             onDragOver={e => e.preventDefault()}
@@ -170,7 +172,7 @@ export function CalendarView() {
         ))}
       </div>
 
-      <div style={{ marginTop: 18, padding: 16, background: "var(--ink)", color: "var(--bg-warm)", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ marginTop: 18, padding: 16, background: "var(--ink)", color: "var(--bg-warm)", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 12 : 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--lime)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11 }}>R</span>
           <div>
@@ -186,6 +188,7 @@ export function CalendarView() {
 
 // ====== EMAIL VIEW ======
 export function EmailView() {
+  const isMobile = useIsMobile();
   const [subject, setSubject] = useState("New in Berkeley Hills — 1471 Sunset Ridge, $2.495M");
   const [body, setBody] = useState("");
   const [segment, setSegment] = useState("hot-buyers");
@@ -207,7 +210,7 @@ Watch the 32-second walkthrough below, or DM me back and I'll show you privately
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, overflowX: isMobile ? "auto" : "visible", maxWidth: "100%" }}>
         {[
           { id: "compose", label: "Compose" },
           { id: "campaigns", label: "Campaigns", n: EMAIL_CAMPAIGNS.length },
@@ -220,6 +223,7 @@ Watch the 32-second walkthrough below, or DM me back and I'll show you privately
               background: tab === t.id ? "var(--ink)" : "transparent",
               color: tab === t.id ? "var(--bg-warm)" : "var(--ink)",
               border: tab === t.id ? "1px solid var(--ink)" : "1px solid var(--rule)",
+              whiteSpace: "nowrap", flexShrink: 0,
             }}>
             {t.label}
             {t.n && <span style={{ fontFamily: "var(--font-mono)", marginLeft: 4, opacity: 0.6, fontSize: 11 }}>{t.n}</span>}
@@ -228,7 +232,7 @@ Watch the 32-second walkthrough below, or DM me back and I'll show you privately
       </div>
 
       {tab === "compose" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 18 }}>
           {/* Composer */}
           <div className="card" style={{ padding: 24 }}>
             <span className="eyebrow">Compose</span>
@@ -276,7 +280,7 @@ Watch the 32-second walkthrough below, or DM me back and I'll show you privately
               </div>
             </div>
 
-            <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, borderTop: "1px solid var(--rule-soft)" }}>
+            <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, borderTop: "1px solid var(--rule-soft)", flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 12 : 0 }}>
               <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                 Will send to <strong className="mono">1,840</strong> contacts · Friday 8:00 AM
               </div>
@@ -373,7 +377,8 @@ function CampaignsList() {
   ];
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 640 }}>
         <thead style={{ background: "var(--bg-warm)" }}>
           <tr style={{ borderBottom: "1px solid var(--rule)" }}>
             <th style={th}>Campaign</th><th style={th}>Sent</th><th style={th}>Open rate</th><th style={th}>Click-through</th><th style={th}>Status</th><th style={th}>Date</th>
@@ -399,6 +404,7 @@ function CampaignsList() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -407,11 +413,12 @@ const th = { textAlign: "left", padding: "12px 16px", fontWeight: 500, color: "v
 const td = { padding: "14px 16px" };
 
 function AudienceView() {
+  const isMobile = useIsMobile();
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 18 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr", gap: 18 }}>
       <div className="card" style={{ padding: 20 }}>
         <span className="eyebrow">Sphere</span>
-        <div className="display" style={{ fontSize: 48, marginTop: 4 }}>4,201</div>
+        <div className="display" style={{ fontSize: isMobile ? 38 : 48, marginTop: 4 }}>4,201</div>
         <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>contacts · +148 this month</div>
         <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <Bar label="Hot buyers" v={0.44} n={1840} />
@@ -425,7 +432,7 @@ function AudienceView() {
           <span className="eyebrow">Where they came from · 30d</span>
           <span className="tag mono" style={{ fontSize: 11 }}>+148 added</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12 }}>
           {[
             { src: "Instagram reel DMs", n: 62, pct: 42, p: "ig" },
             { src: "TikTok comments", n: 31, pct: 21, p: "tt" },
@@ -467,6 +474,7 @@ function Bar({ label, v, n }) {
 }
 
 function EmailTemplates() {
+  const isMobile = useIsMobile();
   const templates = [
     { name: "Just Listed Blast", desc: "Punchy. Image + 3 sentences + CTA.", uses: 47 },
     { name: "Open House Saturday", desc: "Friday morning send. Day-of reminder builds.", uses: 32 },
@@ -476,7 +484,7 @@ function EmailTemplates() {
     { name: "Personal Note", desc: "1-to-1 outreach drafted from CRM data.", uses: 184 },
   ];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16 }}>
       {templates.map(t => (
         <div key={t.name} className="card" style={{ padding: 18 }}>
           <div className="display" style={{ fontSize: 20 }}>{t.name}</div>
@@ -493,6 +501,7 @@ function EmailTemplates() {
 
 // ====== LEADS VIEW ======
 export function LeadsView() {
+  const isMobile = useIsMobile();
   const [leads, setLeads] = useState(LEADS);
   const [dragId, setDragId] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -505,22 +514,24 @@ export function LeadsView() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: isMobile ? "wrap" : "nowrap" }}>
         {[
           { label: "Hot leads", v: leads.filter(l => l.hot).length, sub: "call before noon" },
           { label: "Avg lead score", v: Math.round(leads.reduce((s,l)=>s+l.score,0)/leads.length), sub: "this week" },
           { label: "Conv. rate", v: "11%", sub: "DM → showing" },
           { label: "Days to close", v: 31, sub: "avg, last 12 mo" },
         ].map((s, i) => (
-          <div key={i} className="card" style={{ padding: 14, flex: 1 }}>
+          <div key={i} className="card" style={{ padding: 14, flex: 1, minWidth: isMobile ? "calc(50% - 6px)" : 0 }}>
             <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{s.label}</div>
-            <div className="display" style={{ fontSize: 32, marginTop: 4 }}>{s.v}</div>
+            <div className="display" style={{ fontSize: isMobile ? 26 : 32, marginTop: 4 }}>{s.v}</div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{s.sub}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, alignItems: "start" }}>
+      <div style={isMobile
+        ? { display: "flex", gap: 12, alignItems: "start", overflowX: "auto", maxWidth: "100%", paddingBottom: 4 }
+        : { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, alignItems: "start" }}>
         {STAGES.map(stage => {
           const items = leads.filter(l => l.stage === stage.id);
           return (
@@ -531,6 +542,7 @@ export function LeadsView() {
                 background: "var(--bg-card)", borderRadius: 14, padding: 14,
                 border: dragId ? "1px dashed var(--ink)" : "1px solid var(--rule)",
                 minHeight: 500,
+                ...(isMobile ? { width: 240, flexShrink: 0 } : null),
               }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div>
@@ -591,7 +603,7 @@ export function LeadsView() {
 
       {selected && <LeadDrawer lead={selected} onClose={() => setSelected(null)} />}
       {!selected && (
-        <div style={{ marginTop: 18, padding: 16, background: "var(--ink)", color: "var(--bg-warm)", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ marginTop: 18, padding: 16, background: "var(--ink)", color: "var(--bg-warm)", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 12 : 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--lime)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11 }}>R</span>
             <div>
@@ -607,10 +619,11 @@ export function LeadsView() {
 }
 
 function LeadDrawer({ lead, onClose }) {
+  const isMobile = useIsMobile();
   const listing = LISTINGS.find(l => l.id === lead.interest);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(17,17,16,0.4)", zIndex: 100, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
-      <div style={{ width: 440, background: "var(--bg)", height: "100%", padding: 28, overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+      <div style={{ width: isMobile ? "100%" : 440, maxWidth: "100%", background: "var(--bg)", height: "100%", padding: isMobile ? 20 : 28, overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <Avatar name={lead.name} size={56} ring={lead.hot} photo={lead.photo} />

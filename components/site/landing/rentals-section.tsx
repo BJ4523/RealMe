@@ -2,19 +2,20 @@
 /* eslint-disable */
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { ILS_CHANNELS, UNITS, BUILDINGS, RENTAL_MANAGER, buildingOf, rentShort } from "@/components/site/shared";
+import { ILS_CHANNELS, UNITS, BUILDINGS, RENTAL_MANAGER, buildingOf, rentShort, useIsMobile } from "@/components/site/shared";
 
 // RealMe — Rentals + RealMe Live landing section
 // Drops into the landing page to introduce the rental + ILS extension
 
 export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
+  const isMobile = useIsMobile();
   return (
     <section id="rentals" style={{
       position: "relative", overflow: "hidden",
       borderTop: "8px solid var(--ink)",
       background: "var(--bg-warm)",
     }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "100px 32px 80px" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "64px 20px 60px" : "100px 32px 80px" }}>
         {/* Mode tabs */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 36 }}>
           <span className="eyebrow">Also for</span>
@@ -23,9 +24,9 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
           </span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 80, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 1fr", gap: isMobile ? 40 : 80, alignItems: "end" }}>
           <div>
-            <h2 className="display" style={{ fontSize: "clamp(64px, 9vw, 140px)", margin: 0, lineHeight: 1 }}>
+            <h2 className="display" style={{ fontSize: isMobile ? "clamp(40px, 12vw, 72px)" : "clamp(64px, 9vw, 140px)", margin: 0, lineHeight: 1 }}>
               Property managers,<br />
               <span style={{ position: "relative", display: "inline-block" }}>
                 lease faster.
@@ -36,14 +37,14 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
                 </svg>
               </span>
             </h2>
-            <p style={{ fontSize: 22, color: "var(--ink-soft)", maxWidth: 600, lineHeight: 1.4, marginTop: 48, letterSpacing: "-0.01em" }}>
+            <p style={{ fontSize: isMobile ? 18 : 22, color: "var(--ink-soft)", maxWidth: 600, lineHeight: 1.4, marginTop: isMobile ? 28 : 48, letterSpacing: "-0.01em" }}>
               Same engine, built for portfolios. Sync every unit, generate a reel per
               vacancy, and push it to <strong style={{ color: "var(--ink)" }}>8 ILSes at once</strong> —
               Zillow, Apartments.com, Zumper, plus our own marketplace
               <strong style={{ color: "var(--coral)" }}> RealMe Live</strong>.
             </p>
 
-            <div style={{ display: "flex", gap: 14, marginTop: 36, alignItems: "center" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 36, alignItems: "center" }}>
               <button className="btn btn-primary" onClick={onOpenApp} style={{ padding: "16px 24px", fontSize: 15 }}>
                 Open rentals dashboard →
               </button>
@@ -54,13 +55,13 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
           </div>
 
           {/* Right: ILS-fan visual */}
-          <ILSFanVisual />
+          <ILSFanVisual isMobile={isMobile} />
         </div>
 
         {/* Why rentals are different */}
         <div style={{
-          marginTop: 100, padding: "32px 0 0", borderTop: "1px solid var(--rule)",
-          display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0,
+          marginTop: isMobile ? 56 : 100, padding: "32px 0 0", borderTop: "1px solid var(--rule)",
+          display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 24 : 0,
         }}>
           {[
             { n: "136", l: "units across 4 buildings", s: "Portfolio view" },
@@ -69,8 +70,8 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
             { n: "94%", l: "of tours self-served", s: "SMS code · no agent required" },
           ].map((s, i) => (
             <div key={i} style={{
-              padding: "0 28px",
-              borderLeft: i > 0 ? "1px solid var(--rule)" : "none",
+              padding: isMobile ? "0 16px" : "0 28px",
+              borderLeft: !isMobile && i > 0 ? "1px solid var(--rule)" : "none",
             }}>
               <div className="display" style={{ fontSize: 64, lineHeight: 1, letterSpacing: "-0.04em" }}>{s.n}</div>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink-soft)", marginTop: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.l}</div>
@@ -87,14 +88,14 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
 }
 
 // Fan of ILS cards — visual showing one reel going to many places
-function ILSFanVisual() {
+function ILSFanVisual({ isMobile }) {
   const channels = ILS_CHANNELS.filter(c => c.syndicated).slice(0, 7);
   return (
-    <div style={{ position: "relative", minHeight: 520, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ position: "relative", minHeight: isMobile ? 0 : 520, maxWidth: "100%", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 24 : 0, alignItems: "center", justifyContent: "center" }}>
       {/* Center: the source unit card */}
       <div style={{
         position: "relative", zIndex: 5,
-        width: 260, background: "var(--bg-card)",
+        width: 260, maxWidth: "100%", background: "var(--bg-card)",
         borderRadius: 18, boxShadow: "var(--shadow-pop)",
         border: "1px solid var(--rule)", overflow: "hidden",
       }}>
@@ -126,64 +127,91 @@ function ILSFanVisual() {
       </div>
 
       {/* Fan of ILS destination chips */}
-      {channels.map((c, i) => {
-        const angle = (i - (channels.length - 1) / 2) * 24;
-        const radius = 240;
-        const rad = (angle * Math.PI) / 180;
-        return (
-          <div key={c.id} style={{
-            position: "absolute", zIndex: 2,
-            left: `calc(50% + ${Math.sin(rad) * radius}px)`,
-            top: `calc(50% + ${-Math.cos(rad) * radius * 0.55 - 30}px)`,
-            transform: `translate(-50%, -50%) rotate(${angle * 0.3}deg)`,
-            background: "var(--bg-card)", borderRadius: 12,
-            padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
-            border: "1px solid var(--rule)", boxShadow: "var(--shadow-card)",
-            whiteSpace: "nowrap",
-          }}>
-            <span style={{
-              width: 28, height: 28, borderRadius: 6,
-              background: c.tint, color: c.ink,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 14,
-            }}>{c.logo}</span>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "-0.01em" }}>{c.name}</div>
-              <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{c.reach}</div>
+      {isMobile ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: "100%" }}>
+          {channels.map((c) => (
+            <div key={c.id} style={{
+              background: "var(--bg-card)", borderRadius: 12,
+              padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
+              border: "1px solid var(--rule)", boxShadow: "var(--shadow-card)",
+              whiteSpace: "nowrap",
+            }}>
+              <span style={{
+                width: 28, height: 28, borderRadius: 6,
+                background: c.tint, color: c.ink,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 14,
+              }}>{c.logo}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "-0.01em" }}>{c.name}</div>
+                <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{c.reach}</div>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          ))}
+        </div>
+      ) : (
+        <>
+          {channels.map((c, i) => {
+            const angle = (i - (channels.length - 1) / 2) * 24;
+            const radius = 240;
+            const rad = (angle * Math.PI) / 180;
+            return (
+              <div key={c.id} style={{
+                position: "absolute", zIndex: 2,
+                left: `calc(50% + ${Math.sin(rad) * radius}px)`,
+                top: `calc(50% + ${-Math.cos(rad) * radius * 0.55 - 30}px)`,
+                transform: `translate(-50%, -50%) rotate(${angle * 0.3}deg)`,
+                background: "var(--bg-card)", borderRadius: 12,
+                padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
+                border: "1px solid var(--rule)", boxShadow: "var(--shadow-card)",
+                whiteSpace: "nowrap",
+              }}>
+                <span style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: c.tint, color: c.ink,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 14,
+                }}>{c.logo}</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "-0.01em" }}>{c.name}</div>
+                  <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{c.reach}</div>
+                </div>
+              </div>
+            );
+          })}
 
-      {/* Connecting lines */}
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 1, pointerEvents: "none" }} viewBox="0 0 600 520" preserveAspectRatio="none">
-        {channels.map((c, i) => {
-          const angle = (i - (channels.length - 1) / 2) * 24;
-          const radius = 240;
-          const rad = (angle * Math.PI) / 180;
-          const x2 = 300 + Math.sin(rad) * radius;
-          const y2 = 260 + -Math.cos(rad) * radius * 0.55 - 30;
-          return (
-            <line key={c.id} x1="300" y1="260" x2={x2} y2={y2} stroke="var(--rule)" strokeWidth="1" strokeDasharray="3 4" />
-          );
-        })}
-      </svg>
+          {/* Connecting lines */}
+          <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 1, pointerEvents: "none" }} viewBox="0 0 600 520" preserveAspectRatio="none">
+            {channels.map((c, i) => {
+              const angle = (i - (channels.length - 1) / 2) * 24;
+              const radius = 240;
+              const rad = (angle * Math.PI) / 180;
+              const x2 = 300 + Math.sin(rad) * radius;
+              const y2 = 260 + -Math.cos(rad) * radius * 0.55 - 30;
+              return (
+                <line key={c.id} x1="300" y1="260" x2={x2} y2={y2} stroke="var(--rule)" strokeWidth="1" strokeDasharray="3 4" />
+              );
+            })}
+          </svg>
+        </>
+      )}
     </div>
   );
 }
 
 // Preview of the RealMe Live marketplace within the landing
 function RealMeLivePreview({ onOpenLive }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{
       background: "var(--ink)", color: "var(--bg-warm)",
-      padding: "80px 0 90px", marginTop: 60, position: "relative", overflow: "hidden",
+      padding: isMobile ? "56px 0 64px" : "80px 0 90px", marginTop: 60, position: "relative", overflow: "hidden",
     }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 48 }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "0 20px" : "0 32px" }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 20 : 0, justifyContent: "space-between", alignItems: isMobile ? "start" : "end", marginBottom: isMobile ? 28 : 48 }}>
           <div>
             <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>RealMe Live · the in-house marketplace</span>
-            <h2 className="display" style={{ fontSize: "clamp(48px, 6vw, 84px)", margin: "12px 0 0", maxWidth: 980, lineHeight: 0.95 }}>
+            <h2 className="display" style={{ fontSize: isMobile ? "clamp(32px, 9vw, 48px)" : "clamp(48px, 6vw, 84px)", margin: "12px 0 0", maxWidth: 980, lineHeight: 0.95 }}>
               Your units, on a marketplace<br />where every listing has a <span style={{ color: "var(--coral)" }}>face</span>.
             </h2>
           </div>
@@ -208,7 +236,7 @@ function RealMeLivePreview({ onOpenLive }) {
               <span style={{ color: "rgba(246,242,234,0.4)" }}>https://</span>realme.live<span style={{ color: "rgba(246,242,234,0.4)" }}>/oakland</span>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, padding: 24, background: "var(--bg)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 12, padding: isMobile ? 14 : 24, background: "var(--bg)" }}>
             {UNITS.slice(0, 4).map(u => {
               const b = buildingOf(u.id);
               return (

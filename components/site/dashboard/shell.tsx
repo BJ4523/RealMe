@@ -15,6 +15,7 @@ import {
   listingBg,
   priceShort,
   statusPill,
+  useIsMobile,
 } from "@/components/site/shared";
 import { ListingsView, StudioView } from "@/components/site/dashboard/listings";
 import { CalendarView, EmailView, LeadsView } from "@/components/site/dashboard/other";
@@ -47,6 +48,7 @@ function Logo({ size = 22 }) {
 }
 
 export function DashboardShell({ onBackToSite, onOpenLive }) {
+  const isMobile = useIsMobile();
   const initialMode = (typeof window !== "undefined" && (window.location.hash === "#rent" || window.location.hash === "#app/rent")) ? "rent" : "sale";
   const [mode, setMode] = useState(initialMode);
   const [section, setSection] = useState("today");
@@ -63,11 +65,11 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
   const currentSection = validSections.includes(section) ? section : "today";
 
   return (
-    <div data-screen-label={mode === "sale" ? "02 Dashboard — Sales" : "03 Dashboard — Rentals"} style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+    <div data-screen-label={mode === "sale" ? "02 Dashboard — Sales" : "03 Dashboard — Rentals"} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: "var(--bg)", maxWidth: "100%", overflowX: "hidden" }}>
       <Sidebar mode={mode} setMode={switchMode} section={currentSection} setSection={setSection} onBackToSite={onBackToSite} onOpenLive={onOpenLive} />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <DashTopBar mode={mode} section={currentSection} />
-        <main style={{ flex: 1, padding: "28px 32px 80px", overflowY: "auto" }}>
+        <main style={{ flex: 1, padding: isMobile ? "18px 16px 64px" : "28px 32px 80px", overflowY: "auto" }}>
           {mode === "sale" && currentSection === "today" && <TodayView setSection={setSection} />}
           {mode === "sale" && currentSection === "listings" && <ListingsView setSection={setSection} />}
           {mode === "sale" && currentSection === "studio" && <StudioView />}
@@ -90,6 +92,7 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
 }
 
 function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive }) {
+  const isMobile = useIsMobile();
   const navSale = [
     { id: "today", label: "Today", icon: "◐" },
     { id: "listings", label: "Listings", icon: "▦", count: LISTINGS.filter(l => l.status === "new").length, countLabel: "new" },
@@ -112,20 +115,27 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
   const profile = mode === "sale" ? AGENT : RENTAL_MANAGER;
   const profileSub = mode === "sale" ? AGENT.brokerage : RENTAL_MANAGER.company;
   return (
-    <aside style={{
+    <aside style={isMobile ? {
+      width: "100%", background: "var(--bg-warm)", borderBottom: "1px solid var(--rule)",
+      display: "flex", flexDirection: "row", flexShrink: 0,
+      overflowX: "auto", alignItems: "stretch",
+      position: "sticky", top: 0, zIndex: 40,
+    } : {
       width: 240, background: "var(--bg-warm)", borderRight: "1px solid var(--rule)",
       display: "flex", flexDirection: "column", flexShrink: 0,
       position: "sticky", top: 0, height: "100vh",
     }}>
-      <div style={{ padding: "20px 18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Logo size={22} />
-        <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: "4px 8px", fontFamily: "var(--font-mono)" }}>
-          ← site
-        </button>
+      <div style={{ padding: isMobile ? "12px 12px 12px 14px" : "20px 18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexShrink: 0 }}>
+        <Logo size={isMobile ? 20 : 22} />
+        {!isMobile && (
+          <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: "4px 8px", fontFamily: "var(--font-mono)" }}>
+            ← site
+          </button>
+        )}
       </div>
 
       {/* Mode toggle */}
-      <div style={{ padding: "0 12px 8px" }}>
+      <div style={isMobile ? { padding: "0 8px", flexShrink: 0, display: "flex", alignItems: "center" } : { padding: "0 12px 8px" }}>
         <div style={{
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4,
           padding: 4, background: "var(--bg)", borderRadius: 12,
@@ -145,37 +155,41 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
         </div>
       </div>
 
-      <div style={{ padding: "8px 12px" }}>
-        <div style={{
-          background: "var(--bg-card)", borderRadius: 12, padding: 12,
-          border: "1px solid var(--rule)",
-          display: "flex", gap: 10, alignItems: "center",
-        }}>
-          <Avatar name={profile.name} size={36} ring photo={profile.photo} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{profile.name}</div>
-            <div style={{ fontSize: 10, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>
-              {profileSub}
+      {!isMobile && (
+        <div style={{ padding: "8px 12px" }}>
+          <div style={{
+            background: "var(--bg-card)", borderRadius: 12, padding: 12,
+            border: "1px solid var(--rule)",
+            display: "flex", gap: 10, alignItems: "center",
+          }}>
+            <Avatar name={profile.name} size={36} ring photo={profile.photo} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{profile.name}</div>
+              <div style={{ fontSize: 10, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>
+                {profileSub}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <nav style={{ padding: "8px", flex: 1 }}>
+      <nav style={isMobile
+        ? { padding: "8px", display: "flex", flexDirection: "row", gap: 4, alignItems: "center", flexShrink: 0 }
+        : { padding: "8px", flex: 1 }}>
         {nav.map(item => (
           <button
             key={item.id}
             onClick={() => setSection(item.id)}
             style={{
-              display: "flex", alignItems: "center", gap: 12,
-              width: "100%", padding: "10px 12px", borderRadius: 10,
+              display: "flex", alignItems: "center", gap: isMobile ? 8 : 12,
+              width: isMobile ? "auto" : "100%", padding: "10px 12px", borderRadius: 10,
               background: section === item.id ? "var(--ink)" : "transparent",
               color: section === item.id ? "var(--bg-warm)" : "var(--ink)",
               fontWeight: 500, fontSize: 14, textAlign: "left",
-              marginBottom: 2,
+              marginBottom: isMobile ? 0 : 2, flexShrink: 0, whiteSpace: "nowrap",
             }}>
             <span style={{ fontSize: 14, opacity: 0.85, width: 16, textAlign: "center" }}>{item.icon}</span>
-            <span style={{ flex: 1 }}>{item.label}</span>
+            <span style={isMobile ? undefined : { flex: 1 }}>{item.label}</span>
             {item.count != null && (
               <span style={{
                 fontSize: 10, fontFamily: "var(--font-mono)",
@@ -199,7 +213,13 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
           </button>
         ))}
         {mode === "rent" && onOpenLive && (
-          <button onClick={onOpenLive} style={{
+          <button onClick={onOpenLive} style={isMobile ? {
+            display: "flex", alignItems: "center", gap: 8,
+            width: "auto", padding: "10px 12px", borderRadius: 10,
+            background: "transparent", color: "var(--ink)",
+            fontWeight: 500, fontSize: 14, textAlign: "left",
+            flexShrink: 0, whiteSpace: "nowrap",
+          } : {
             display: "flex", alignItems: "center", gap: 12,
             width: "100%", padding: "10px 12px", borderRadius: 10,
             background: "transparent", color: "var(--ink)",
@@ -207,31 +227,34 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
             marginTop: 8, borderTop: "1px dashed var(--rule)", paddingTop: 14,
           }}>
             <span style={{ fontSize: 14, width: 16, textAlign: "center" }}>↗</span>
-            <span style={{ flex: 1 }}>RealMe Live</span>
+            <span style={isMobile ? undefined : { flex: 1 }}>RealMe Live</span>
             <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 6px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700 }}>PUBLIC</span>
           </button>
         )}
       </nav>
 
-      <div style={{ padding: 12, borderTop: "1px solid var(--rule)" }}>
-        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", marginBottom: 6 }}>
-          THIS MONTH
+      {!isMobile && (
+        <div style={{ padding: 12, borderTop: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", marginBottom: 6 }}>
+            THIS MONTH
+          </div>
+          <div style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+            <span>Reels generated</span><span className="mono">{AGENT.videos}/100</span>
+          </div>
+          <div style={{ height: 4, background: "var(--bg)", borderRadius: 99, marginTop: 4, marginBottom: 12 }}>
+            <div style={{ height: "100%", width: "47%", background: "var(--lime)", borderRadius: 99 }} />
+          </div>
+          <button className="btn btn-outline btn-sm" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
+            Upgrade to unlimited
+          </button>
         </div>
-        <div style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
-          <span>Reels generated</span><span className="mono">{AGENT.videos}/100</span>
-        </div>
-        <div style={{ height: 4, background: "var(--bg)", borderRadius: 99, marginTop: 4, marginBottom: 12 }}>
-          <div style={{ height: "100%", width: "47%", background: "var(--lime)", borderRadius: 99 }} />
-        </div>
-        <button className="btn btn-outline btn-sm" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
-          Upgrade to unlimited
-        </button>
-      </div>
+      )}
     </aside>
   );
 }
 
 function DashTopBar({ mode, section }) {
+  const isMobile = useIsMobile();
   const titlesSale = {
     today: "Today",
     listings: "Listings",
@@ -272,19 +295,20 @@ function DashTopBar({ mode, section }) {
   const subtitles = mode === "sale" ? subtitlesSale : subtitlesRent;
   return (
     <header style={{
-      padding: "20px 32px 16px",
+      padding: isMobile ? "14px 16px 12px" : "20px 32px 16px",
       borderBottom: "1px solid var(--rule)",
       background: "var(--bg)",
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      position: "sticky", top: 0, zIndex: 30,
+      flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 10 : 0,
+      position: isMobile ? "static" : "sticky", top: 0, zIndex: 30,
     }}>
-      <div>
-        <h1 className="display" style={{ fontSize: 32, margin: 0 }}>{titles[section]}</h1>
+      <div style={isMobile ? { width: "100%" } : undefined}>
+        <h1 className="display" style={{ fontSize: isMobile ? 24 : 32, margin: 0 }}>{titles[section]}</h1>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 2 }}>{subtitles[section]}</div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ position: "relative" }}>
-          <input className="field" placeholder="Search listings, leads, posts…" style={{ width: 280, paddingLeft: 30 }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : "auto", flexWrap: isMobile ? "wrap" : "nowrap" }}>
+        <div style={{ position: "relative", flex: isMobile ? 1 : "none", minWidth: isMobile ? 0 : undefined }}>
+          <input className="field" placeholder="Search listings, leads, posts…" style={{ width: isMobile ? "100%" : 280, paddingLeft: 30 }} />
           <span style={{ position: "absolute", left: 11, top: 11, color: "var(--ink-faint)" }}>⌕</span>
         </div>
         <button className="btn btn-ghost btn-sm" style={{ position: "relative", padding: "8px 10px" }}>
@@ -299,8 +323,9 @@ function DashTopBar({ mode, section }) {
 
 // ====== TODAY VIEW ======
 function TodayView({ setSection }) {
+  const isMobile = useIsMobile();
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: 20 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <HeroToday setSection={setSection} />
         <TodayActivity />
@@ -316,17 +341,18 @@ function TodayView({ setSection }) {
 }
 
 function HeroToday({ setSection }) {
+  const isMobile = useIsMobile();
   const newListing = LISTINGS.find(l => l.status === "new");
   return (
     <div style={{
       background: "var(--ink)", color: "var(--bg-warm)",
-      borderRadius: 20, padding: 28, position: "relative", overflow: "hidden",
+      borderRadius: 20, padding: isMobile ? 20 : 28, position: "relative", overflow: "hidden",
     }}>
       <div style={{
         position: "absolute", right: -60, top: -60, width: 280, height: 280, borderRadius: "50%",
         background: "radial-gradient(circle, rgba(214,255,61,0.25), transparent 60%)",
       }} />
-      <div style={{ display: "flex", alignItems: "start", gap: 28 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "start", gap: isMobile ? 16 : 28 }}>
         <div style={{ flex: 1, position: "relative", zIndex: 1 }}>
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 8,
@@ -339,7 +365,7 @@ function HeroToday({ setSection }) {
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--lime)" }} />
             Auto-detected · 3 min ago
           </span>
-          <h2 className="display" style={{ fontSize: 44, margin: "16px 0 12px", letterSpacing: "-0.03em", lineHeight: 0.98 }}>
+          <h2 className="display" style={{ fontSize: isMobile ? 30 : 44, margin: "16px 0 12px", letterSpacing: "-0.03em", lineHeight: 0.98 }}>
             New listing dropped.<br />Want a reel?
           </h2>
           <p style={{ fontSize: 15, color: "rgba(246,242,234,0.75)", maxWidth: 480, lineHeight: 1.5 }}>
@@ -354,7 +380,7 @@ function HeroToday({ setSection }) {
           </div>
         </div>
         <div style={{
-          width: 160, height: 200, borderRadius: 14, flexShrink: 0,
+          width: isMobile ? "100%" : 160, height: isMobile ? 160 : 200, borderRadius: 14, flexShrink: 0,
           ...listingBg(newListing),
           border: "1px solid rgba(246,242,234,0.1)",
           position: "relative", zIndex: 1, overflow: "hidden",
@@ -413,10 +439,11 @@ function TodayActivity() {
 }
 
 function TodayPerformance() {
+  const isMobile = useIsMobile();
   const reelData = [12, 18, 14, 22, 28, 24, 35, 31, 42, 38, 47, 52, 58, 62];
   const emailData = [40, 48, 42, 51, 53, 47, 55, 58];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
       <PerfCard label="Reel views · 30d" value="184.2k" delta="+34%" data={reelData} color="var(--ink)" fill="var(--lime)" />
       <PerfCard label="Email open rate" value="51%" delta="+6 pts" data={emailData} color="var(--ink)" fill="var(--lime)" />
       <PerfCard label="Showings booked" value="14" delta="+9 vs. last mo" data={[2,3,3,4,5,3,4,5,6,5,7]} color="var(--ink)" fill="var(--lime)" />

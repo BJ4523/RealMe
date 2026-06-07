@@ -11,11 +11,13 @@ import {
   PlatformIcon,
   listingBg,
   priceShort,
+  useIsMobile,
 } from "@/components/site/shared";
 import { useDashboardData } from "./data-context";
 
 export function ListingsView({ setSection }) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const { listings: LISTINGS, isReal } = useDashboardData();
   const [filter, setFilter] = useState("all");
   const filters = [
@@ -28,8 +30,8 @@ export function ListingsView({ setSection }) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 12 : 0 }}>
+        <div style={{ display: "flex", gap: 6, overflowX: isMobile ? "auto" : "visible", maxWidth: "100%", flexShrink: 0 }}>
           {filters.map(f => (
             <button key={f.id} onClick={() => setFilter(f.id)}
               style={{
@@ -37,6 +39,7 @@ export function ListingsView({ setSection }) {
                 background: filter === f.id ? "var(--ink)" : "transparent",
                 color: filter === f.id ? "var(--bg-warm)" : "var(--ink)",
                 border: filter === f.id ? "1px solid var(--ink)" : "1px solid var(--rule)",
+                whiteSpace: "nowrap", flexShrink: 0,
               }}>
               {f.label} <span style={{ fontFamily: "var(--font-mono)", marginLeft: 4, opacity: 0.6, fontSize: 11 }}>{f.n}</span>
             </button>
@@ -51,7 +54,7 @@ export function ListingsView({ setSection }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16 }}>
         {filtered.map(l => <ListingCard key={l.id} listing={l} setSection={setSection} />)}
       </div>
     </div>
@@ -116,6 +119,7 @@ function Mini({ label, value, mono }) {
 // ====== VIDEO STUDIO ======
 
 export function StudioView() {
+  const isMobile = useIsMobile();
   const { listings: LISTINGS } = useDashboardData();
   const [selected, setSelected] = useState(LISTINGS[0].id);
   const [template, setTemplate] = useState("walkthru");
@@ -170,7 +174,7 @@ export function StudioView() {
   }, [generating]);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 380px", gap: 18 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "240px 1fr 380px", gap: 18 }}>
       {/* COL 1: Listing picker + cadence */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="card" style={{ padding: 14 }}>
@@ -222,7 +226,7 @@ export function StudioView() {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div className="card" style={{ padding: 18 }}>
           <span className="eyebrow">Template</span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 8, marginTop: 10 }}>
             {VIDEO_TEMPLATES.map(t => (
               <button key={t.id} onClick={() => setTemplate(t.id)} style={{
                 padding: 12, borderRadius: 10, textAlign: "left",
@@ -248,7 +252,7 @@ export function StudioView() {
           <ScriptEditor script={script || []} setScript={setScript} />
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap" }}>
           <button onClick={go} disabled={generating} className="btn btn-primary" style={{ padding: "14px 22px", fontSize: 14 }}>
             {generating ? "Rendering…" : generated ? "↻ Regenerate" : "Generate & schedule →"}
           </button>
@@ -266,7 +270,7 @@ export function StudioView() {
             <div style={{ height: 6, background: "var(--bg)", borderRadius: 99, marginBottom: 12 }}>
               <div style={{ height: "100%", width: `${progress}%`, background: generated ? "var(--ok)" : "var(--lime)", borderRadius: 99, transition: "width 0.1s" }} />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 6 }}>
               {generationSteps.map((s, i) => {
                 const done = steps.includes(s);
                 const active = !done && steps.length === i;

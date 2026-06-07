@@ -2,7 +2,7 @@
 /* eslint-disable */
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { AGENT } from "@/components/site/shared";
+import { AGENT, useIsMobile } from "@/components/site/shared";
 
 // ====== RENTAL MOCK DATA (ported from rentals-data.jsx) ======
 
@@ -129,7 +129,7 @@ export function RealMeLive({ onBackToSite }) {
   };
 
   return (
-    <div data-screen-label="04 RealMe Live (Public ILS)" style={{ background: "var(--bg)", minHeight: "100vh" }}>
+    <div data-screen-label="04 RealMe Live (Public ILS)" style={{ background: "var(--bg)", minHeight: "100vh", overflowX: "hidden", maxWidth: "100vw" }}>
       <LiveNav savedCount={savedIds.size} onBackToSite={onBackToSite} />
       <LiveHero filters={filters} setFilters={setFilters} resultCount={visible.length} />
       <FeaturedAgents />
@@ -143,6 +143,7 @@ export function RealMeLive({ onBackToSite }) {
 
 // ====== TOP NAV ======
 function LiveNav({ savedCount, onBackToSite }) {
+  const isMobile = useIsMobile();
   return (
     <nav style={{
       position: "sticky", top: 0, zIndex: 30,
@@ -151,8 +152,9 @@ function LiveNav({ savedCount, onBackToSite }) {
       borderBottom: "1px solid var(--rule-soft)",
     }}>
       <div style={{
-        maxWidth: 1400, margin: "0 auto", padding: "14px 32px",
+        maxWidth: 1400, margin: "0 auto", padding: isMobile ? "12px 16px" : "14px 32px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 8,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
@@ -166,21 +168,25 @@ function LiveNav({ savedCount, onBackToSite }) {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--coral)", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Live</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 24, alignItems: "center", fontSize: 14, fontWeight: 500 }}>
-          <a href="#live">Rentals</a>
-          <a href="#live">Neighborhoods</a>
-          <a href="#live">Agents</a>
-          <a href="#live">How RealMe works</a>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        {!isMobile && (
+          <div style={{ display: "flex", gap: 24, alignItems: "center", fontSize: 14, fontWeight: 500 }}>
+            <a href="#live">Rentals</a>
+            <a href="#live">Neighborhoods</a>
+            <a href="#live">Agents</a>
+            <a href="#live">How RealMe works</a>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center" }}>
           <button className="btn btn-ghost btn-sm" style={{ position: "relative" }}>
             ♡ Saved {savedCount > 0 && (
               <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: "var(--coral)", color: "#fff", fontSize: 9, fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{savedCount}</span>
             )}
           </button>
-          <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
-            ← agents
-          </button>
+          {!isMobile && (
+            <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
+              ← agents
+            </button>
+          )}
           <button className="btn btn-primary btn-sm">Sign up</button>
         </div>
       </div>
@@ -190,11 +196,12 @@ function LiveNav({ savedCount, onBackToSite }) {
 
 // ====== HERO ======
 function LiveHero({ filters, setFilters, resultCount }) {
+  const isMobile = useIsMobile();
   return (
-    <section style={{ maxWidth: 1400, margin: "0 auto", padding: "56px 32px 32px" }}>
+    <section style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "32px 16px 24px" : "56px 32px 32px" }}>
       <div style={{ maxWidth: 980 }}>
         <span className="eyebrow" style={{ color: "var(--coral)" }}>RealMe Live · Bay Area rentals</span>
-        <h1 className="display" style={{ fontSize: "clamp(56px, 8vw, 124px)", margin: "12px 0 0", lineHeight: 0.92 }}>
+        <h1 className="display" style={{ fontSize: isMobile ? "clamp(34px, 11vw, 52px)" : "clamp(56px, 8vw, 124px)", margin: "12px 0 0", lineHeight: 0.92 }}>
           Rent from a <span style={{ position: "relative", display: "inline-block" }}>
             human,
             <svg viewBox="0 0 220 22" style={{
@@ -213,12 +220,14 @@ function LiveHero({ filters, setFilters, resultCount }) {
 
       {/* Search bar */}
       <div style={{
-        marginTop: 36, background: "var(--bg-card)",
+        marginTop: isMobile ? 24 : 36, background: "var(--bg-card)",
         borderRadius: 20, border: "1px solid var(--rule)",
-        padding: 10, display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr auto",
-        gap: 6, alignItems: "center", boxShadow: "var(--shadow-card)",
+        padding: 10, boxShadow: "var(--shadow-card)",
+        ...(isMobile
+          ? { display: "flex", flexDirection: "column", gap: 4, alignItems: "stretch", maxWidth: "100%" }
+          : { display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr auto", gap: 6, alignItems: "center" }),
       }}>
-        <div style={{ padding: "10px 16px", borderRight: "1px solid var(--rule-soft)" }}>
+        <div style={{ padding: "10px 16px", borderRight: isMobile ? "none" : "1px solid var(--rule-soft)", borderBottom: isMobile ? "1px solid var(--rule-soft)" : "none", width: isMobile ? "100%" : undefined }}>
           <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Where</div>
           <input
             value={filters.q}
@@ -227,7 +236,7 @@ function LiveHero({ filters, setFilters, resultCount }) {
             style={{ width: "100%", border: "none", outline: "none", background: "transparent", fontSize: 15, marginTop: 2, padding: 0, fontWeight: 500 }}
           />
         </div>
-        <div style={{ padding: "10px 16px", borderRight: "1px solid var(--rule-soft)" }}>
+        <div style={{ padding: "10px 16px", borderRight: isMobile ? "none" : "1px solid var(--rule-soft)", borderBottom: isMobile ? "1px solid var(--rule-soft)" : "none", width: isMobile ? "100%" : undefined }}>
           <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Beds</div>
           <select
             value={filters.beds}
@@ -241,25 +250,30 @@ function LiveHero({ filters, setFilters, resultCount }) {
             <option value="3">3+ beds</option>
           </select>
         </div>
-        <div style={{ padding: "10px 16px", borderRight: "1px solid var(--rule-soft)" }}>
+        <div style={{ padding: "10px 16px", borderRight: isMobile ? "none" : "1px solid var(--rule-soft)", borderBottom: isMobile ? "1px solid var(--rule-soft)" : "none", width: isMobile ? "100%" : undefined }}>
           <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Max rent</div>
           <div style={{ fontSize: 15, marginTop: 2, fontWeight: 500, fontFamily: "var(--font-mono)" }}>${filters.maxRent.toLocaleString()}/mo</div>
         </div>
-        <div style={{ padding: "10px 16px" }}>
+        <div style={{ padding: "10px 16px", width: isMobile ? "100%" : undefined }}>
           <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Move-in</div>
           <div style={{ fontSize: 15, marginTop: 2, fontWeight: 500 }}>Anytime</div>
         </div>
-        <button className="btn btn-primary" style={{ padding: "16px 22px", fontSize: 15, margin: 4 }}>
+        <button className="btn btn-primary" style={{ padding: "16px 22px", fontSize: 15, margin: 4, width: isMobile ? "calc(100% - 8px)" : undefined, justifyContent: isMobile ? "center" : undefined }}>
           Search →
         </button>
       </div>
 
       {/* Quick filters */}
-      <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{resultCount} units</span>
-        <div style={{ width: 1, height: 14, background: "var(--rule)" }} />
+      <div style={{
+        display: "flex", gap: 8, marginTop: 16, alignItems: "center",
+        ...(isMobile
+          ? { flexWrap: "nowrap", overflowX: "auto", WebkitOverflowScrolling: "touch", maxWidth: "100%", paddingBottom: 4 }
+          : { flexWrap: "wrap" }),
+      }}>
+        <span style={{ flexShrink: 0, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{resultCount} units</span>
+        <div style={{ flexShrink: 0, width: 1, height: 14, background: "var(--rule)" }} />
         {["Pet-friendly", "In-unit W/D", "Concession", "Parking", "Available now", "Self-tour", "Live agent reel"].map((p, i) => (
-          <span key={i} className="tag" style={{ cursor: "pointer", padding: "6px 12px" }}>{p}</span>
+          <span key={i} className="tag" style={{ cursor: "pointer", padding: "6px 12px", flexShrink: 0, whiteSpace: "nowrap" }}>{p}</span>
         ))}
       </div>
     </section>
@@ -268,6 +282,7 @@ function LiveHero({ filters, setFilters, resultCount }) {
 
 // ====== FEATURED AGENTS ======
 function FeaturedAgents() {
+  const isMobile = useIsMobile();
   const agents = [
     { name: "Sasha Reyes",  company: "Linden Park Resi",  units: 64, photo: RENTAL_MANAGER.photo, hot: true,  reels: 142 },
     { name: "Jordan Maes",  company: "Bayline Rentals",   units: 22, photo: AGENT.photo,                       reels: 89 },
@@ -278,17 +293,23 @@ function FeaturedAgents() {
   ];
 
   return (
-    <section style={{ maxWidth: 1400, margin: "0 auto", padding: "20px 32px 28px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+    <section style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "20px 16px 28px" : "20px 32px 28px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, gap: 12 }}>
         <div>
           <span className="eyebrow">Bay Area agents on RealMe Live</span>
-          <h3 className="display" style={{ fontSize: 28, margin: "6px 0 0" }}>Follow an agent. Get their drops first.</h3>
+          <h3 className="display" style={{ fontSize: isMobile ? 22 : 28, margin: "6px 0 0" }}>Follow an agent. Get their drops first.</h3>
         </div>
-        <a href="#live" style={{ fontSize: 13, fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>See all 240 agents →</a>
+        <a href="#live" style={{ flexShrink: 0, fontSize: 13, fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>See all 240 agents →</a>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
+      <div style={{
+        display: isMobile ? "flex" : "grid",
+        ...(isMobile
+          ? { flexWrap: "nowrap", overflowX: "auto", WebkitOverflowScrolling: "touch", maxWidth: "100%", paddingBottom: 4 }
+          : { gridTemplateColumns: "repeat(6, 1fr)" }),
+        gap: 12,
+      }}>
         {agents.map((a, i) => (
-          <div key={i} className="card" style={{ padding: 16, textAlign: "center", position: "relative" }}>
+          <div key={i} className="card" style={{ padding: 16, textAlign: "center", position: "relative", flex: isMobile ? "0 0 160px" : undefined }}>
             {a.hot && <span style={{ position: "absolute", top: 10, right: 10, fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 6px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700 }}>LIVE</span>}
             <div style={{
               width: 72, height: 72, borderRadius: "50%",
@@ -310,17 +331,21 @@ function FeaturedAgents() {
 
 // ====== RESULTS GRID ======
 function LiveResults({ units, onPick, savedIds, toggleSave }) {
+  const isMobile = useIsMobile();
   return (
-    <section style={{ maxWidth: 1400, margin: "0 auto", padding: "20px 32px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h3 className="display" style={{ fontSize: 28, margin: 0 }}>{units.length} places, with the agent on camera</h3>
-        <div style={{ display: "flex", gap: 6 }}>
+    <section style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "20px 16px 48px" : "20px 32px 48px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, gap: 12, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+        <h3 className="display" style={{ fontSize: isMobile ? 22 : 28, margin: 0 }}>{units.length} places, with the agent on camera</h3>
+        <div style={{
+          display: "flex", gap: 6,
+          ...(isMobile ? { overflowX: "auto", maxWidth: "100%", WebkitOverflowScrolling: "touch" } : {}),
+        }}>
           {["Newest", "Price ↑", "Price ↓", "Most reeled"].map((s, i) => (
-            <button key={i} className={i === 0 ? "btn btn-primary btn-sm" : "btn btn-ghost btn-sm"} style={{ fontSize: 12 }}>{s}</button>
+            <button key={i} className={i === 0 ? "btn btn-primary btn-sm" : "btn btn-ghost btn-sm"} style={{ fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}>{s}</button>
           ))}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 18 }}>
         {units.map(u => (
           <UnitCard key={u.id} unit={u} onPick={() => onPick(u)} saved={savedIds.has(u.id)} onSave={() => toggleSave(u.id)} />
         ))}
@@ -428,6 +453,7 @@ function UnitCard({ unit, onPick, saved, onSave }) {
 
 // ====== UNIT DETAIL OVERLAY ======
 function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
+  const isMobile = useIsMobile();
   const b = buildingOf(unit.id);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -452,25 +478,30 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
       style={{
         position: "fixed", inset: 0, zIndex: 100,
         background: "rgba(17,17,16,0.75)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 24, backdropFilter: "blur(8px)",
+        display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center",
+        padding: isMobile ? 0 : 24, backdropFilter: "blur(8px)",
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%", maxWidth: 1180, maxHeight: "92vh",
-          background: "var(--bg-warm)", borderRadius: 24, overflow: "hidden",
-          display: "grid", gridTemplateColumns: "440px 1fr",
+          width: "100%", maxWidth: isMobile ? "100%" : 1180,
+          maxHeight: isMobile ? "100vh" : "92vh",
+          background: "var(--bg-warm)", borderRadius: isMobile ? 0 : 24,
           boxShadow: "var(--shadow-pop)",
+          ...(isMobile
+            ? { display: "flex", flexDirection: "column", overflowY: "auto", WebkitOverflowScrolling: "touch" }
+            : { display: "grid", gridTemplateColumns: "440px 1fr", overflow: "hidden" }),
         }}
       >
         {/* Video column */}
-        <div style={{ position: "relative", background: "#000", padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", background: "#000", padding: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: isMobile ? 0 : undefined }}>
           <button onClick={onClose} style={{
-            position: "absolute", top: 16, left: 16, width: 36, height: 36, borderRadius: "50%",
+            position: isMobile ? "sticky" : "absolute", top: 16, left: 16, width: 36, height: 36, borderRadius: "50%",
             background: "rgba(255,255,255,0.15)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 16, backdropFilter: "blur(8px)", zIndex: 5,
+            alignSelf: isMobile ? "flex-start" : undefined,
+            marginRight: isMobile ? -36 : undefined,
           }}>×</button>
 
           <div className="phone" style={{ boxShadow: "none" }}>
@@ -531,12 +562,12 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
         </div>
 
         {/* Details column */}
-        <div style={{ padding: "32px 36px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ padding: isMobile ? "24px 18px 32px" : "32px 36px", overflowY: isMobile ? "visible" : "auto", display: "flex", flexDirection: "column", gap: 18 }}>
           <div>
             <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               {b.name} · {b.city}
             </div>
-            <h2 className="display" style={{ fontSize: 44, margin: "6px 0 4px", lineHeight: 1 }}>
+            <h2 className="display" style={{ fontSize: isMobile ? 30 : 44, margin: "6px 0 4px", lineHeight: 1 }}>
               {b.address}, {unit.unit}
             </h2>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 10 }}>
@@ -587,8 +618,8 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
           </div>
 
           {/* CTAs */}
-          <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
-            <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center", padding: "14px 18px", fontSize: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: "auto", flexWrap: isMobile ? "wrap" : "nowrap" }}>
+            <button className="btn btn-primary" style={{ flex: isMobile ? "1 1 100%" : 1, justifyContent: "center", padding: "14px 18px", fontSize: 14 }}>
               Book a tour · {unit.available === "Now" ? "today" : unit.available}
             </button>
             <button className="btn btn-outline" style={{ padding: "14px 18px" }}>Apply now</button>
@@ -607,29 +638,31 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
 
 // ====== "WHY DIFFERENT" SECTION ======
 function LiveWhyDifferent() {
+  const isMobile = useIsMobile();
   const points = [
     { n: "01", h: "Every listing has a real human on video", b: "No render farms, no agent-less ghost listings. If it's on RealMe Live, an actual leasing agent is on camera walking you through it." },
     { n: "02", h: "Self-tour codes that actually work",       b: "Verified renters get an SMS code to tour the unit themselves. No back-and-forth. No 'is this still available?'" },
     { n: "03", h: "Apply once, use everywhere",                b: "One application, screened once. Use it across every RealMe Live listing — agents see your score, you see their response time." },
   ];
   return (
-    <section style={{ background: "var(--ink)", color: "var(--bg-warm)", padding: "84px 0", marginTop: 60 }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 48 }}>
+    <section style={{ background: "var(--ink)", color: "var(--bg-warm)", padding: isMobile ? "56px 0" : "84px 0", marginTop: 60 }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "0 16px" : "0 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: isMobile ? 32 : 48 }}>
           <div>
             <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>Why renters pick RealMe Live</span>
-            <h2 className="display" style={{ fontSize: "clamp(48px, 6vw, 80px)", margin: "12px 0 0", maxWidth: 800, lineHeight: 0.95 }}>
+            <h2 className="display" style={{ fontSize: isMobile ? "clamp(32px, 9vw, 48px)" : "clamp(48px, 6vw, 80px)", margin: "12px 0 0", maxWidth: 800, lineHeight: 0.95 }}>
               Stock photos and<br />ghost listings, no.<br />
               <span style={{ color: "var(--coral)" }}>People, yes.</span>
             </h2>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)" }}>
           {points.map((p, i) => (
             <div key={i} style={{
-              padding: "32px 28px 32px 0",
-              paddingLeft: i > 0 ? 36 : 0,
-              borderLeft: i > 0 ? "1px solid rgba(246,242,234,0.15)" : "none",
+              padding: isMobile ? "24px 0" : "32px 28px 32px 0",
+              paddingLeft: isMobile ? 0 : (i > 0 ? 36 : 0),
+              borderLeft: isMobile ? "none" : (i > 0 ? "1px solid rgba(246,242,234,0.15)" : "none"),
+              borderTop: isMobile && i > 0 ? "1px solid rgba(246,242,234,0.15)" : "none",
             }}>
               <div className="display" style={{ fontSize: 64, color: "var(--coral)", lineHeight: 1 }}>{p.n}</div>
               <h3 className="display" style={{ fontSize: 26, margin: "20px 0 12px", letterSpacing: "-0.02em", lineHeight: 1.05 }}>{p.h}</h3>
@@ -644,10 +677,11 @@ function LiveWhyDifferent() {
 
 // ====== FOOTER ======
 function LiveFooter({ onBackToSite }) {
+  const isMobile = useIsMobile();
   return (
-    <footer style={{ background: "var(--bg)", padding: "48px 32px 32px", borderTop: "1px solid var(--rule)" }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 40 }}>
-        <div>
+    <footer style={{ background: "var(--bg)", padding: isMobile ? "40px 16px 32px" : "48px 32px 32px", borderTop: "1px solid var(--rule)" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1.5fr 1fr 1fr 1fr", gap: isMobile ? 24 : 40 }}>
+        <div style={{ gridColumn: isMobile ? "1 / -1" : undefined }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.03em" }}>RealMe</span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--coral)", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Live</span>
@@ -673,7 +707,7 @@ function LiveFooter({ onBackToSite }) {
           </div>
         ))}
       </div>
-      <div style={{ maxWidth: 1400, margin: "32px auto 0", paddingTop: 18, borderTop: "1px solid var(--rule)", display: "flex", justifyContent: "space-between", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>
+      <div style={{ maxWidth: 1400, margin: "32px auto 0", paddingTop: 18, borderTop: "1px solid var(--rule)", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 8 : 0, justifyContent: "space-between", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>
         <span>© 2026 RealMe, Inc. · Equal Housing Opportunity</span>
         <span>San Francisco · Oakland · Berkeley</span>
       </div>

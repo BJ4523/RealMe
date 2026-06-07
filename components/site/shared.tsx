@@ -514,3 +514,19 @@ export function rentShort(n) {
   if (n >= 1000) return "$" + (n / 1000).toFixed(n % 1000 === 0 ? 1 : 2).replace(/\.0$/, "") + "k";
   return "$" + n;
 }
+
+/**
+ * SSR-safe viewport hook. Returns false on the server + first paint (desktop),
+ * then updates after mount. Use to branch the design's inline layout styles.
+ */
+export function useIsMobile(breakpoint = 820) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [breakpoint]);
+  return isMobile;
+}
