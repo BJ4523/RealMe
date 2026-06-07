@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import {
   createAvatarFromAsset,
   cloneVoiceFromAudio,
-  deleteTalkingPhoto,
+  deleteHeygenAvatar,
 } from "@/lib/heygen/avatar";
 
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
@@ -121,7 +121,7 @@ export async function createAvatar(
       .eq("user_id", userId)
       .neq("id", avatar.id);
     for (const prev of previous ?? []) {
-      await deleteTalkingPhoto(prev.heygen_avatar_id);
+      await deleteHeygenAvatar(prev.heygen_avatar_id);
       if (prev.source_path) {
         await supabase.storage.from("avatar-sources").remove([prev.source_path]);
       }
@@ -190,7 +190,7 @@ export async function deleteAvatar(formData: FormData) {
     .maybeSingle();
   if (!avatar) return;
 
-  await deleteTalkingPhoto(avatar.heygen_avatar_id);
+  await deleteHeygenAvatar(avatar.heygen_avatar_id);
   if (avatar.source_path) {
     await supabase.storage.from("avatar-sources").remove([avatar.source_path]);
   }

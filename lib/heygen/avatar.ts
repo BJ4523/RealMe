@@ -87,56 +87,63 @@ export async function getAvatarStatus(
 }
 
 /**
- * Delete a HeyGen talking photo (frees a slot against the plan's photo-avatar
- * quota). Best-effort: returns false on any failure so callers never block the
- * primary flow on cleanup. No-op in mock mode.
+ * Delete a HeyGen photo avatar so it stops counting against the plan's
+ * (account-wide) photo-avatar quota. The PHOTO avatar GROUP is what the quota
+ * counts, so we delete the group; for an app upload the group id equals the
+ * stored talking_photo_id. We also best-effort delete the talking photo entry.
+ * Best-effort overall: returns false on failure so cleanup never blocks the
+ * primary flow. No-op in mock mode.
  */
-export async function deleteTalkingPhoto(
+export async function deleteHeygenAvatar(
   id: string | null | undefined,
 ): Promise<boolean> {
   if (!id) return false;
   if (isMock) return true;
+  let freed = false;
+  try {
+    await heygenFetch(ENDPOINTS.deleteAvatarGroup(id), { method: "DELETE" });
+    freed = true;
+  } catch {
+    // group may not exist (id mismatch) — fall through to talking-photo delete
+  }
   try {
     await heygenFetch(ENDPOINTS.deleteTalkingPhoto(id), { method: "DELETE" });
-    return true;
   } catch {
-    return false;
+    // best-effort
   }
+  return freed;
 }
 
-export interface CustomTalkingPhoto {
+export interface CustomAvatar {
   id: string;
   name: string;
   previewUrl: string | null;
 }
 
 /**
- * List the account's CUSTOM talking photos for the admin cleanup view.
- *
- * HeyGen's avatar list mixes the account's uploads with thousands of stock
- * avatars and exposes no owner flag — the only signal is that API-uploaded
- * talking photos default to the name "Photo Avatar" (stock ones have real
- * names). This filter is therefore a heuristic; the preview thumbnail lets an
- * admin eyeball each before deleting.
+ * List the account's CUSTOM photo-avatar groups for the admin cleanup view.
+ * `avatar_group.list` returns ONLY the account's groups (no stock avatars), so
+ * this is exact — unlike the talking-photos list, no name heuristic is needed.
  */
-export async function listCustomTalkingPhotos(): Promise<CustomTalkingPhoto[]> {
+export async function listCustomAvatars(): Promise<CustomAvatar[]> {
   if (isMock) return [];
   const res = await heygenFetch<{
     data?: {
-      talking_photos?: Array<{
-        talking_photo_id: string;
-        talking_photo_name?: string;
-        preview_image_url?: string;
+      avatar_group_list?: Array<{
+        id: string;
+        name?: string;
+        preview_image?: string;
+        group_type?: string;
       }>;
     };
-  }>(ENDPOINTS.listAvatars, { method: "GET" });
+  }>(ENDPOINTS.listAvatarGroups, { method: "GET" });
 
-  return (res.data?.talking_photos ?? [])
-    .filter((t) => (t.talking_photo_name ?? "") === "Photo Avatar")
-    .map((t) => ({
-      id: t.talking_photo_id,
-      name: t.talking_photo_name ?? "Photo Avatar",
-      previewUrl: t.preview_image_url ?? null,
+  return (res.data?.avatar_group_list ?? [])
+    .filter((g) => (g.group_type ?? "") === "PHOTO")
+    .map((g) => ({
+      id: g.id,
+      name: g.name ?? "Photo Avatar",
+      previewUrl: g.preview_image ?? null,
     }));
 }
 

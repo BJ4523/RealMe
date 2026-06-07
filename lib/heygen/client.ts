@@ -19,8 +19,13 @@ export const ENDPOINTS = {
   uploadAsset: `${HEYGEN_UPLOAD_BASE}/v1/asset`,
   voiceClone: `${HEYGEN_BASE}/v2/voices/clone`,
   listVoices: `${HEYGEN_BASE}/v2/voices`,
-  listAvatars: `${HEYGEN_BASE}/v2/avatars`,
-  // Verified live: DELETE /v2/talking_photo/{id} → 200 {"error":null,"data":null}.
+  // Lists the account's CUSTOM photo-avatar groups only (not stock avatars).
+  listAvatarGroups: `${HEYGEN_BASE}/v2/avatar_group.list`,
+  // The PHOTO avatar GROUP is what counts against the photo-avatar quota —
+  // deleting the talking photo alone does NOT free a slot. For an app upload
+  // the group id equals the talking_photo_id. Both verified live (→ 200).
+  deleteAvatarGroup: (id: string) =>
+    `${HEYGEN_BASE}/v2/photo_avatar_group/${id}`,
   deleteTalkingPhoto: (id: string) => `${HEYGEN_BASE}/v2/talking_photo/${id}`,
   generateVideo: `${HEYGEN_BASE}/v2/video/generate`,
   videoStatus: (id: string) =>

@@ -1,16 +1,16 @@
 import { Trash2 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { isMock } from "@/lib/heygen/client";
-import { listCustomTalkingPhotos } from "@/lib/heygen/avatar";
+import { listCustomAvatars } from "@/lib/heygen/avatar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { deleteHeygenAvatar } from "@/app/(app)/admin/actions";
+import { deleteAvatarGroupAction } from "@/app/(app)/admin/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminAvatarsPage() {
   await requireAdmin();
-  const photos = await listCustomTalkingPhotos();
+  const photos = await listCustomAvatars();
 
   return (
     <>
@@ -20,11 +20,11 @@ export default async function AdminAvatarsPage() {
       />
 
       <p className="mb-6 rounded-2xl border border-border bg-muted/50 p-4 text-xs text-muted-foreground">
-        These are talking photos named &ldquo;Photo Avatar&rdquo; (HeyGen&apos;s
-        default for API uploads) — the only signal that distinguishes account
-        uploads from stock avatars, so it&apos;s a heuristic. The plan&apos;s
-        photo-avatar cap is <strong>account-wide</strong>, shared across all
-        users. Check each thumbnail before deleting; deletion is permanent.
+        These are the account&apos;s custom photo-avatar groups (HeyGen&apos;s
+        own list — no stock avatars). The plan&apos;s photo-avatar cap is{" "}
+        <strong>account-wide</strong>, shared across all users, so clean up
+        unused ones to free slots. Deleting a group frees a quota slot; deletion
+        is permanent.
       </p>
 
       {isMock ? (
@@ -33,7 +33,7 @@ export default async function AdminAvatarsPage() {
         </p>
       ) : photos.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No custom photo avatars on the account.
+          No custom photo avatars on the account — all quota slots are free.
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -55,7 +55,7 @@ export default async function AdminAvatarsPage() {
               <code className="truncate text-[10px] text-muted-foreground">
                 {p.id}
               </code>
-              <form action={deleteHeygenAvatar}>
+              <form action={deleteAvatarGroupAction}>
                 <input type="hidden" name="id" value={p.id} />
                 <Button
                   type="submit"
