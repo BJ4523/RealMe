@@ -28,27 +28,69 @@ export async function generateVideo(
   }
 
   // --- Real path ---
-  // Avatars are created as talking photos (see lib/heygen/avatar.ts), so the
-  // agent's cloned (or fallback) voice reads the AI-written script.
-  const body = {
-    video_inputs: [
+  // Build a vertical (9:16) walkthrough: one scene per listing photo, the photo
+  // full-frame in the background while the agent's talking-photo avatar narrates
+  // as a circular cutout overlay in the corner — like a reel walkthrough.
+  // Avatars are talking photos (see lib/heygen/avatar.ts); the cloned/fallback
+  // voice reads the AI-written script, chunked across the photos in order.
+  const photos = (input.photoUrls ?? []).filter(
+    (u): u is string => typeof u === "string" && u.length > 0,
+  );
+  const usePhotos = photos.slice(0, MAX_SCENES);
+  const voiceId = input.voiceId ?? DEFAULT_VOICE_ID;
+
+  const presenter = () => ({
+    type: "talking_photo" as const,
+    talking_photo_id: input.avatarId,
+    // Circle cutout, background removed, scaled small and placed bottom-right.
+    talking_photo_style: "circle" as const,
+    matting: true,
+    scale: 0.42,
+    offset: { x: 0.3, y: 0.34 },
+  });
+  const voiceFor = (text: string) => ({
+    type: "text" as const,
+    input_text: text,
+    voice_id: voiceId,
+  });
+
+  type Scene = {
+    character: ReturnType<typeof presenter>;
+    voice: ReturnType<typeof voiceFor>;
+    background?: { type: "image"; url: string; fit: "cover" };
+  };
+
+  let scenes: Scene[];
+  if (usePhotos.length <= 1) {
+    scenes = [
       {
-        character: {
-          type: "talking_photo",
-          talking_photo_id: input.avatarId,
-          scale: 1,
-        },
-        voice: {
-          type: "text",
-          input_text: input.script,
-          voice_id: input.voiceId ?? DEFAULT_VOICE_ID,
-        },
-        ...(input.photoUrls?.[0]
-          ? { background: { type: "image", url: input.photoUrls[0] } }
+        character: presenter(),
+        voice: voiceFor(input.script),
+        ...(usePhotos[0]
+          ? {
+              background: {
+                type: "image" as const,
+                url: usePhotos[0],
+                fit: "cover" as const,
+              },
+            }
           : {}),
       },
-    ],
-    dimension: { width: 1280, height: 720 },
+    ];
+  } else {
+    const chunks = splitScriptAcross(input.script, usePhotos.length);
+    scenes = usePhotos
+      .map((url, i) => ({
+        character: presenter(),
+        voice: voiceFor(chunks[i] ?? ""),
+        background: { type: "image" as const, url, fit: "cover" as const },
+      }))
+      .filter((s) => s.voice.input_text.trim().length > 0);
+  }
+
+  const body = {
+    video_inputs: scenes,
+    dimension: { width: 720, height: 1280 },
     title: input.title,
     callback_url: input.webhookUrl,
   };
@@ -58,6 +100,28 @@ export async function generateVideo(
     { method: "POST", json: body },
   );
   return { videoId: res.data.video_id, status: "processing" };
+}
+
+/** Max walkthrough scenes (one per photo) to keep videos a reasonable length. */
+const MAX_SCENES = 8;
+
+/**
+ * Split a narration script into `n` consecutive chunks aligned to sentence
+ * boundaries, so each listing photo gets a roughly equal slice of narration.
+ * If there are fewer sentences than photos, later chunks come back empty (those
+ * scenes are dropped by the caller).
+ */
+function splitScriptAcross(script: string, n: number): string[] {
+  const sentences = (script.match(/[^.!?]+[.!?]*/g) ?? [script])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (sentences.length <= n) {
+    return Array.from({ length: n }, (_, i) => sentences[i] ?? "");
+  }
+  const per = Math.ceil(sentences.length / n);
+  return Array.from({ length: n }, (_, i) =>
+    sentences.slice(i * per, (i + 1) * per).join(" "),
+  );
 }
 
 export async function getVideoStatus(
