@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { requireOnboarded } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
@@ -11,7 +11,7 @@ export default async function VideoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireOnboarded();
+  await requireUser();
   const { id } = await params;
   const supabase = await createClient();
 

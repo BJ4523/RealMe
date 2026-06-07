@@ -22,7 +22,7 @@ export default async function OnboardingPage() {
       </p>
       <Card className="mt-8 w-full rounded-3xl text-left">
         <CardContent className="pt-6">
-          <AvatarUploader redirectTo="/dashboard" />
+          <AvatarUploader redirectTo="/app" />
         </CardContent>
       </Card>
     </div>

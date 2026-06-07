@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { Home, Clapperboard, Plus, ArrowRight } from "lucide-react";
-import { requireOnboarded } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoCard } from "@/components/videos/video-card";
 import { Button } from "@/components/ui/button";
 
 export default async function DashboardPage() {
-  const { profile } = await requireOnboarded();
+  const { profile } = await requireUser();
   const supabase = await createClient();
 
   const [{ count: listingCount }, { count: videoCount }, { data: recent }] =

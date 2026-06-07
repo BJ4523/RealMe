@@ -4,65 +4,39 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as z from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { env } from "@/lib/env";
 
-const credentials = z.object({
+const emailSchema = z.object({
   email: z.email({ error: "Enter a valid email." }),
-  password: z.string().min(6, { error: "Password must be at least 6 characters." }),
 });
 
-export type AuthState = { error?: string } | undefined;
+export type AuthState = { error?: string; sent?: boolean; email?: string } | undefined;
 
-export async function signIn(
+/**
+ * Passwordless sign-in. Sends a magic link that returns the user to
+ * /auth/callback (PKCE code exchange) and on to the app.
+ */
+export async function sendMagicLink(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  const parsed = credentials.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
+  const parsed = emailSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return { error: parsed.error.issues[0]?.message ?? "Invalid email." };
   }
 
+  const next = (formData.get("next") as string) || "/app";
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) return { error: error.message };
-
-  const redirectTo = (formData.get("redirect") as string) || "/dashboard";
-  revalidatePath("/", "layout");
-  redirect(redirectTo);
-}
-
-export async function signUp(
-  _prev: AuthState,
-  formData: FormData,
-): Promise<AuthState> {
-  const schema = credentials.extend({
-    fullName: z.string().min(1, { error: "Tell us your name." }),
-  });
-  const parsed = schema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-    fullName: formData.get("fullName"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
+  const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
-    password: parsed.data.password,
-    options: { data: { full_name: parsed.data.fullName } },
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: `${env.siteUrl}/auth/callback?next=${encodeURIComponent(next)}`,
+    },
   });
-  if (error) return { error: error.message };
 
-  // When email confirmation is disabled (local dev), a session exists now.
-  if (data.session) {
-    revalidatePath("/", "layout");
-    redirect("/onboarding");
-  }
-  redirect("/login?checkEmail=1");
+  if (error) return { error: error.message };
+  return { sent: true, email: parsed.data.email };
 }
 
 export async function signOut() {

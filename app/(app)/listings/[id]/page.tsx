@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clapperboard, Trash2, ArrowLeft } from "lucide-react";
-import { requireOnboarded } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatPrice, formatSpecs, listingPhotos } from "@/lib/format";
 import { generateForListing } from "@/app/(app)/videos/actions";
@@ -14,7 +14,7 @@ export default async function ListingDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireOnboarded();
+  await requireUser();
   const { id } = await params;
   const supabase = await createClient();
 

@@ -1,0 +1,244 @@
+/* RealMe — design system (ported from the prototype's styles.css).
+   Font vars point at the next/font families loaded in app/layout.tsx:
+   --font-heading (Bricolage Grotesque), --font-sans (Geist), --font-mono (JetBrains Mono). */
+:root {
+  --bg: #F2EEE5;
+  --bg-warm: #FFFCF5;
+  --bg-card: #FFFFFF;
+  --ink: #111110;
+  --ink-soft: #5C5A53;
+  --ink-faint: #A8A498;
+  --rule: #E3DED1;
+  --rule-soft: #EAE6DA;
+  --lime: #D6FF3D;
+  --lime-dark: #B8E612;
+  --coral: #FF5A3C;
+  --coral-soft: #FFE4DC;
+  --ok: #1F8A5B;
+  --shadow-card: 0 1px 0 rgba(17,17,16,0.04), 0 8px 28px -8px rgba(17,17,16,0.10);
+  --shadow-pop: 0 24px 60px -20px rgba(17,17,16,0.30);
+  --font-display: var(--font-heading), "Bricolage Grotesque", "Helvetica Neue", sans-serif;
+  --font-body: var(--font-sans), "Geist", "Inter", "Helvetica Neue", sans-serif;
+  /* --font-mono is provided by next/font on <html>; design components use var(--font-mono). */
+}
+
+/* Scope the design's body styling to the marketing/app/live surfaces so it
+   doesn't fight the Tailwind-based routes. Applied via .realme-surface. */
+.realme-surface {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
+}
+
+.realme-surface * { box-sizing: border-box; }
+.realme-surface button, .realme-surface input, .realme-surface textarea, .realme-surface select { font: inherit; color: inherit; }
+.realme-surface button { cursor: pointer; border: none; background: none; padding: 0; }
+.realme-surface a { color: inherit; text-decoration: none; }
+
+/* Display type */
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 0.92;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.mono { font-family: var(--font-mono); }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn-primary { background: var(--ink); color: var(--bg-warm); }
+.btn-primary:hover { background: #000; }
+.btn-lime { background: var(--lime); color: var(--ink); }
+.btn-lime:hover { background: var(--lime-dark); }
+.btn-ghost { color: var(--ink); }
+.btn-ghost:hover { background: rgba(17,17,16,0.06); }
+.btn-outline {
+  border: 1px solid var(--ink);
+  color: var(--ink);
+}
+.btn-outline:hover { background: var(--ink); color: var(--bg-warm); }
+.btn-sm { padding: 7px 12px; font-size: 13px; }
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border-radius: 18px;
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-card);
+}
+
+/* Selection */
+.realme-surface ::selection { background: var(--lime); color: var(--ink); }
+
+/* Marquee */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  gap: 64px;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+}
+
+/* Tag */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+}
+.tag-lime { background: var(--lime); border-color: var(--lime-dark); }
+.tag-coral { background: var(--coral-soft); border-color: #f5c8bc; color: #8a1d05; }
+.tag-ink { background: var(--ink); color: var(--bg-warm); border-color: var(--ink); }
+
+/* Pulse dot */
+.dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.dot-live {
+  background: var(--coral);
+  box-shadow: 0 0 0 0 rgba(255,90,60,0.55);
+  animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,90,60,0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(255,90,60,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,90,60,0); }
+}
+
+/* Spinning ring (AI generation) */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1.2s linear infinite; }
+
+/* Underline accent */
+.lime-stripe {
+  background: linear-gradient(transparent 62%, var(--lime) 62%, var(--lime) 92%, transparent 92%);
+  padding: 0 2px;
+}
+
+/* Section dividers */
+.divider { height: 1px; background: var(--rule); border: none; margin: 0; }
+
+/* Skeleton */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.skel {
+  background: linear-gradient(90deg, #ECE7DA 0%, #F5F1E6 50%, #ECE7DA 100%);
+  background-size: 400px 100%;
+  animation: shimmer 1.6s infinite linear;
+  border-radius: 6px;
+}
+
+/* Pop-in for auto-filling calendar */
+@keyframes fillIn {
+  0% { opacity: 0; transform: scale(0.92) translateY(6px); }
+  60% { opacity: 1; transform: scale(1.02) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 1100px) {
+  .realme-surface { font-size: 14px; }
+}
+
+/* Phone bezel */
+.phone {
+  width: 280px;
+  height: 580px;
+  border-radius: 38px;
+  background: var(--ink);
+  padding: 10px;
+  box-shadow: var(--shadow-pop);
+  position: relative;
+}
+.phone-screen {
+  width: 100%; height: 100%;
+  border-radius: 28px;
+  overflow: hidden;
+  position: relative;
+  background: #000;
+}
+.phone-notch {
+  position: absolute;
+  top: 18px; left: 50%;
+  transform: translateX(-50%);
+  width: 90px; height: 24px;
+  background: #000;
+  border-radius: 999px;
+  z-index: 5;
+}
+
+/* Stripe placeholder background */
+.stripe-bg {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.06),
+    rgba(255,255,255,0.06) 1px,
+    transparent 1px,
+    transparent 14px
+  ), linear-gradient(135deg, #2a3a4a, #182230);
+}
+.stripe-bg-light {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(17,17,16,0.05),
+    rgba(17,17,16,0.05) 1px,
+    transparent 1px,
+    transparent 12px
+  );
+  background-color: var(--bg);
+}
+
+/* Inputs */
+input.field, textarea.field, select.field {
+  border: 1px solid var(--rule);
+  background: var(--bg-card);
+  padding: 10px 12px;
+  border-radius: 10px;
+  outline: none;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+}
+input.field:focus, textarea.field:focus, select.field:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(214,255,61,0.5);
+}
+
+/* Reset list */
+ul.clean, ol.clean { list-style: none; padding: 0; margin: 0; }
