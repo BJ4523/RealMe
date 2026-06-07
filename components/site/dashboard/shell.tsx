@@ -1,0 +1,515 @@
+// @ts-nocheck
+/* eslint-disable */
+"use client";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  AGENT,
+  LISTINGS,
+  LEADS,
+  RENTAL_MANAGER,
+  RENTAL_LEADS,
+  BUILDINGS,
+  ILS_CHANNELS,
+  Avatar,
+  MiniChart,
+  listingBg,
+  priceShort,
+  statusPill,
+} from "@/components/site/shared";
+import { ListingsView, StudioView } from "@/components/site/dashboard/listings";
+import { CalendarView, EmailView, LeadsView } from "@/components/site/dashboard/other";
+import {
+  RentalTodayView,
+  PortfolioView,
+  LeasePipelineView,
+  SyndicationView,
+  ConcessionsView,
+} from "@/components/site/dashboard/rentals";
+
+// RealMe — Dashboard shell + nav + Today overview
+
+function Logo({ size = 22 }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{
+        width: size, height: size, borderRadius: 6,
+        background: "var(--ink)", color: "var(--lime)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "var(--font-display)", fontWeight: 800,
+        fontSize: size * 0.6, letterSpacing: "-0.05em",
+      }}>R</div>
+      <span style={{
+        fontFamily: "var(--font-display)", fontWeight: 800, fontSize: size * 0.85,
+        letterSpacing: "-0.03em", color: "var(--ink)",
+      }}>RealMe</span>
+    </div>
+  );
+}
+
+export function DashboardShell({ onBackToSite, onOpenLive }) {
+  const initialMode = (typeof window !== "undefined" && (window.location.hash === "#rent" || window.location.hash === "#app/rent")) ? "rent" : "sale";
+  const [mode, setMode] = useState(initialMode);
+  const [section, setSection] = useState("today");
+
+  function switchMode(m) {
+    setMode(m);
+    setSection("today");
+  }
+
+  // Sections valid for the current mode
+  const validSections = mode === "sale"
+    ? ["today", "listings", "studio", "calendar", "email", "leads"]
+    : ["today", "portfolio", "studio", "calendar", "email", "pipeline", "syndication", "concessions"];
+  const currentSection = validSections.includes(section) ? section : "today";
+
+  return (
+    <div data-screen-label={mode === "sale" ? "02 Dashboard — Sales" : "03 Dashboard — Rentals"} style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+      <Sidebar mode={mode} setMode={switchMode} section={currentSection} setSection={setSection} onBackToSite={onBackToSite} onOpenLive={onOpenLive} />
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <DashTopBar mode={mode} section={currentSection} />
+        <main style={{ flex: 1, padding: "28px 32px 80px", overflowY: "auto" }}>
+          {mode === "sale" && currentSection === "today" && <TodayView setSection={setSection} />}
+          {mode === "sale" && currentSection === "listings" && <ListingsView setSection={setSection} />}
+          {mode === "sale" && currentSection === "studio" && <StudioView />}
+          {mode === "sale" && currentSection === "calendar" && <CalendarView />}
+          {mode === "sale" && currentSection === "email" && <EmailView />}
+          {mode === "sale" && currentSection === "leads" && <LeadsView />}
+
+          {mode === "rent" && currentSection === "today" && <RentalTodayView setSection={setSection} />}
+          {mode === "rent" && currentSection === "portfolio" && <PortfolioView setSection={setSection} />}
+          {mode === "rent" && currentSection === "studio" && <StudioView />}
+          {mode === "rent" && currentSection === "calendar" && <CalendarView />}
+          {mode === "rent" && currentSection === "email" && <EmailView />}
+          {mode === "rent" && currentSection === "pipeline" && <LeasePipelineView />}
+          {mode === "rent" && currentSection === "syndication" && <SyndicationView />}
+          {mode === "rent" && currentSection === "concessions" && <ConcessionsView />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive }) {
+  const navSale = [
+    { id: "today", label: "Today", icon: "◐" },
+    { id: "listings", label: "Listings", icon: "▦", count: LISTINGS.filter(l => l.status === "new").length, countLabel: "new" },
+    { id: "studio", label: "Video Studio", icon: "▶", hot: true },
+    { id: "calendar", label: "Calendar", icon: "▣", count: 7, countLabel: "queued" },
+    { id: "email", label: "Email", icon: "✉" },
+    { id: "leads", label: "Leads", icon: "◆", count: LEADS.filter(l => l.stage === "new").length, countLabel: "new" },
+  ];
+  const navRent = [
+    { id: "today", label: "Today", icon: "◐" },
+    { id: "portfolio", label: "Portfolio", icon: "⌂", count: RENTAL_MANAGER.vacant, countLabel: "vacant" },
+    { id: "studio", label: "Video Studio", icon: "▶", hot: true },
+    { id: "calendar", label: "Calendar", icon: "▣", count: 7, countLabel: "queued" },
+    { id: "email", label: "Email", icon: "✉" },
+    { id: "pipeline", label: "Lease Pipeline", icon: "◆", count: RENTAL_LEADS.filter(l => l.stage === "inquiry").length, countLabel: "new" },
+    { id: "syndication", label: "Syndication", icon: "↗", coral: true },
+    { id: "concessions", label: "Concessions", icon: "⚡" },
+  ];
+  const nav = mode === "sale" ? navSale : navRent;
+  const profile = mode === "sale" ? AGENT : RENTAL_MANAGER;
+  const profileSub = mode === "sale" ? AGENT.brokerage : RENTAL_MANAGER.company;
+  return (
+    <aside style={{
+      width: 240, background: "var(--bg-warm)", borderRight: "1px solid var(--rule)",
+      display: "flex", flexDirection: "column", flexShrink: 0,
+      position: "sticky", top: 0, height: "100vh",
+    }}>
+      <div style={{ padding: "20px 18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Logo size={22} />
+        <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: "4px 8px", fontFamily: "var(--font-mono)" }}>
+          ← site
+        </button>
+      </div>
+
+      {/* Mode toggle */}
+      <div style={{ padding: "0 12px 8px" }}>
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4,
+          padding: 4, background: "var(--bg)", borderRadius: 12,
+          border: "1px solid var(--rule)",
+        }}>
+          {[{ id: "sale", l: "Sales", sub: AGENT.listings + " listings" }, { id: "rent", l: "Rentals", sub: RENTAL_MANAGER.units + " units" }].map(m => (
+            <button key={m.id} onClick={() => setMode(m.id)} style={{
+              padding: "8px 10px", borderRadius: 8, textAlign: "left",
+              background: mode === m.id ? (m.id === "rent" ? "var(--coral)" : "var(--ink)") : "transparent",
+              color: mode === m.id ? (m.id === "rent" ? "#fff" : "var(--bg-warm)") : "var(--ink)",
+              transition: "background 0.18s ease",
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "-0.01em" }}>{m.l}</div>
+              <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", opacity: 0.75, marginTop: 1 }}>{m.sub}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "8px 12px" }}>
+        <div style={{
+          background: "var(--bg-card)", borderRadius: 12, padding: 12,
+          border: "1px solid var(--rule)",
+          display: "flex", gap: 10, alignItems: "center",
+        }}>
+          <Avatar name={profile.name} size={36} ring photo={profile.photo} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{profile.name}</div>
+            <div style={{ fontSize: 10, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>
+              {profileSub}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <nav style={{ padding: "8px", flex: 1 }}>
+        {nav.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setSection(item.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              width: "100%", padding: "10px 12px", borderRadius: 10,
+              background: section === item.id ? "var(--ink)" : "transparent",
+              color: section === item.id ? "var(--bg-warm)" : "var(--ink)",
+              fontWeight: 500, fontSize: 14, textAlign: "left",
+              marginBottom: 2,
+            }}>
+            <span style={{ fontSize: 14, opacity: 0.85, width: 16, textAlign: "center" }}>{item.icon}</span>
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {item.count != null && (
+              <span style={{
+                fontSize: 10, fontFamily: "var(--font-mono)",
+                padding: "2px 7px", borderRadius: 999,
+                background: section === item.id ? "var(--lime)" : "var(--bg)",
+                color: section === item.id ? "var(--ink)" : "var(--ink-soft)",
+              }}>
+                {item.count}
+              </span>
+            )}
+            {item.hot && (
+              <span style={{ fontSize: 9, fontFamily: "var(--font-mono)",
+                color: "var(--lime)",
+              }}>NEW</span>
+            )}
+            {item.coral && (
+              <span style={{ fontSize: 9, fontFamily: "var(--font-mono)",
+                color: "var(--coral)",
+              }}>NEW</span>
+            )}
+          </button>
+        ))}
+        {mode === "rent" && onOpenLive && (
+          <button onClick={onOpenLive} style={{
+            display: "flex", alignItems: "center", gap: 12,
+            width: "100%", padding: "10px 12px", borderRadius: 10,
+            background: "transparent", color: "var(--ink)",
+            fontWeight: 500, fontSize: 14, textAlign: "left",
+            marginTop: 8, borderTop: "1px dashed var(--rule)", paddingTop: 14,
+          }}>
+            <span style={{ fontSize: 14, width: 16, textAlign: "center" }}>↗</span>
+            <span style={{ flex: 1 }}>RealMe Live</span>
+            <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 6px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700 }}>PUBLIC</span>
+          </button>
+        )}
+      </nav>
+
+      <div style={{ padding: 12, borderTop: "1px solid var(--rule)" }}>
+        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", marginBottom: 6 }}>
+          THIS MONTH
+        </div>
+        <div style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+          <span>Reels generated</span><span className="mono">{AGENT.videos}/100</span>
+        </div>
+        <div style={{ height: 4, background: "var(--bg)", borderRadius: 99, marginTop: 4, marginBottom: 12 }}>
+          <div style={{ height: "100%", width: "47%", background: "var(--lime)", borderRadius: 99 }} />
+        </div>
+        <button className="btn btn-outline btn-sm" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
+          Upgrade to unlimited
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function DashTopBar({ mode, section }) {
+  const titlesSale = {
+    today: "Today",
+    listings: "Listings",
+    studio: "Video Studio",
+    calendar: "Content Calendar",
+    email: "Email Campaigns",
+    leads: "Leads Pipeline",
+  };
+  const subtitlesSale = {
+    today: "Wed, May 15 · You have 4 things to look at",
+    listings: `${LISTINGS.length} active · ${LISTINGS.filter(l => l.autoImported).length} auto-imported from MLS`,
+    studio: "Generate reels of you talking about your listings",
+    calendar: "11 posts queued for the week of May 13",
+    email: "1,840 contacts · last blast sent Tuesday 8:00 AM",
+    leads: `${LEADS.length} active leads · ${LEADS.filter(l => l.hot).length} hot this morning`,
+  };
+  const titlesRent = {
+    today: "Today",
+    portfolio: "Portfolio",
+    studio: "Video Studio",
+    calendar: "Content Calendar",
+    email: "Renter Emails",
+    pipeline: "Lease Pipeline",
+    syndication: "ILS Syndication",
+    concessions: "Concessions",
+  };
+  const subtitlesRent = {
+    today: `Wed, May 15 · ${RENTAL_MANAGER.vacant} vacant units across ${BUILDINGS.length} buildings`,
+    portfolio: `${BUILDINGS.length} buildings · ${RENTAL_MANAGER.units} units · ${Math.round(RENTAL_MANAGER.occupancy * 100)}% occupied`,
+    studio: "Generate reels for every vacant unit",
+    calendar: "11 posts queued for the week of May 13",
+    email: "4,820 renters on your waitlist · last blast sent Tuesday",
+    pipeline: `${RENTAL_LEADS.length} active leads · ${RENTAL_LEADS.filter(l => l.hot).length} hot this morning`,
+    syndication: `Pushing to ${ILS_CHANNELS.filter(c => c.syndicated).length} ILS channels · 54.3k views last 30d`,
+    concessions: "Stale unit? Drop a concession. Auto-renders a reel and reposts.",
+  };
+  const titles = mode === "sale" ? titlesSale : titlesRent;
+  const subtitles = mode === "sale" ? subtitlesSale : subtitlesRent;
+  return (
+    <header style={{
+      padding: "20px 32px 16px",
+      borderBottom: "1px solid var(--rule)",
+      background: "var(--bg)",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      position: "sticky", top: 0, zIndex: 30,
+    }}>
+      <div>
+        <h1 className="display" style={{ fontSize: 32, margin: 0 }}>{titles[section]}</h1>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 2 }}>{subtitles[section]}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "relative" }}>
+          <input className="field" placeholder="Search listings, leads, posts…" style={{ width: 280, paddingLeft: 30 }} />
+          <span style={{ position: "absolute", left: 11, top: 11, color: "var(--ink-faint)" }}>⌕</span>
+        </div>
+        <button className="btn btn-ghost btn-sm" style={{ position: "relative", padding: "8px 10px" }}>
+          🔔
+          <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "var(--coral)" }} />
+        </button>
+        <button className="btn btn-primary btn-sm">+ New reel</button>
+      </div>
+    </header>
+  );
+}
+
+// ====== TODAY VIEW ======
+function TodayView({ setSection }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <HeroToday setSection={setSection} />
+        <TodayActivity />
+        <TodayPerformance />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <TodayActions setSection={setSection} />
+        <TodayUpNext />
+        <TodayDigest />
+      </div>
+    </div>
+  );
+}
+
+function HeroToday({ setSection }) {
+  const newListing = LISTINGS.find(l => l.status === "new");
+  return (
+    <div style={{
+      background: "var(--ink)", color: "var(--bg-warm)",
+      borderRadius: 20, padding: 28, position: "relative", overflow: "hidden",
+    }}>
+      <div style={{
+        position: "absolute", right: -60, top: -60, width: 280, height: 280, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(214,255,61,0.25), transparent 60%)",
+      }} />
+      <div style={{ display: "flex", alignItems: "start", gap: 28 }}>
+        <div style={{ flex: 1, position: "relative", zIndex: 1 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            fontFamily: "var(--font-mono)", fontSize: 11,
+            padding: "5px 10px", borderRadius: 999,
+            background: "rgba(246,242,234,0.08)", color: "var(--bg-warm)",
+            border: "1px solid rgba(246,242,234,0.15)",
+            letterSpacing: "0.04em", textTransform: "uppercase",
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--lime)" }} />
+            Auto-detected · 3 min ago
+          </span>
+          <h2 className="display" style={{ fontSize: 44, margin: "16px 0 12px", letterSpacing: "-0.03em", lineHeight: 0.98 }}>
+            New listing dropped.<br />Want a reel?
+          </h2>
+          <p style={{ fontSize: 15, color: "rgba(246,242,234,0.75)", maxWidth: 480, lineHeight: 1.5 }}>
+            <strong style={{ color: "var(--bg-warm)" }}>{newListing.address}</strong> · {newListing.city} · {priceShort(newListing.price)}.
+            Walkthrough script drafted. Approve to render in 14s, post in 4 min.
+          </p>
+          <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+            <button className="btn btn-lime" onClick={() => setSection("studio")} style={{ fontSize: 14 }}>
+              Review script & generate →
+            </button>
+            <button className="btn btn-ghost" style={{ color: "var(--bg-warm)", fontSize: 14 }}>Skip this one</button>
+          </div>
+        </div>
+        <div style={{
+          width: 160, height: 200, borderRadius: 14, flexShrink: 0,
+          ...listingBg(newListing),
+          border: "1px solid rgba(246,242,234,0.1)",
+          position: "relative", zIndex: 1, overflow: "hidden",
+        }}>
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 50%)" }} />
+          <div style={{ padding: 12, color: "#fff", fontSize: 10, fontFamily: "var(--font-mono)", letterSpacing: "0.1em", position: "relative" }}>
+            {newListing.style.toUpperCase()}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TodayActivity() {
+  const activity = [
+    { t: "9:04 AM", icon: "✉", text: "Sent open house blast — Sunset Ridge", meta: "1,840 buyers · 51% opened", lime: true },
+    { t: "8:32 AM", icon: "▶", text: "Posted walkthrough to TikTok — 612 Maple", meta: "4,210 views in first 24h" },
+    { t: "8:00 AM", icon: "◆", text: "Priya Shah replied to your Reel DM", meta: "Hot lead · 92/100 — call before noon", hot: true },
+    { t: "7:18 AM", icon: "▶", text: "Auto-imported 1 new listing from MLS", meta: "5 Eucalyptus Pl · scripted, awaiting your OK" },
+    { t: "Yesterday", icon: "✉", text: "Carla Mendez clicked 'Book showing' link", meta: "TikTok → email → showing in 14 min" },
+  ];
+  return (
+    <div className="card" style={{ padding: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+        <div>
+          <span className="eyebrow">Today · auto-pilot log</span>
+          <div className="display" style={{ fontSize: 22, marginTop: 4 }}>What RealMe did while you slept</div>
+        </div>
+        <span className="tag mono">Live</span>
+      </div>
+      <ul className="clean" style={{ display: "flex", flexDirection: "column" }}>
+        {activity.map((a, i) => (
+          <li key={i} style={{
+            display: "flex", gap: 14, padding: "12px 0",
+            borderTop: i === 0 ? "none" : "1px solid var(--rule-soft)",
+            alignItems: "start",
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: a.lime ? "var(--lime)" : a.hot ? "var(--coral-soft)" : "var(--bg)",
+              color: a.hot ? "var(--coral)" : "var(--ink)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, flexShrink: 0,
+            }}>{a.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{a.text}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{a.meta}</div>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{a.t}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TodayPerformance() {
+  const reelData = [12, 18, 14, 22, 28, 24, 35, 31, 42, 38, 47, 52, 58, 62];
+  const emailData = [40, 48, 42, 51, 53, 47, 55, 58];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      <PerfCard label="Reel views · 30d" value="184.2k" delta="+34%" data={reelData} color="var(--ink)" fill="var(--lime)" />
+      <PerfCard label="Email open rate" value="51%" delta="+6 pts" data={emailData} color="var(--ink)" fill="var(--lime)" />
+      <PerfCard label="Showings booked" value="14" delta="+9 vs. last mo" data={[2,3,3,4,5,3,4,5,6,5,7]} color="var(--ink)" fill="var(--lime)" />
+    </div>
+  );
+}
+
+function PerfCard({ label, value, delta, data, color, fill }) {
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
+        <div className="display" style={{ fontSize: 32 }}>{value}</div>
+        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ok)" }}>↗ {delta}</div>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <MiniChart data={data} color={color} fill={fill} height={36} />
+      </div>
+    </div>
+  );
+}
+
+function TodayActions({ setSection }) {
+  return (
+    <div className="card" style={{ padding: 20, background: "var(--bg-warm)" }}>
+      <span className="eyebrow">Quick actions</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+        {[
+          { l: "Generate reel for new listing", icon: "▶", to: "studio", primary: true },
+          { l: "Draft this week's email blast", icon: "✉", to: "email" },
+          { l: "Call Priya Shah · hot", icon: "☎", to: "leads", coral: true },
+          { l: "Review Saturday's open house post", icon: "▣", to: "calendar" },
+        ].map((a, i) => (
+          <button key={i} onClick={() => setSection(a.to)} style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+            background: a.primary ? "var(--ink)" : a.coral ? "var(--coral-soft)" : "var(--bg-card)",
+            color: a.primary ? "var(--bg-warm)" : a.coral ? "#8a1d05" : "var(--ink)",
+            border: a.primary || a.coral ? "none" : "1px solid var(--rule)",
+            borderRadius: 10, fontSize: 13, fontWeight: 500, textAlign: "left",
+          }}>
+            <span style={{ width: 18 }}>{a.icon}</span>
+            <span style={{ flex: 1 }}>{a.l}</span>
+            <span>→</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TodayUpNext() {
+  return (
+    <div className="card" style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span className="eyebrow">Up next</span>
+        <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>NEXT 24H</span>
+      </div>
+      <ul className="clean" style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+        {[
+          { t: "9:30 AM", text: "IG · Just Listed: Eucalyptus Pl", status: "generating" },
+          { t: "6:00 PM", text: "TT · Walkthrough: Anchor Way", status: "generating" },
+          { t: "Tomorrow 8 AM", text: "Email · Friday Roundup", status: "queued" },
+          { t: "Tomorrow 9 AM", text: "IG · Open House invite: Jack London", status: "scheduled" },
+        ].map((u, i) => (
+          <li key={i} style={{ display: "flex", gap: 12, alignItems: "start" }}>
+            <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", width: 80, flexShrink: 0, paddingTop: 2 }}>{u.t}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13 }}>{u.text}</div>
+              <div style={{ marginTop: 4 }}>{statusPill(u.status)}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TodayDigest() {
+  return (
+    <div className="card" style={{ padding: 20, background: "var(--ink)", color: "var(--bg-warm)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--lime)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11 }}>R</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(246,242,234,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>RealMe · 7:14 AM</span>
+      </div>
+      <div style={{ marginTop: 14, fontSize: 16, lineHeight: 1.45, fontFamily: "var(--font-display)", letterSpacing: "-0.015em" }}>
+        Heads up — your walkthroughs are crushing it lately. Like, 3× better than the
+        Just-Listed pops. Want me to swap Wed and Fri to walkthroughs and free up your
+        afternoon?
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <button className="btn btn-lime btn-sm">Yeah, do it</button>
+        <button className="btn btn-ghost btn-sm" style={{ color: "var(--bg-warm)" }}>Not yet</button>
+      </div>
+    </div>
+  );
+}

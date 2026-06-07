@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, use } from "react";
-import Link from "next/link";
 import { useFormStatus } from "react-dom";
-import { signIn, type AuthState } from "../actions";
+import { Mail, CheckCircle2 } from "lucide-react";
+import { sendMagicLink, type AuthState } from "../actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,7 +23,8 @@ function SubmitButton() {
       disabled={pending}
       className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
     >
-      {pending ? "Signing in…" : "Log in"}
+      <Mail className="size-4" />
+      {pending ? "Sending…" : "Email me a magic link"}
     </Button>
   );
 }
@@ -31,40 +32,52 @@ function SubmitButton() {
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect?: string; checkEmail?: string }>;
+  searchParams: Promise<{ next?: string }>;
 }) {
   const params = use(searchParams);
   const [state, formAction] = useActionState<AuthState, FormData>(
-    signIn,
+    sendMagicLink,
     undefined,
   );
+
+  if (state?.sent) {
+    return (
+      <Card className="rounded-3xl text-center">
+        <CardContent className="flex flex-col items-center gap-3 pt-8 pb-8">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-accent/30">
+            <CheckCircle2 className="size-6" />
+          </div>
+          <h1 className="font-heading text-2xl font-bold">Check your email</h1>
+          <p className="text-sm text-muted-foreground">
+            We sent a magic link to{" "}
+            <span className="font-medium text-foreground">{state.email}</span>.
+            Click it to sign in.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="rounded-3xl">
       <CardHeader>
-        <CardTitle className="font-heading text-2xl">Welcome back</CardTitle>
-        <CardDescription>Log in to your Real Me studio.</CardDescription>
+        <CardTitle className="font-heading text-2xl">Sign in to RealMe</CardTitle>
+        <CardDescription>
+          No password — we&apos;ll email you a one-tap magic link.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {params.checkEmail ? (
-          <p className="mb-4 rounded-xl bg-accent/30 px-3 py-2 text-sm">
-            Check your email to confirm your account, then log in.
-          </p>
-        ) : null}
         <form action={formAction} className="flex flex-col gap-4">
-          <input type="hidden" name="redirect" value={params.redirect ?? ""} />
+          <input type="hidden" name="next" value={params.next ?? "/app"} />
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required autoComplete="email" />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
             <Input
-              id="password"
-              name="password"
-              type="password"
+              id="email"
+              name="email"
+              type="email"
               required
-              autoComplete="current-password"
+              autoComplete="email"
+              placeholder="you@brokerage.com"
             />
           </div>
           {state?.error ? (
@@ -72,12 +85,6 @@ export default function LoginPage({
           ) : null}
           <SubmitButton />
         </form>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          New here?{" "}
-          <Link href="/signup" className="font-medium text-foreground underline">
-            Create an account
-          </Link>
-        </p>
       </CardContent>
     </Card>
   );
