@@ -2,6 +2,7 @@
 /* eslint-disable */
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   AGENT,
   LISTINGS,
@@ -11,8 +12,11 @@ import {
   listingBg,
   priceShort,
 } from "@/components/site/shared";
+import { useDashboardData } from "./data-context";
 
 export function ListingsView({ setSection }) {
+  const router = useRouter();
+  const { listings: LISTINGS, isReal } = useDashboardData();
   const [filter, setFilter] = useState("all");
   const filters = [
     { id: "all", label: "All", n: LISTINGS.length },
@@ -41,9 +45,9 @@ export function ListingsView({ setSection }) {
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>
             <span className="dot" style={{ background: "var(--ok)", marginRight: 6 }} />
-            MLS synced 4 min ago
+            {isReal ? `${LISTINGS.length} listings · live` : "MLS synced 4 min ago"}
           </span>
-          <button className="btn btn-outline btn-sm">+ Add manually</button>
+          <button className="btn btn-outline btn-sm" onClick={() => router.push("/listings/new")}>+ Add manually</button>
         </div>
       </div>
 
@@ -112,6 +116,7 @@ function Mini({ label, value, mono }) {
 // ====== VIDEO STUDIO ======
 
 export function StudioView() {
+  const { listings: LISTINGS } = useDashboardData();
   const [selected, setSelected] = useState(LISTINGS[0].id);
   const [template, setTemplate] = useState("walkthru");
   const [cadence, setCadence] = useState("daily");

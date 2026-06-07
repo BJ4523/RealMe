@@ -1,4 +1,4 @@
-import { requireOnboarded } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/shared/page-header";
 import { ListingForm } from "@/components/listings/listing-form";
 import { UrlImport } from "@/components/listings/url-import";
@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function NewListingPage() {
-  await requireOnboarded();
+  await requireUser();
 
   return (
     <>

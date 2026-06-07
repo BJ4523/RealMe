@@ -217,15 +217,19 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Production SMTP via Resend. Local stays on Mailpit (enabled = false); set
+# enabled = true only for the one-time `supabase config push` to the cloud
+# project. Password is read from the RESEND_API_KEY env var at push time
+# (never stored in this file). admin_email must be a Resend-verified sender
+# (onboarding@resend.dev works for testing).
+[auth.email.smtp]
+enabled = false
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "onboarding@resend.dev"
+sender_name = "RealMe"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

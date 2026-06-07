@@ -3,15 +3,18 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "./shell";
+import { DashboardDataProvider } from "./data-context";
 
-export function DashboardPageClient() {
+export function DashboardPageClient({ listings }) {
   const router = useRouter();
   return (
     <div className="realme-surface">
-      <DashboardShell
-        onBackToSite={() => router.push("/")}
-        onOpenLive={() => router.push("/live")}
-      />
+      <DashboardDataProvider listings={listings}>
+        <DashboardShell
+          onBackToSite={() => router.push("/")}
+          onOpenLive={() => router.push("/live")}
+        />
+      </DashboardDataProvider>
     </div>
   );
 }
