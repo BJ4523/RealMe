@@ -10,12 +10,17 @@ export default async function AppDashboardPage() {
   await requireUser();
 
   const supabase = await createClient();
-  const { data: rows } = await supabase
-    .from("listings")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: rows }, { data: avatar }] = await Promise.all([
+    supabase.from("listings").select("*").order("created_at", { ascending: false }),
+    supabase
+      .from("avatars")
+      .select("id")
+      .eq("is_active", true)
+      .eq("status", "ready")
+      .maybeSingle(),
+  ]);
 
   const listings = (rows ?? []).map((row, i) => mapDbListingToDesign(row, i));
 
-  return <DashboardPageClient listings={listings} />;
+  return <DashboardPageClient listings={listings} hasAvatar={!!avatar} />;
 }

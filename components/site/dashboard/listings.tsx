@@ -14,6 +14,8 @@ import {
   useIsMobile,
 } from "@/components/site/shared";
 import { useDashboardData } from "./data-context";
+import { studioGenerate } from "@/lib/site/studio-actions";
+import { pollVideoStatus } from "@/app/(app)/videos/actions";
 
 export function ListingsView({ setSection }) {
   const router = useRouter();
@@ -120,7 +122,8 @@ function Mini({ label, value, mono }) {
 
 export function StudioView() {
   const isMobile = useIsMobile();
-  const { listings: LISTINGS } = useDashboardData();
+  const router = useRouter();
+  const { listings: LISTINGS, hasAvatar, isReal } = useDashboardData();
   const [selected, setSelected] = useState(LISTINGS[0].id);
   const [template, setTemplate] = useState("walkthru");
   const [cadence, setCadence] = useState("daily");
@@ -129,6 +132,9 @@ export function StudioView() {
   const [generated, setGenerated] = useState(false);
   const [progress, setProgress] = useState(0);
   const [steps, setSteps] = useState([]);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [genError, setGenError] = useState(null);
+  const isRealListing = /^[0-9a-f]{8}-[0-9a-f-]{27}$/.test(String(selected));
 
   const listing = LISTINGS.find(l => l.id === selected);
   const tmpl = VIDEO_TEMPLATES.find(t => t.id === template);
@@ -147,29 +153,69 @@ export function StudioView() {
     setScript(draftScript(listing, tmpl));
   }, [selected, template]);
 
-  function go() {
+  async function go() {
+    setGenError(null);
+    // Need an avatar to put yourself on camera.
+    if (!hasAvatar) {
+      router.push("/onboarding");
+      return;
+    }
+    // Real generation only works against a real (saved) listing.
+    if (!isRealListing) {
+      setGenError("Add a real listing first — then pick it here to generate.");
+      return;
+    }
     setGenerating(true);
     setGenerated(false);
     setProgress(0);
     setSteps([]);
+    setVideoUrl(null);
+
+    const scriptText = (script || []).map((s) => s.text).join(" ");
+    const res = await studioGenerate(selected, scriptText, listing?.address);
+    if ("error" in res) {
+      setGenerating(false);
+      if (res.error === "no_avatar") { router.push("/onboarding"); return; }
+      setGenError(
+        res.error === "no_listing"
+          ? "Add a real listing first."
+          : res.message || "Generation failed. Try again.",
+      );
+      return;
+    }
+
+    // Poll the real HeyGen job to completion.
+    const poll = setInterval(async () => {
+      const v = await pollVideoStatus(res.videoId);
+      if (!v) return;
+      if (v.status === "completed") {
+        clearInterval(poll);
+        setProgress(100);
+        setSteps(generationSteps);
+        setGenerating(false);
+        setGenerated(true);
+        setVideoUrl(v.video_url);
+      } else if (v.status === "failed") {
+        clearInterval(poll);
+        setGenerating(false);
+        setGenError(v.error || "Generation failed.");
+      }
+    }, 4000);
   }
+
+  // Visual progress while the real job renders (caps at ~92% until completion).
   useEffect(() => {
     if (!generating) return;
     let p = 0, s = 0;
     const i = setInterval(() => {
-      p += 1.2;
-      setProgress(Math.min(100, p));
+      p = Math.min(92, p + 1.1);
+      setProgress(p);
       const ns = Math.floor((p / 100) * generationSteps.length);
       if (ns > s) {
         s = ns;
         setSteps(arr => [...arr, generationSteps[s - 1]]);
       }
-      if (p >= 100) {
-        clearInterval(i);
-        setGenerating(false);
-        setGenerated(true);
-      }
-    }, 90);
+    }, 140);
     return () => clearInterval(i);
   }, [generating]);
 
@@ -254,12 +300,25 @@ export function StudioView() {
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap" }}>
           <button onClick={go} disabled={generating} className="btn btn-primary" style={{ padding: "14px 22px", fontSize: 14 }}>
-            {generating ? "Rendering…" : generated ? "↻ Regenerate" : "Generate & schedule →"}
+            {!hasAvatar
+              ? "Set up your avatar →"
+              : generating
+                ? "Rendering…"
+                : generated
+                  ? "↻ Regenerate"
+                  : "Generate video →"}
           </button>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>
-            Est. cost <strong>$0.32</strong> · render time <strong>~14s</strong> · auto-posts at <strong>9:30 AM Wed</strong>
+            {!hasAvatar
+              ? "Upload your photo + voice once — then generate from any listing."
+              : !isRealListing
+                ? "Pick one of your real listings to generate."
+                : "Your avatar narrates this listing · HeyGen render ~30s"}
           </div>
         </div>
+        {genError && (
+          <div style={{ fontSize: 13, color: "var(--coral)", fontFamily: "var(--font-mono)" }}>{genError}</div>
+        )}
 
         {(generating || generated) && (
           <div className="card" style={{ padding: 16 }}>
@@ -295,7 +354,7 @@ export function StudioView() {
           <div className="phone" style={{ margin: "0 auto" }}>
             <div className="phone-notch"></div>
             <div className="phone-screen">
-              <StudioReelPreview listing={listing} script={script} progress={progress} generating={generating} done={generated} />
+              <StudioReelPreview listing={listing} script={script} progress={progress} generating={generating} done={generated} videoUrl={videoUrl} />
             </div>
           </div>
           <div style={{ marginTop: 16, display: "flex", gap: 6, justifyContent: "center" }}>
@@ -420,12 +479,26 @@ function ScriptEditor({ script, setScript }) {
   );
 }
 
-function StudioReelPreview({ listing, script, progress, generating, done }) {
+function StudioReelPreview({ listing, script, progress, generating, done, videoUrl }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const i = setInterval(() => setTick(t => t + 1), 80);
     return () => clearInterval(i);
   }, []);
+
+  // Real finished video.
+  if (videoUrl) {
+    return (
+      <video
+        src={videoUrl}
+        controls
+        autoPlay
+        loop
+        playsInline
+        style={{ width: "100%", height: "100%", objectFit: "cover", background: "#000" }}
+      />
+    );
+  }
 
   if (!script) return null;
   const i = Math.floor((tick / 22) % script.length);
