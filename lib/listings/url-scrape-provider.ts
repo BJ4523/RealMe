@@ -5,9 +5,12 @@ import {
   type ListingPhoto,
   type ListingProvider,
 } from "./provider";
+import { scrapeListingViaFirecrawl } from "./firecrawl";
 
 /**
  * Best-effort listing import from a public URL. Extraction order:
+ *   0. Firecrawl structured extraction (when FIRECRAWL_API_KEY is set) — gets
+ *      past bot walls on Zillow/Realtor/Redfin that block a plain fetch.
  *   1. schema.org JSON-LD (RealEstateListing / Product / Residence)
  *   2. OpenGraph / Twitter meta tags
  * A Claude-based fallback on the raw HTML can be layered in later behind the
@@ -28,6 +31,13 @@ export const urlScrapeProvider: ListingProvider = {
       url = new URL(ref.url);
     } catch {
       return null;
+    }
+
+    // Firecrawl first (handles bot-protected portals); fall back to a plain
+    // fetch + JSON-LD/meta scrape for sites that don't block bots.
+    const viaFirecrawl = await scrapeListingViaFirecrawl(url.toString());
+    if (viaFirecrawl && (viaFirecrawl.address || viaFirecrawl.description)) {
+      return normalizeDraft(viaFirecrawl);
     }
 
     const res = await fetch(url, {

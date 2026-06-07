@@ -18,6 +18,9 @@ export const env = {
   heygenApiKey: process.env.HEYGEN_API_KEY ?? "",
   heygenWebhookSecret: process.env.HEYGEN_WEBHOOK_SECRET ?? "",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  // Firecrawl: powers URL import past bot walls (Zillow/Realtor/Redfin).
+  // When unset, URL import falls back to the dependency-free scraper.
+  firecrawlApiKey: process.env.FIRECRAWL_API_KEY ?? "",
   cronSecret: process.env.CRON_SECRET ?? "",
 
   // Comma-separated allowlist of emails permitted to use the /admin routes.
