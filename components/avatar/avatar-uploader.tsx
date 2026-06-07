@@ -3,11 +3,12 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { UploadCloud, Sparkles, Mic } from "lucide-react";
+import { UploadCloud, Sparkles } from "lucide-react";
 import { createAvatar, type AvatarState } from "@/app/(app)/onboarding/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { VoiceInput } from "@/components/avatar/voice-input";
 
 function SubmitButton({ hasFile }: { hasFile: boolean }) {
   const { pending } = useFormStatus();
@@ -37,9 +38,7 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
   );
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [audioName, setAudioName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const audioRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (state?.ok) router.push(redirectTo);
@@ -90,31 +89,8 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
         <Input id="name" name="name" defaultValue="My avatar" />
       </div>
 
-      {/* Optional: clone the agent's voice from a short audio clip. */}
-      <div className="grid gap-2">
-        <Label>Your voice (optional)</Label>
-        <button
-          type="button"
-          onClick={() => audioRef.current?.click()}
-          className="flex items-center gap-3 rounded-2xl border border-dashed border-border bg-card px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-foreground/40"
-        >
-          <Mic className="size-4 shrink-0" />
-          <span className="truncate">
-            {audioName ?? "Upload a ~30s voice clip to narrate in your voice"}
-          </span>
-        </button>
-        <input
-          ref={audioRef}
-          type="file"
-          name="audio"
-          accept="audio/*"
-          className="hidden"
-          onChange={(e) => setAudioName(e.target.files?.[0]?.name ?? null)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Skip this and we&apos;ll use a natural stock voice.
-        </p>
-      </div>
+      {/* Optional: clone the agent's voice — record in-app or upload a clip. */}
+      <VoiceInput />
 
       {state?.error ? (
         <p className="text-sm text-destructive">{state.error}</p>
