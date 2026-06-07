@@ -8,37 +8,41 @@ import { createAvatarFromAsset, cloneVoiceFromAudio } from "@/lib/heygen/avatar"
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
 
 /**
- * Upload the agent's photo/video to Storage, create a HeyGen Photo Avatar,
- * persist the avatar row as active, and mark onboarding complete.
+ * Create a HeyGen Photo Avatar from files the BROWSER already uploaded to
+ * Storage, persist the avatar row as active, and mark onboarding complete.
+ *
+ * The photo/voice are uploaded client-side directly to Supabase Storage (the
+ * `avatar-sources` bucket, owner-scoped by RLS) so they never pass through this
+ * Server Action — avatars can be up to 32MB, far above the Next.js 1MB Server
+ * Action body limit and Vercel's 4.5MB function-body cap. We receive only the
+ * storage paths here, then download the bytes server-side to forward to HeyGen.
  */
 export async function createAvatar(
   _prev: AvatarState,
   formData: FormData,
 ): Promise<AvatarState> {
   const { userId } = await requireUser();
-  const file = formData.get("file");
-  const audio = formData.get("audio");
+  const photoPath = formData.get("photoPath");
+  const photoContentType =
+    (formData.get("photoContentType") as string) || "image/jpeg";
+  const audioPath = formData.get("audioPath");
+  const audioContentType =
+    (formData.get("audioContentType") as string) || "audio/wav";
   const name = (formData.get("name") as string) || "My avatar";
 
-  if (!(file instanceof File) || file.size === 0) {
+  if (typeof photoPath !== "string" || photoPath.length === 0) {
     return { error: "Choose a photo of yourself." };
   }
-  if (file.size > 32 * 1024 * 1024) {
-    return { error: "Photo must be under 32MB." };
-  }
-  const hasAudio = audio instanceof File && audio.size > 0;
-  if (hasAudio && audio.size > 32 * 1024 * 1024) {
-    return { error: "Voice clip must be under 32MB." };
+  const hasAudio = typeof audioPath === "string" && audioPath.length > 0;
+
+  // The client supplies the storage path, so confirm it lives inside the user's
+  // own folder before trusting it (defense against a forged path).
+  const prefix = `${userId}/`;
+  if (!photoPath.startsWith(prefix) || (hasAudio && !audioPath.startsWith(prefix))) {
+    return { error: "Upload path mismatch. Please retry." };
   }
 
   const supabase = await createClient();
-  const ext = file.name.split(".").pop() || "bin";
-  const path = `${userId}/${Date.now()}.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("avatar-sources")
-    .upload(path, file, { contentType: file.type, upsert: true });
-  if (uploadError) return { error: `Upload failed: ${uploadError.message}` };
 
   // Insert the avatar row in a processing state first.
   const { data: avatar, error: insertError } = await supabase
@@ -46,7 +50,7 @@ export async function createAvatar(
     .insert({
       user_id: userId,
       name,
-      source_path: path,
+      source_path: photoPath,
       status: "processing",
       is_active: false,
     })
@@ -57,22 +61,32 @@ export async function createAvatar(
   }
 
   try {
-    const bytes = await file.arrayBuffer();
+    const { data: photoBlob, error: photoErr } = await supabase.storage
+      .from("avatar-sources")
+      .download(photoPath);
+    if (photoErr || !photoBlob) {
+      throw new Error(photoErr?.message ?? "Could not read the uploaded photo.");
+    }
     const result = await createAvatarFromAsset({
-      bytes,
-      contentType: file.type,
+      bytes: await photoBlob.arrayBuffer(),
+      contentType: photoContentType,
       name,
     });
 
-    // Optional: clone the agent's voice from an uploaded audio clip so the
+    // Optional: clone the agent's voice from the uploaded audio clip so the
     // avatar narrates in their own voice. Falls back to a stock voice if absent.
     let voiceId: string | null = null;
     if (hasAudio) {
-      voiceId = await cloneVoiceFromAudio({
-        bytes: await audio.arrayBuffer(),
-        contentType: audio.type,
-        name: `${name} voice`,
-      });
+      const { data: audioBlob } = await supabase.storage
+        .from("avatar-sources")
+        .download(audioPath);
+      if (audioBlob) {
+        voiceId = await cloneVoiceFromAudio({
+          bytes: await audioBlob.arrayBuffer(),
+          contentType: audioContentType,
+          name: `${name} voice`,
+        });
+      }
     }
 
     // Deactivate any previous active avatar, then activate this one.

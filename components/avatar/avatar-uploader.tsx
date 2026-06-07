@@ -2,42 +2,26 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFormStatus } from "react-dom";
 import { UploadCloud, Sparkles } from "lucide-react";
 import { createAvatar, type AvatarState } from "@/app/(app)/onboarding/actions";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VoiceInput } from "@/components/avatar/voice-input";
 
-function SubmitButton({ hasFile }: { hasFile: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button
-      type="submit"
-      size="lg"
-      disabled={pending || !hasFile}
-      className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-    >
-      {pending ? (
-        <>
-          <Sparkles className="size-4 animate-pulse" /> Creating your avatar…
-        </>
-      ) : (
-        "Create my avatar"
-      )}
-    </Button>
-  );
-}
+const MAX_BYTES = 32 * 1024 * 1024;
 
 export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: string }) {
   const router = useRouter();
-  const [state, formAction] = useActionState<AvatarState, FormData>(
+  const [state, formAction, actionPending] = useActionState<AvatarState, FormData>(
     createAvatar,
     undefined,
   );
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,15 +32,86 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-    if (file.type.startsWith("image/")) {
-      setPreview(URL.createObjectURL(file));
-    } else {
-      setPreview(null);
+    setPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+  }
+
+  // Upload the photo (and optional voice clip) straight to Storage from the
+  // browser, then hand the Server Action only the resulting paths — keeping the
+  // request body tiny and avatars well under any function body-size limit.
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setClientError(null);
+
+    const form = e.currentTarget;
+    const photo = inputRef.current?.files?.[0];
+    if (!photo) return setClientError("Choose a photo of yourself.");
+    if (photo.size > MAX_BYTES) return setClientError("Photo must be under 32MB.");
+
+    const audio =
+      (form.elements.namedItem("audio") as HTMLInputElement | null)?.files?.[0] ??
+      null;
+    if (audio && audio.size > MAX_BYTES) {
+      return setClientError("Voice clip must be under 32MB.");
+    }
+    const name =
+      (form.elements.namedItem("name") as HTMLInputElement | null)?.value ||
+      "My avatar";
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setClientError("Your session expired. Please sign in again.");
+        return;
+      }
+
+      const photoExt = photo.name.split(".").pop() || "jpg";
+      const photoPath = `${user.id}/${Date.now()}.${photoExt}`;
+      const photoUpload = await supabase.storage
+        .from("avatar-sources")
+        .upload(photoPath, photo, { contentType: photo.type, upsert: true });
+      if (photoUpload.error) {
+        setClientError(`Photo upload failed: ${photoUpload.error.message}`);
+        return;
+      }
+
+      let audioPath = "";
+      if (audio) {
+        const audioExt = audio.name.split(".").pop() || "wav";
+        audioPath = `${user.id}/voice-${Date.now()}.${audioExt}`;
+        const audioUpload = await supabase.storage
+          .from("avatar-sources")
+          .upload(audioPath, audio, { contentType: audio.type, upsert: true });
+        if (audioUpload.error) {
+          setClientError(`Voice upload failed: ${audioUpload.error.message}`);
+          return;
+        }
+      }
+
+      const fd = new FormData();
+      fd.set("photoPath", photoPath);
+      fd.set("photoContentType", photo.type || "image/jpeg");
+      fd.set("name", name);
+      if (audioPath) {
+        fd.set("audioPath", audioPath);
+        fd.set("audioContentType", audio?.type || "audio/wav");
+      }
+      formAction(fd);
+    } catch {
+      setClientError("Something went wrong during upload. Please try again.");
+    } finally {
+      setUploading(false);
     }
   }
 
+  const pending = uploading || actionPending;
+  const error = clientError ?? state?.error;
+
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -78,7 +133,6 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
       <input
         ref={inputRef}
         type="file"
-        name="file"
         accept="image/*"
         className="hidden"
         onChange={onFileChange}
@@ -92,11 +146,23 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
       {/* Optional: clone the agent's voice — record in-app or upload a clip. */}
       <VoiceInput />
 
-      {state?.error ? (
-        <p className="text-sm text-destructive">{state.error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <SubmitButton hasFile={!!fileName} />
+      <Button
+        type="submit"
+        size="lg"
+        disabled={pending || !fileName}
+        className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+      >
+        {pending ? (
+          <>
+            <Sparkles className="size-4 animate-pulse" />{" "}
+            {uploading ? "Uploading…" : "Creating your avatar…"}
+          </>
+        ) : (
+          "Create my avatar"
+        )}
+      </Button>
     </form>
   );
 }
