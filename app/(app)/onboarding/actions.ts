@@ -8,6 +8,24 @@ import { createAvatarFromAsset, cloneVoiceFromAudio } from "@/lib/heygen/avatar"
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
 
 /**
+ * Turn a raw provider error into a user-facing message. HeyGen errors arrive as
+ * `HeyGen <status> <url>: {"code":...,"message":"..."}` — surface that message
+ * (e.g. "exceeded your limit of 3 photo avatars") instead of blaming the photo.
+ */
+function avatarErrorMessage(raw: string): string {
+  const json = raw.match(/\{[\s\S]*\}/);
+  if (json) {
+    try {
+      const parsed = JSON.parse(json[0]) as { message?: string };
+      if (parsed.message) return `Avatar creation failed: ${parsed.message}`;
+    } catch {
+      // fall through to the generic message
+    }
+  }
+  return "Avatar creation failed. Please try a different photo.";
+}
+
+/**
  * Create a HeyGen Photo Avatar from files the BROWSER already uploaded to
  * Storage, persist the avatar row as active, and mark onboarding complete.
  *
@@ -111,14 +129,12 @@ export async function createAvatar(
       .update({ onboarding_completed: true, headshot_url: null })
       .eq("id", userId);
   } catch (e) {
+    const raw = e instanceof Error ? e.message : "Avatar creation failed.";
     await supabase
       .from("avatars")
-      .update({
-        status: "failed",
-        error: e instanceof Error ? e.message : "Avatar creation failed.",
-      })
+      .update({ status: "failed", error: raw })
       .eq("id", avatar.id);
-    return { error: "Avatar creation failed. Please try a different photo." };
+    return { error: avatarErrorMessage(raw) };
   }
 
   revalidatePath("/", "layout");
