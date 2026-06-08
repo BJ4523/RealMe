@@ -69,6 +69,31 @@ export function TopNav({ onOpenApp, onOpenLive }) {
   );
 }
 
+// Fixed bottom action bar — gives the landing a native mobile-app feel on phones.
+export function MobileActionBar({ onOpenApp, onOpenLive }) {
+  const isMobile = useIsMobile();
+  if (!isMobile) return null;
+  return (
+    <div style={{
+      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 60,
+      display: "flex", gap: 10, padding: "10px 16px",
+      paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
+      background: "rgba(242,238,229,0.92)", backdropFilter: "blur(14px)",
+      borderTop: "1px solid var(--rule-soft)",
+      boxShadow: "0 -4px 24px rgba(0,0,0,0.06)",
+    }}>
+      <button className="btn btn-primary" onClick={onOpenApp} style={{ flex: 1, justifyContent: "center", padding: "14px 18px", fontSize: 15 }}>
+        Open dashboard →
+      </button>
+      {onOpenLive && (
+        <button className="btn btn-outline" onClick={onOpenLive} style={{ justifyContent: "center", padding: "14px 16px", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 5 }}>
+          Live <ArrowUpRight size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ====== HERO ======
 
 export function Hero({ onOpenApp }) {

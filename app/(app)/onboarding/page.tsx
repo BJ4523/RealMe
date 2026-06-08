@@ -13,12 +13,12 @@ export default async function OnboardingPage() {
         Step 1 of 1
       </span>
       <h1 className="mt-5 font-heading text-3xl font-extrabold tracking-tight">
-        Create your avatar
+        Create your AI twin
       </h1>
       <p className="mt-2 text-muted-foreground">
-        Upload one clear photo of your face — and, if you like, a short voice
-        clip. We&apos;ll turn them into a talking avatar that narrates your
-        listing videos in your own voice.
+        Record or upload a short video of yourself talking (about 15–60
+        seconds). We&apos;ll train a realistic AI twin that narrates your
+        listing videos — looking and sounding like you.
       </p>
       <Card className="mt-8 w-full rounded-3xl text-left">
         <CardContent className="pt-6">

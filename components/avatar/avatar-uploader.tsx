@@ -2,69 +2,76 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, Sparkles } from "lucide-react";
+import { Sparkles, Video, UploadCloud } from "lucide-react";
 import { createAvatar, type AvatarState } from "@/app/(app)/onboarding/actions";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { VoiceInput } from "@/components/avatar/voice-input";
 
-const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 48 * 1024 * 1024; // under the 50MiB Storage bucket cap
+const MAX_AUDIO_BYTES = 32 * 1024 * 1024;
 
+/**
+ * Avatar = Digital Twin. The agent must provide a short VIDEO of themselves
+ * (upload an existing clip, or record one — `capture` opens the camera on
+ * mobile). HeyGen trains a realistic twin from it (v3); see onboarding/actions.
+ */
 export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string }) {
   const router = useRouter();
   const [state, formAction, actionPending] = useActionState<AvatarState, FormData>(
     createAvatar,
     undefined,
   );
+  const [video, setVideo] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [previewKind, setPreviewKind] = useState<"image" | "video" | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const recordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (state?.ok) router.push(redirectTo);
   }, [state, router, redirectTo]);
 
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileName(file.name);
-    const kind = file.type.startsWith("video/")
-      ? "video"
-      : file.type.startsWith("image/")
-        ? "image"
-        : null;
-    setPreviewKind(kind);
-    setPreview(kind ? URL.createObjectURL(file) : null);
+    if (!file.type.startsWith("video/")) {
+      setClientError("Please choose a video file.");
+      return;
+    }
+    if (file.size > MAX_VIDEO_BYTES) {
+      setClientError("Video must be under 48MB — keep it to ~15–60s.");
+      return;
+    }
+    setClientError(null);
+    setVideo(file);
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
   }
 
-  // Upload the photo (and optional voice clip) straight to Storage from the
-  // browser, then hand the Server Action only the resulting paths — keeping the
-  // request body tiny and avatars well under any function body-size limit.
+  // Upload the video (+ optional voice clip) straight to Storage from the
+  // browser, then hand the Server Action only the storage paths — keeping the
+  // request body tiny and the video well under any function body-size limit.
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setClientError(null);
+    if (!video) return setClientError("Upload or record a video of yourself.");
 
     const form = e.currentTarget;
-    const photo = inputRef.current?.files?.[0];
-    if (!photo) return setClientError("Choose a photo or video of yourself.");
-    const isVideo = photo.type.startsWith("video/");
-    if (isVideo && photo.size > MAX_VIDEO_BYTES) {
-      return setClientError("Video must be under 48MB — keep it to ~15–60s.");
-    }
-    if (!isVideo && photo.size > MAX_IMAGE_BYTES) {
-      return setClientError("Photo must be under 32MB.");
-    }
-
     const audio =
       (form.elements.namedItem("audio") as HTMLInputElement | null)?.files?.[0] ??
       null;
-    if (audio && audio.size > MAX_IMAGE_BYTES) {
+    if (audio && audio.size > MAX_AUDIO_BYTES) {
       return setClientError("Voice clip must be under 32MB.");
     }
     const name =
@@ -82,13 +89,13 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         return;
       }
 
-      const photoExt = photo.name.split(".").pop() || "jpg";
-      const photoPath = `${user.id}/${Date.now()}.${photoExt}`;
-      const photoUpload = await supabase.storage
+      const ext = video.name.split(".").pop() || "mp4";
+      const videoPath = `${user.id}/twin-${Date.now()}.${ext}`;
+      const up = await supabase.storage
         .from("avatar-sources")
-        .upload(photoPath, photo, { contentType: photo.type, upsert: true });
-      if (photoUpload.error) {
-        setClientError(`Photo upload failed: ${photoUpload.error.message}`);
+        .upload(videoPath, video, { contentType: video.type || "video/mp4", upsert: true });
+      if (up.error) {
+        setClientError(`Video upload failed: ${up.error.message}`);
         return;
       }
 
@@ -106,8 +113,8 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
       }
 
       const fd = new FormData();
-      fd.set("photoPath", photoPath);
-      fd.set("photoContentType", photo.type || "image/jpeg");
+      fd.set("photoPath", videoPath);
+      fd.set("photoContentType", video.type || "video/mp4");
       fd.set("name", name);
       if (audioPath) {
         fd.set("audioPath", audioPath);
@@ -128,36 +135,62 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={() => uploadRef.current?.click()}
         className="flex aspect-square w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-foreground/40"
       >
-        {preview && previewKind === "image" ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="Preview" className="size-full object-cover" />
-        ) : preview && previewKind === "video" ? (
-          <video src={preview} className="size-full object-cover" muted playsInline />
+        {preview ? (
+          <video src={preview} className="size-full object-cover" muted playsInline autoPlay loop />
         ) : (
           <>
-            <UploadCloud className="size-8" />
-            <span className="text-sm">
-              {fileName ?? "Tap to upload a photo or video"}
+            <Video className="size-8" />
+            <span className="text-sm font-medium text-foreground">
+              Add a video of yourself
             </span>
             <span className="px-6 text-center text-xs">
-              Photo → talking avatar. Video of you (15–60s) → realistic AI twin.
+              A clear 15–60s clip of you talking → your realistic AI twin.
+              Upload one or record below.
             </span>
           </>
         )}
       </button>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full"
+          onClick={() => uploadRef.current?.click()}
+        >
+          <UploadCloud className="size-4" /> Upload video
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full"
+          onClick={() => recordRef.current?.click()}
+        >
+          <Video className="size-4" /> Record video
+        </Button>
+      </div>
+
       <input
-        ref={inputRef}
+        ref={uploadRef}
         type="file"
-        accept="image/*,video/*"
+        accept="video/*"
         className="hidden"
-        onChange={onFileChange}
+        onChange={onPick}
+      />
+      <input
+        ref={recordRef}
+        type="file"
+        accept="video/*"
+        capture="user"
+        className="hidden"
+        onChange={onPick}
       />
 
       <div className="grid gap-2">
-        <Label htmlFor="name">Avatar name</Label>
+        <label htmlFor="name" className="text-sm font-medium">Avatar name</label>
         <Input id="name" name="name" defaultValue="My avatar" />
       </div>
 
@@ -169,16 +202,16 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
       <Button
         type="submit"
         size="lg"
-        disabled={pending || !fileName}
+        disabled={pending || !video}
         className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
       >
         {pending ? (
           <>
             <Sparkles className="size-4 animate-pulse" />{" "}
-            {uploading ? "Uploading…" : "Creating your avatar…"}
+            {uploading ? "Uploading…" : "Creating your AI twin…"}
           </>
         ) : (
-          "Create my avatar"
+          "Create my AI twin"
         )}
       </Button>
     </form>

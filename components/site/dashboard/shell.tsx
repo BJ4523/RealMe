@@ -89,7 +89,7 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
       <Sidebar mode={mode} setMode={switchMode} section={currentSection} setSection={setSection} onBackToSite={onBackToSite} onOpenLive={onOpenLive} />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <DashTopBar mode={mode} section={currentSection} />
-        <main style={{ flex: 1, padding: isMobile ? "18px 16px 64px" : "28px 32px 80px", overflowY: "auto" }}>
+        <main style={{ flex: 1, padding: isMobile ? "18px 16px 96px" : "28px 32px 80px", overflowY: "auto" }}>
           {mode === "sale" && currentSection === "today" && <TodayView setSection={setSection} />}
           {mode === "sale" && currentSection === "listings" && <ListingsView setSection={setSection} />}
           {mode === "sale" && currentSection === "studio" && <StudioView />}
@@ -107,16 +107,18 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
           {mode === "rent" && currentSection === "concessions" && <ConcessionsView />}
         </main>
       </div>
+      {isMobile && (
+        <BottomTabBar mode={mode} section={currentSection} setSection={setSection} onOpenLive={onOpenLive} />
+      )}
     </div>
   );
 }
 
-function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive }) {
-  const isMobile = useIsMobile();
+function getNav(mode) {
   const navSale = [
     { id: "today", label: "Today", icon: Sun },
     { id: "listings", label: "Listings", icon: LayoutGrid, count: LISTINGS.filter(l => l.status === "new").length, countLabel: "new" },
-    { id: "studio", label: "Video Studio", icon: Clapperboard, hot: true },
+    { id: "studio", label: "Video Studio", short: "Studio", icon: Clapperboard, hot: true },
     { id: "calendar", label: "Calendar", icon: CalendarDays, count: 7, countLabel: "queued" },
     { id: "email", label: "Email", icon: Mail },
     { id: "leads", label: "Leads", icon: Users, count: LEADS.filter(l => l.stage === "new").length, countLabel: "new" },
@@ -124,14 +126,76 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
   const navRent = [
     { id: "today", label: "Today", icon: Sun },
     { id: "portfolio", label: "Portfolio", icon: Building2, count: RENTAL_MANAGER.vacant, countLabel: "vacant" },
-    { id: "studio", label: "Video Studio", icon: Clapperboard, hot: true },
+    { id: "studio", label: "Video Studio", short: "Studio", icon: Clapperboard, hot: true },
     { id: "calendar", label: "Calendar", icon: CalendarDays, count: 7, countLabel: "queued" },
     { id: "email", label: "Email", icon: Mail },
-    { id: "pipeline", label: "Lease Pipeline", icon: Users, count: RENTAL_LEADS.filter(l => l.stage === "inquiry").length, countLabel: "new" },
-    { id: "syndication", label: "Syndication", icon: Share2, coral: true },
-    { id: "concessions", label: "Concessions", icon: Zap },
+    { id: "pipeline", label: "Lease Pipeline", short: "Pipeline", icon: Users, count: RENTAL_LEADS.filter(l => l.stage === "inquiry").length, countLabel: "new" },
+    { id: "syndication", label: "Syndication", short: "Synd.", icon: Share2, coral: true },
+    { id: "concessions", label: "Concessions", short: "Conc.", icon: Zap },
   ];
-  const nav = mode === "sale" ? navSale : navRent;
+  return mode === "sale" ? navSale : navRent;
+}
+
+// Native-style fixed bottom tab bar (mobile only).
+function BottomTabBar({ mode, section, setSection, onOpenLive }) {
+  const items = [
+    ...getNav(mode),
+    ...(mode === "rent" && onOpenLive
+      ? [{ id: "__live", label: "Live", icon: ArrowUpRight, live: true }]
+      : []),
+  ];
+  return (
+    <nav
+      className="rm-nav-scroll"
+      style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
+        display: "flex", background: "var(--bg-warm)",
+        borderTop: "1px solid var(--rule)",
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.05)",
+        padding: "6px 2px",
+        paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
+        overflowX: "auto", scrollbarWidth: "none",
+      }}>
+      {items.map(item => {
+        const active = !item.live && section === item.id;
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            onClick={item.live ? onOpenLive : () => setSection(item.id)}
+            style={{
+              position: "relative", flex: "1 0 auto", minWidth: 56,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+              padding: "5px 4px", background: "transparent",
+              color: active ? "var(--ink)" : "var(--ink-soft)",
+            }}>
+            {active && (
+              <span style={{ position: "absolute", top: -6, width: 22, height: 3, borderRadius: 99, background: "var(--lime)" }} />
+            )}
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              <Icon size={21} strokeWidth={active ? 2.4 : 1.9} />
+              {item.count != null && item.count > 0 && (
+                <span style={{
+                  position: "absolute", top: -5, right: -9, minWidth: 14, height: 14,
+                  padding: "0 3px", borderRadius: 999, background: "var(--coral)", color: "#fff",
+                  fontSize: 8, fontWeight: 700, fontFamily: "var(--font-mono)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{item.count}</span>
+              )}
+            </span>
+            <span style={{ fontSize: 9.5, fontWeight: active ? 700 : 500, letterSpacing: "-0.01em", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {item.short || item.label}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive }) {
+  const isMobile = useIsMobile();
+  const nav = getNav(mode);
   const profile = mode === "sale" ? AGENT : RENTAL_MANAGER;
   const profileSub = mode === "sale" ? AGENT.brokerage : RENTAL_MANAGER.company;
   return (
@@ -194,11 +258,8 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
         </div>
       )}
 
-      <nav
-        className={isMobile ? "rm-nav-scroll" : undefined}
-        style={isMobile
-          ? { padding: "10px 12px", display: "flex", flexDirection: "row", gap: 8, alignItems: "center", flexShrink: 0, overflowX: "auto", scrollbarWidth: "none", scrollSnapType: "x proximity" }
-          : { padding: "8px", flex: 1 }}>
+      {!isMobile && (
+      <nav style={{ padding: "8px", flex: 1 }}>
         {nav.map(item => {
           const active = section === item.id;
           const Icon = item.icon;
@@ -262,6 +323,7 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
           </button>
         )}
       </nav>
+      )}
 
       {!isMobile && (
         <div style={{ padding: 12, borderTop: "1px solid var(--rule)" }}>

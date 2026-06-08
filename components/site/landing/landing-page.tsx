@@ -2,7 +2,8 @@
 /* eslint-disable */
 "use client";
 import { useRouter } from "next/navigation";
-import { TopNav, Hero, TrustMarquee, HowItWorks } from "./top";
+import { useIsMobile } from "@/components/site/shared";
+import { TopNav, Hero, TrustMarquee, HowItWorks, MobileActionBar } from "./top";
 import {
   LiveDemoSection,
   CalendarPreview,
@@ -16,6 +17,7 @@ import { RentalsAndLiveSection } from "./rentals-section";
 
 export function LandingPageClient() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const onOpenApp = () => router.push("/app");
   const onOpenRent = () => router.push("/app?mode=rentals");
   const onOpenLive = () => router.push("/live");
@@ -34,6 +36,8 @@ export function LandingPageClient() {
       <Pricing onOpenApp={onOpenApp} />
       <FinalCTA onOpenApp={onOpenApp} />
       <Footer />
+      {isMobile && <div style={{ height: 76 }} aria-hidden />}
+      <MobileActionBar onOpenApp={onOpenApp} onOpenLive={onOpenLive} />
     </div>
   );
 }
