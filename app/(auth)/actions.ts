@@ -39,6 +39,32 @@ export async function sendMagicLink(
   return { sent: true, email: parsed.data.email };
 }
 
+/**
+ * Verify the 6-digit email code from the magic-link email. Works in ANY browser
+ * (no PKCE code verifier needed) — the fix for people who open the email on a
+ * different device/browser than where they requested it.
+ */
+export async function verifyEmailOtp(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const email = ((formData.get("email") as string) || "").trim();
+  const token = ((formData.get("token") as string) || "").replace(/\s/g, "");
+  const next = (formData.get("next") as string) || "/app";
+
+  if (!email) return { error: "Missing email — request a new code.", sent: true };
+  if (!/^\d{6}$/.test(token)) {
+    return { error: "Enter the 6-digit code from your email.", sent: true, email };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+  if (error) {
+    return { error: "That code is invalid or expired. Try again.", sent: true, email };
+  }
+  redirect(next);
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

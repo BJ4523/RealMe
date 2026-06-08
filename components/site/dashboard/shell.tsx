@@ -189,6 +189,16 @@ function BottomTabBar({ mode, section, setSection, onOpenLive }) {
           </button>
         );
       })}
+      <a
+        href="/settings/avatar"
+        style={{
+          flex: "1 0 auto", minWidth: 56,
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+          padding: "5px 4px", textDecoration: "none", color: "var(--ink-soft)",
+        }}>
+        <UserRound size={21} strokeWidth={1.9} />
+        <span style={{ fontSize: 9.5, fontWeight: 500, letterSpacing: "-0.01em" }}>Profile</span>
+      </a>
     </nav>
   );
 }
