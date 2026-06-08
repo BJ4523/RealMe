@@ -47,7 +47,6 @@ export async function updateSession(request: NextRequest) {
   const isAppRoute =
     path === "/app" ||
     path.startsWith("/app/") ||
-    path.startsWith("/dashboard") ||
     path.startsWith("/onboarding") ||
     path.startsWith("/listings") ||
     path.startsWith("/videos") ||

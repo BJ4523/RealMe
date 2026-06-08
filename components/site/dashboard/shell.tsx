@@ -18,6 +18,8 @@ import {
   ChevronLeft,
   ArrowUpRight,
   TrendingUp,
+  UserRound,
+  Settings,
 } from "lucide-react";
 import {
   AGENT,
@@ -175,9 +177,9 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
 
       {!isMobile && (
         <div style={{ padding: "8px 12px" }}>
-          <div style={{
+          <a href="/settings/avatar" title="Manage your avatar & settings" style={{
             background: "var(--bg-card)", borderRadius: 12, padding: 12,
-            border: "1px solid var(--rule)",
+            border: "1px solid var(--rule)", textDecoration: "none", color: "inherit",
             display: "flex", gap: 10, alignItems: "center",
           }}>
             <Avatar name={profile.name} size={36} ring photo={profile.photo} />
@@ -187,7 +189,8 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
                 {profileSub}
               </div>
             </div>
-          </div>
+            <Settings size={15} style={{ color: "var(--ink-soft)", flexShrink: 0 }} />
+          </a>
         </div>
       )}
 
@@ -342,6 +345,9 @@ function DashTopBar({ mode, section }) {
           <Bell size={16} />
           <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "var(--coral)" }} />
         </button>
+        <a href="/settings/avatar" title="Your avatar & settings" className="btn btn-ghost btn-sm" style={{ padding: "8px 10px", display: "inline-flex", alignItems: "center" }}>
+          <UserRound size={16} />
+        </a>
         <button className="btn btn-primary btn-sm">+ New reel</button>
       </div>
     </header>

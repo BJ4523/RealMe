@@ -14,7 +14,7 @@ import { signOut } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/listings", label: "Listings", icon: Home },
   { href: "/videos", label: "Videos", icon: Clapperboard },
   { href: "/settings", label: "Settings", icon: Settings },

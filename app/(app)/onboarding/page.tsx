@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default async function OnboardingPage() {
   const { profile } = await requireUser();
-  if (profile?.onboarding_completed) redirect("/dashboard");
+  if (profile?.onboarding_completed) redirect("/app");
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center text-center">

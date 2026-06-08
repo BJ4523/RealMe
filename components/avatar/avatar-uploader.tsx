@@ -13,7 +13,7 @@ import { VoiceInput } from "@/components/avatar/voice-input";
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 48 * 1024 * 1024; // under the 50MiB Storage bucket cap
 
-export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: string }) {
+export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string }) {
   const router = useRouter();
   const [state, formAction, actionPending] = useActionState<AvatarState, FormData>(
     createAvatar,
