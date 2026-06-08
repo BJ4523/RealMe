@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import {
   createAvatarFromAsset,
   createDigitalTwin,
-  cloneVoiceFromAudio,
+  cloneVoiceFromUrl,
   deleteHeygenAvatar,
 } from "@/lib/heygen/avatar";
 
@@ -48,23 +48,18 @@ export async function createAvatar(
   const photoPath = formData.get("photoPath");
   const photoContentType =
     (formData.get("photoContentType") as string) || "image/jpeg";
-  const audioPath = formData.get("audioPath");
-  const audioContentType =
-    (formData.get("audioContentType") as string) || "audio/wav";
   const name = (formData.get("name") as string) || "My avatar";
 
   if (typeof photoPath !== "string" || photoPath.length === 0) {
-    return { error: "Choose a photo or a video of yourself." };
+    return { error: "Add a video of yourself." };
   }
-  // A video upload creates a realistic Digital Twin (v3); a photo creates a
-  // talking-photo avatar. Detected from the uploaded file's content type.
+  // A video creates a realistic Digital Twin (v3) whose voice is cloned from the
+  // same clip; a photo (legacy fallback) creates a talking-photo avatar.
   const isVideo = photoContentType.startsWith("video/");
-  const hasAudio = typeof audioPath === "string" && audioPath.length > 0;
 
   // The client supplies the storage path, so confirm it lives inside the user's
   // own folder before trusting it (defense against a forged path).
-  const prefix = `${userId}/`;
-  if (!photoPath.startsWith(prefix) || (hasAudio && !audioPath.startsWith(prefix))) {
+  if (!photoPath.startsWith(`${userId}/`)) {
     return { error: "Upload path mismatch. Please retry." };
   }
 
@@ -92,6 +87,7 @@ export async function createAvatar(
     let heygenAvatarId: string;
     let heygenAssetId: string;
     let avatarStatus: "ready" | "processing" | "failed";
+    let voiceId: string | null = null;
 
     if (isVideo) {
       // Digital Twin: HeyGen fetches the footage by URL, so hand it a temporary
@@ -106,6 +102,9 @@ export async function createAvatar(
       heygenAvatarId = twin.lookId;
       heygenAssetId = twin.groupId;
       avatarStatus = twin.status;
+      // Clone the agent's voice from the SAME video so the twin sounds like them
+      // (no separate clip). Best-effort — falls back to a stock voice on failure.
+      voiceId = await cloneVoiceFromUrl({ url: signed.signedUrl, name: `${name} voice` });
     } else {
       const { data: photoBlob, error: photoErr } = await supabase.storage
         .from("avatar-sources")
@@ -121,22 +120,6 @@ export async function createAvatar(
       heygenAvatarId = result.avatarId;
       heygenAssetId = result.assetId;
       avatarStatus = result.status;
-    }
-
-    // Optional: clone the agent's voice from the uploaded audio clip so the
-    // avatar narrates in their own voice. Falls back to a stock voice if absent.
-    let voiceId: string | null = null;
-    if (hasAudio) {
-      const { data: audioBlob } = await supabase.storage
-        .from("avatar-sources")
-        .download(audioPath);
-      if (audioBlob) {
-        voiceId = await cloneVoiceFromAudio({
-          bytes: await audioBlob.arrayBuffer(),
-          contentType: audioContentType,
-          name: `${name} voice`,
-        });
-      }
     }
 
     // Replace: remove the user's previous avatar(s) from HeyGen + Storage + DB

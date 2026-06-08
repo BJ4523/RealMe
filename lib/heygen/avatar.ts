@@ -39,40 +39,24 @@ export async function createAvatarFromAsset(input: {
  * Returns a voice_id, or null if cloning fails — callers fall back to a stock
  * voice so a video still renders. In mock mode returns a fake voice_id.
  */
-export async function cloneVoiceFromAudio(input: {
-  bytes: ArrayBuffer;
-  contentType: string;
+export async function cloneVoiceFromUrl(input: {
+  url: string;
   name: string;
 }): Promise<string | null> {
   if (isMock) {
     return `mock_voice_${Math.abs(hashString(input.name)).toString(36)}`;
   }
-
   try {
-    // 1. Upload the audio sample → asset (id + url).
-    const upload = await heygenFetch<{ data: { id: string; url?: string } }>(
-      ENDPOINTS.uploadAsset,
-      {
-        method: "POST",
-        headers: { "Content-Type": input.contentType || "audio/mpeg" },
-        body: input.bytes,
-      },
-    );
-
-    // 2. Request an instant clone. Shape varies by version — send the common
-    //    fields and parse the voice id generously. VERIFY against live docs.
+    // Instant voice clone directly from a sample URL — for a Digital Twin we
+    // pass the same training video so the twin sounds like the agent (HeyGen
+    // uses its audio track). Best-effort: returns null on failure → stock voice.
     const clone = await heygenFetch<{
       data?: { voice_id?: string; id?: string };
       voice_id?: string;
     }>(ENDPOINTS.voiceClone, {
       method: "POST",
-      json: {
-        name: input.name,
-        sample_audio_url: upload.data.url,
-        audio_asset_id: upload.data.id,
-      },
+      json: { name: input.name, sample_audio_url: input.url },
     });
-
     return clone.data?.voice_id ?? clone.data?.id ?? clone.voice_id ?? null;
   } catch {
     return null;

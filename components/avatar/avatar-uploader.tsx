@@ -7,10 +7,8 @@ import { createAvatar, type AvatarState } from "@/app/(app)/onboarding/actions";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { VoiceInput } from "@/components/avatar/voice-input";
 
 const MAX_VIDEO_BYTES = 48 * 1024 * 1024; // under the 50MiB Storage bucket cap
-const MAX_AUDIO_BYTES = 32 * 1024 * 1024;
 
 /**
  * Avatar = Digital Twin. The agent must provide a short VIDEO of themselves
@@ -68,12 +66,6 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
     if (!video) return setClientError("Upload or record a video of yourself.");
 
     const form = e.currentTarget;
-    const audio =
-      (form.elements.namedItem("audio") as HTMLInputElement | null)?.files?.[0] ??
-      null;
-    if (audio && audio.size > MAX_AUDIO_BYTES) {
-      return setClientError("Voice clip must be under 32MB.");
-    }
     const name =
       (form.elements.namedItem("name") as HTMLInputElement | null)?.value ||
       "My avatar";
@@ -99,27 +91,10 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         return;
       }
 
-      let audioPath = "";
-      if (audio) {
-        const audioExt = audio.name.split(".").pop() || "wav";
-        audioPath = `${user.id}/voice-${Date.now()}.${audioExt}`;
-        const audioUpload = await supabase.storage
-          .from("avatar-sources")
-          .upload(audioPath, audio, { contentType: audio.type, upsert: true });
-        if (audioUpload.error) {
-          setClientError(`Voice upload failed: ${audioUpload.error.message}`);
-          return;
-        }
-      }
-
       const fd = new FormData();
       fd.set("photoPath", videoPath);
       fd.set("photoContentType", video.type || "video/mp4");
       fd.set("name", name);
-      if (audioPath) {
-        fd.set("audioPath", audioPath);
-        fd.set("audioContentType", audio?.type || "audio/wav");
-      }
       formAction(fd);
     } catch {
       setClientError("Something went wrong during upload. Please try again.");
@@ -147,8 +122,8 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
               Add a video of yourself
             </span>
             <span className="px-6 text-center text-xs">
-              A clear 15–60s clip of you talking → your realistic AI twin.
-              Upload one or record below.
+              One clear 15–60s clip of you talking. We build a twin that looks
+              and sounds like you from this video — no separate voice needed.
             </span>
           </>
         )}
@@ -193,9 +168,6 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         <label htmlFor="name" className="text-sm font-medium">Avatar name</label>
         <Input id="name" name="name" defaultValue="My avatar" />
       </div>
-
-      {/* Optional: clone the agent's voice — record in-app or upload a clip. */}
-      <VoiceInput />
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
