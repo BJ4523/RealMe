@@ -28,9 +28,16 @@ export async function generateVideo(
   }
 
   // --- Real path ---
+  // ⚠️ MIGRATION (before 2026-10-31): this render uses the v2 endpoint
+  // (POST /v2/video/generate). v2 is supported by HeyGen only THROUGH OCT 31,
+  // 2026. We're on v2 because v3 (/v3/videos) has no multi-scene and won't
+  // composite a background behind an avatar — so it can't do this walkthrough.
+  // When HeyGen ships v3 multi-scene/background (or before the sunset), migrate
+  // here. Twin CREATION already uses v3 (lib/heygen/avatar.ts) and is unaffected.
+  //
   // Build a vertical (9:16) walkthrough: one scene per listing photo, the photo
-  // full-frame in the background while the agent's talking-photo avatar narrates
-  // as a circular cutout overlay in the corner — like a reel walkthrough.
+  // full-frame in the background while the agent's avatar narrates as a cutout
+  // overlay — a digital twin (matted) or a talking-photo circle, by kind.
   // Avatars are talking photos (see lib/heygen/avatar.ts); the cloned/fallback
   // voice reads the AI-written script, chunked across the photos in order.
   const photos = (input.photoUrls ?? []).filter(

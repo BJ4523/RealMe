@@ -129,6 +129,14 @@ Ordered roughly by product priority.
       (currently demo `BUILDINGS`/`UNITS`).
 
 ### P4 — productionization
+- [ ] **⚠️ Migrate video render off HeyGen v2 before 2026-10-31.** The
+      walkthrough render uses `POST /v2/video/generate` (multi-scene + per-scene
+      photo background + matted avatar) — the only way today to composite the
+      avatar/twin over listing photos. HeyGen supports v2 **only through Oct 31,
+      2026**. v3 (`/v3/videos`) is single-scene and won't composite a background,
+      so migrate when HeyGen ships v3 multi-scene/background, or build a v3
+      per-photo-clip + stitch fallback. Twin **creation** is already on v3.
+      See the MIGRATION note in `lib/heygen/video.ts`.
 - [ ] **Billing / plans** — pricing page is static; add Stripe + plan limits
       (HeyGen credit metering, "47/100 reels" is demo).
 - [ ] **Usage guards** on video generation (HeyGen credits cost real money).
