@@ -28,7 +28,7 @@ export async function generateVideo(
   }
 
   // --- Real path ---
-  // ⚠️ MIGRATION (before 2026-10-31): this render uses the v2 endpoint
+  // MIGRATION (before 2026-10-31): this render uses the v2 endpoint
   // (POST /v2/video/generate). v2 is supported by HeyGen only THROUGH OCT 31,
   // 2026. We're on v2 because v3 (/v3/videos) has no multi-scene and won't
   // composite a background behind an avatar — so it can't do this walkthrough.

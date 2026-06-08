@@ -3,6 +3,23 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
+  Sun,
+  LayoutGrid,
+  Clapperboard,
+  CalendarDays,
+  Mail,
+  Users,
+  Building2,
+  Share2,
+  Zap,
+  Phone,
+  Search,
+  Bell,
+  ChevronLeft,
+  ArrowUpRight,
+  TrendingUp,
+} from "lucide-react";
+import {
   AGENT,
   LISTINGS,
   LEADS,
@@ -66,6 +83,7 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
 
   return (
     <div data-screen-label={mode === "sale" ? "02 Dashboard — Sales" : "03 Dashboard — Rentals"} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: "var(--bg)", maxWidth: "100%", overflowX: "hidden" }}>
+      <style>{`.rm-nav-scroll::-webkit-scrollbar{display:none}`}</style>
       <Sidebar mode={mode} setMode={switchMode} section={currentSection} setSection={setSection} onBackToSite={onBackToSite} onOpenLive={onOpenLive} />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <DashTopBar mode={mode} section={currentSection} />
@@ -94,22 +112,22 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
 function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive }) {
   const isMobile = useIsMobile();
   const navSale = [
-    { id: "today", label: "Today", icon: "◐" },
-    { id: "listings", label: "Listings", icon: "▦", count: LISTINGS.filter(l => l.status === "new").length, countLabel: "new" },
-    { id: "studio", label: "Video Studio", icon: "▶", hot: true },
-    { id: "calendar", label: "Calendar", icon: "▣", count: 7, countLabel: "queued" },
-    { id: "email", label: "Email", icon: "✉" },
-    { id: "leads", label: "Leads", icon: "◆", count: LEADS.filter(l => l.stage === "new").length, countLabel: "new" },
+    { id: "today", label: "Today", icon: Sun },
+    { id: "listings", label: "Listings", icon: LayoutGrid, count: LISTINGS.filter(l => l.status === "new").length, countLabel: "new" },
+    { id: "studio", label: "Video Studio", icon: Clapperboard, hot: true },
+    { id: "calendar", label: "Calendar", icon: CalendarDays, count: 7, countLabel: "queued" },
+    { id: "email", label: "Email", icon: Mail },
+    { id: "leads", label: "Leads", icon: Users, count: LEADS.filter(l => l.stage === "new").length, countLabel: "new" },
   ];
   const navRent = [
-    { id: "today", label: "Today", icon: "◐" },
-    { id: "portfolio", label: "Portfolio", icon: "⌂", count: RENTAL_MANAGER.vacant, countLabel: "vacant" },
-    { id: "studio", label: "Video Studio", icon: "▶", hot: true },
-    { id: "calendar", label: "Calendar", icon: "▣", count: 7, countLabel: "queued" },
-    { id: "email", label: "Email", icon: "✉" },
-    { id: "pipeline", label: "Lease Pipeline", icon: "◆", count: RENTAL_LEADS.filter(l => l.stage === "inquiry").length, countLabel: "new" },
-    { id: "syndication", label: "Syndication", icon: "↗", coral: true },
-    { id: "concessions", label: "Concessions", icon: "⚡" },
+    { id: "today", label: "Today", icon: Sun },
+    { id: "portfolio", label: "Portfolio", icon: Building2, count: RENTAL_MANAGER.vacant, countLabel: "vacant" },
+    { id: "studio", label: "Video Studio", icon: Clapperboard, hot: true },
+    { id: "calendar", label: "Calendar", icon: CalendarDays, count: 7, countLabel: "queued" },
+    { id: "email", label: "Email", icon: Mail },
+    { id: "pipeline", label: "Lease Pipeline", icon: Users, count: RENTAL_LEADS.filter(l => l.stage === "inquiry").length, countLabel: "new" },
+    { id: "syndication", label: "Syndication", icon: Share2, coral: true },
+    { id: "concessions", label: "Concessions", icon: Zap },
   ];
   const nav = mode === "sale" ? navSale : navRent;
   const profile = mode === "sale" ? AGENT : RENTAL_MANAGER;
@@ -128,8 +146,8 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
       <div style={{ padding: isMobile ? "12px 12px 12px 14px" : "20px 18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexShrink: 0 }}>
         <Logo size={isMobile ? 20 : 22} />
         {!isMobile && (
-          <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: "4px 8px", fontFamily: "var(--font-mono)" }}>
-            ← site
+          <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: "4px 8px", fontFamily: "var(--font-mono)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <ChevronLeft size={13} /> site
           </button>
         )}
       </div>
@@ -173,52 +191,61 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
         </div>
       )}
 
-      <nav style={isMobile
-        ? { padding: "8px", display: "flex", flexDirection: "row", gap: 4, alignItems: "center", flexShrink: 0 }
-        : { padding: "8px", flex: 1 }}>
-        {nav.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setSection(item.id)}
-            style={{
-              display: "flex", alignItems: "center", gap: isMobile ? 8 : 12,
-              width: isMobile ? "auto" : "100%", padding: "10px 12px", borderRadius: 10,
-              background: section === item.id ? "var(--ink)" : "transparent",
-              color: section === item.id ? "var(--bg-warm)" : "var(--ink)",
-              fontWeight: 500, fontSize: 14, textAlign: "left",
-              marginBottom: isMobile ? 0 : 2, flexShrink: 0, whiteSpace: "nowrap",
-            }}>
-            <span style={{ fontSize: 14, opacity: 0.85, width: 16, textAlign: "center" }}>{item.icon}</span>
-            <span style={isMobile ? undefined : { flex: 1 }}>{item.label}</span>
-            {item.count != null && (
-              <span style={{
-                fontSize: 10, fontFamily: "var(--font-mono)",
-                padding: "2px 7px", borderRadius: 999,
-                background: section === item.id ? "var(--lime)" : "var(--bg)",
-                color: section === item.id ? "var(--ink)" : "var(--ink-soft)",
+      <nav
+        className={isMobile ? "rm-nav-scroll" : undefined}
+        style={isMobile
+          ? { padding: "10px 12px", display: "flex", flexDirection: "row", gap: 8, alignItems: "center", flexShrink: 0, overflowX: "auto", scrollbarWidth: "none", scrollSnapType: "x proximity" }
+          : { padding: "8px", flex: 1 }}>
+        {nav.map(item => {
+          const active = section === item.id;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setSection(item.id)}
+              style={isMobile ? {
+                display: "inline-flex", alignItems: "center", gap: 7,
+                padding: "9px 14px", borderRadius: 999,
+                background: active ? "var(--ink)" : "var(--bg-card)",
+                color: active ? "var(--bg-warm)" : "var(--ink)",
+                border: active ? "1px solid var(--ink)" : "1px solid var(--rule)",
+                fontWeight: 600, fontSize: 13, flexShrink: 0, whiteSpace: "nowrap",
+                scrollSnapAlign: "start", transition: "all 0.16s ease",
+              } : {
+                display: "flex", alignItems: "center", gap: 12,
+                width: "100%", padding: "10px 12px", borderRadius: 10,
+                background: active ? "var(--ink)" : "transparent",
+                color: active ? "var(--bg-warm)" : "var(--ink)",
+                fontWeight: 500, fontSize: 14, textAlign: "left",
+                marginBottom: 2, flexShrink: 0, whiteSpace: "nowrap",
+                transition: "background 0.16s ease",
               }}>
-                {item.count}
-              </span>
-            )}
-            {item.hot && (
-              <span style={{ fontSize: 9, fontFamily: "var(--font-mono)",
-                color: "var(--lime)",
-              }}>NEW</span>
-            )}
-            {item.coral && (
-              <span style={{ fontSize: 9, fontFamily: "var(--font-mono)",
-                color: "var(--coral)",
-              }}>NEW</span>
-            )}
-          </button>
-        ))}
+              <Icon size={isMobile ? 15 : 16} style={{ flexShrink: 0, opacity: active ? 1 : 0.78 }} />
+              <span style={isMobile ? undefined : { flex: 1 }}>{item.label}</span>
+              {item.count != null && (
+                <span style={{
+                  fontSize: 10, fontFamily: "var(--font-mono)",
+                  padding: "2px 7px", borderRadius: 999, lineHeight: 1.4,
+                  background: active ? "var(--lime)" : "var(--bg)",
+                  color: active ? "var(--ink)" : "var(--ink-soft)",
+                }}>
+                  {item.count}
+                </span>
+              )}
+              {(item.hot || item.coral) && (
+                <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 700,
+                  color: active ? "var(--lime)" : item.coral ? "var(--coral)" : "var(--lime)",
+                }}>NEW</span>
+              )}
+            </button>
+          );
+        })}
         {mode === "rent" && onOpenLive && (
           <button onClick={onOpenLive} style={isMobile ? {
-            display: "flex", alignItems: "center", gap: 8,
-            width: "auto", padding: "10px 12px", borderRadius: 10,
-            background: "transparent", color: "var(--ink)",
-            fontWeight: 500, fontSize: 14, textAlign: "left",
-            flexShrink: 0, whiteSpace: "nowrap",
+            display: "inline-flex", alignItems: "center", gap: 7,
+            padding: "9px 14px", borderRadius: 999,
+            background: "var(--bg-card)", color: "var(--ink)", border: "1px solid var(--rule)",
+            fontWeight: 600, fontSize: 13, flexShrink: 0, whiteSpace: "nowrap", scrollSnapAlign: "start",
           } : {
             display: "flex", alignItems: "center", gap: 12,
             width: "100%", padding: "10px 12px", borderRadius: 10,
@@ -226,7 +253,7 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
             fontWeight: 500, fontSize: 14, textAlign: "left",
             marginTop: 8, borderTop: "1px dashed var(--rule)", paddingTop: 14,
           }}>
-            <span style={{ fontSize: 14, width: 16, textAlign: "center" }}>↗</span>
+            <ArrowUpRight size={isMobile ? 15 : 16} style={{ flexShrink: 0 }} />
             <span style={isMobile ? undefined : { flex: 1 }}>RealMe Live</span>
             <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 6px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700 }}>PUBLIC</span>
           </button>
@@ -308,11 +335,11 @@ function DashTopBar({ mode, section }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : "auto", flexWrap: isMobile ? "wrap" : "nowrap" }}>
         <div style={{ position: "relative", flex: isMobile ? 1 : "none", minWidth: isMobile ? 0 : undefined }}>
-          <input className="field" placeholder="Search listings, leads, posts…" style={{ width: isMobile ? "100%" : 280, paddingLeft: 30 }} />
-          <span style={{ position: "absolute", left: 11, top: 11, color: "var(--ink-faint)" }}>⌕</span>
+          <input className="field" placeholder="Search listings, leads, posts…" style={{ width: isMobile ? "100%" : 280, paddingLeft: 32 }} />
+          <Search size={15} style={{ position: "absolute", left: 10, top: 10, color: "var(--ink-faint)" }} />
         </div>
-        <button className="btn btn-ghost btn-sm" style={{ position: "relative", padding: "8px 10px" }}>
-          🔔
+        <button className="btn btn-ghost btn-sm" style={{ position: "relative", padding: "8px 10px", display: "inline-flex", alignItems: "center" }}>
+          <Bell size={16} />
           <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "var(--coral)" }} />
         </button>
         <button className="btn btn-primary btn-sm">+ New reel</button>
@@ -397,11 +424,11 @@ function HeroToday({ setSection }) {
 
 function TodayActivity() {
   const activity = [
-    { t: "9:04 AM", icon: "✉", text: "Sent open house blast — Sunset Ridge", meta: "1,840 buyers · 51% opened", lime: true },
-    { t: "8:32 AM", icon: "▶", text: "Posted walkthrough to TikTok — 612 Maple", meta: "4,210 views in first 24h" },
-    { t: "8:00 AM", icon: "◆", text: "Priya Shah replied to your Reel DM", meta: "Hot lead · 92/100 — call before noon", hot: true },
-    { t: "7:18 AM", icon: "▶", text: "Auto-imported 1 new listing from MLS", meta: "5 Eucalyptus Pl · scripted, awaiting your OK" },
-    { t: "Yesterday", icon: "✉", text: "Carla Mendez clicked 'Book showing' link", meta: "TikTok → email → showing in 14 min" },
+    { t: "9:04 AM", icon: Mail, text: "Sent open house blast — Sunset Ridge", meta: "1,840 buyers · 51% opened", lime: true },
+    { t: "8:32 AM", icon: Clapperboard, text: "Posted walkthrough to TikTok — 612 Maple", meta: "4,210 views in first 24h" },
+    { t: "8:00 AM", icon: Users, text: "Priya Shah replied to your Reel DM", meta: "Hot lead · 92/100 — call before noon", hot: true },
+    { t: "7:18 AM", icon: Clapperboard, text: "Auto-imported 1 new listing from MLS", meta: "5 Eucalyptus Pl · scripted, awaiting your OK" },
+    { t: "Yesterday", icon: Mail, text: "Carla Mendez clicked 'Book showing' link", meta: "TikTok → email → showing in 14 min" },
   ];
   return (
     <div className="card" style={{ padding: 24 }}>
@@ -425,7 +452,7 @@ function TodayActivity() {
               color: a.hot ? "var(--coral)" : "var(--ink)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 14, flexShrink: 0,
-            }}>{a.icon}</div>
+            }}><a.icon size={15} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{a.text}</div>
               <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{a.meta}</div>
@@ -457,7 +484,7 @@ function PerfCard({ label, value, delta, data, color, fill }) {
       <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
         <div className="display" style={{ fontSize: 32 }}>{value}</div>
-        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ok)" }}>↗ {delta}</div>
+        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ok)", display: "inline-flex", alignItems: "center", gap: 3 }}><TrendingUp size={12} /> {delta}</div>
       </div>
       <div style={{ marginTop: 8 }}>
         <MiniChart data={data} color={color} fill={fill} height={36} />
@@ -472,10 +499,10 @@ function TodayActions({ setSection }) {
       <span className="eyebrow">Quick actions</span>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {[
-          { l: "Generate reel for new listing", icon: "▶", to: "studio", primary: true },
-          { l: "Draft this week's email blast", icon: "✉", to: "email" },
-          { l: "Call Priya Shah · hot", icon: "☎", to: "leads", coral: true },
-          { l: "Review Saturday's open house post", icon: "▣", to: "calendar" },
+          { l: "Generate reel for new listing", icon: Clapperboard, to: "studio", primary: true },
+          { l: "Draft this week's email blast", icon: Mail, to: "email" },
+          { l: "Call Priya Shah · hot", icon: Phone, to: "leads", coral: true },
+          { l: "Review Saturday's open house post", icon: CalendarDays, to: "calendar" },
         ].map((a, i) => (
           <button key={i} onClick={() => setSection(a.to)} style={{
             display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
@@ -484,7 +511,7 @@ function TodayActions({ setSection }) {
             border: a.primary || a.coral ? "none" : "1px solid var(--rule)",
             borderRadius: 10, fontSize: 13, fontWeight: 500, textAlign: "left",
           }}>
-            <span style={{ width: 18 }}>{a.icon}</span>
+            <span style={{ width: 18, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><a.icon size={16} /></span>
             <span style={{ flex: 1 }}>{a.l}</span>
             <span>→</span>
           </button>

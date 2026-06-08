@@ -3,6 +3,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AGENT, LISTINGS, CheckIcon, listingBg, priceShort, useCount, useIsMobile } from "@/components/site/shared";
+import { Heart, MessageCircle, ArrowUpRight } from "lucide-react";
 
 // RealMe — Landing page
 
@@ -54,8 +55,8 @@ export function TopNav({ onOpenApp, onOpenLive }) {
         )}
         <div style={{ display: "flex", gap: isMobile ? 8 : 10, alignItems: "center" }}>
           {onOpenLive && !isMobile && (
-            <button className="btn btn-ghost btn-sm" onClick={onOpenLive} style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
-              realme.live ↗
+            <button className="btn btn-ghost btn-sm" onClick={onOpenLive} style={{ fontFamily: "var(--font-mono)", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+              realme.live <ArrowUpRight size={14} />
             </button>
           )}
           {!isMobile && <button className="btn btn-ghost btn-sm" onClick={onOpenApp}>Sign in</button>}
@@ -278,9 +279,9 @@ function PhoneReel({ tick }) {
         display: "flex", flexDirection: "column", gap: 14, alignItems: "center",
         color: "#fff", fontSize: 10, fontFamily: "var(--font-mono)",
       }}>
-        <div style={{ textAlign: "center" }}>♡<div>4.2k</div></div>
-        <div style={{ textAlign: "center" }}>💬<div>318</div></div>
-        <div style={{ textAlign: "center" }}>↗<div>902</div></div>
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}><Heart size={14} /><div>4.2k</div></div>
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}><MessageCircle size={14} /><div>318</div></div>
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}><ArrowUpRight size={14} /><div>902</div></div>
       </div>
 
       {/* Bottom progress */}

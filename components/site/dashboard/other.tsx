@@ -17,6 +17,16 @@ import {
   statusPill,
   useIsMobile,
 } from "@/components/site/shared";
+import {
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Clapperboard,
+  Phone,
+  Mail,
+  CalendarDays,
+  MessageCircle,
+} from "lucide-react";
 
 // ====== CALENDAR VIEW ======
 export function CalendarView() {
@@ -43,9 +53,9 @@ export function CalendarView() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 12 : 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button className="btn btn-outline btn-sm">‹</button>
+          <button className="btn btn-outline btn-sm"><ChevronLeft size={16} /></button>
           <span className="display" style={{ fontSize: 22 }}>May 13 – 19, 2026</span>
-          <button className="btn btn-outline btn-sm">›</button>
+          <button className="btn btn-outline btn-sm"><ChevronRight size={16} /></button>
           <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: "var(--ink-soft)" }}>Today</button>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -273,8 +283,8 @@ Watch the 32-second walkthrough below, or DM me back and I'll show you privately
               <Label>Body · drafted by RealMe</Label>
               <textarea className="field" value={body} onChange={e => setBody(e.target.value)} rows={11} style={{ fontFamily: "var(--font-body)", fontSize: 14, lineHeight: 1.6, resize: "vertical" }} />
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                <SmartChip>↻ Rewrite warmer</SmartChip>
-                <SmartChip>↻ Make it shorter</SmartChip>
+                <SmartChip><RefreshCw size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> Rewrite warmer</SmartChip>
+                <SmartChip><RefreshCw size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> Make it shorter</SmartChip>
                 <SmartChip>+ Add open house details</SmartChip>
                 <SmartChip>+ Insert walkthrough video</SmartChip>
               </div>
@@ -348,7 +358,7 @@ function EmailPreview({ subject, body }) {
         <div style={{ marginTop: 22 }}>
           <ListingThumb listing={LISTINGS[0]} height={220} />
           <div style={{ marginTop: 8, padding: "8px 12px", background: "var(--ink)", color: "var(--bg-warm)", borderRadius: 6, fontSize: 12, fontFamily: "var(--font-mono)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>▶ Watch 32s walkthrough</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Clapperboard size={13} /> Watch 32s walkthrough</span>
             <span>4.2k views</span>
           </div>
         </div>
@@ -669,9 +679,9 @@ function LeadDrawer({ lead, onClose }) {
             screenshotted the tile.
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button className="btn btn-primary btn-sm">☎ Call now</button>
-            <button className="btn btn-outline btn-sm">✉ Send DM draft</button>
-            <button className="btn btn-outline btn-sm">📅 Book showing</button>
+            <button className="btn btn-primary btn-sm"><Phone size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Call now</button>
+            <button className="btn btn-outline btn-sm"><Mail size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Send DM draft</button>
+            <button className="btn btn-outline btn-sm"><CalendarDays size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Book showing</button>
           </div>
         </div>
 
@@ -679,13 +689,13 @@ function LeadDrawer({ lead, onClose }) {
           <span className="eyebrow">Touch history</span>
           <ul className="clean" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
             {[
-              { t: "14h ago", text: "Replied to your reel DM: 'Is this still available?'", icon: "💬" },
-              { t: "1d ago", text: "Opened email: New in Berkeley Hills", icon: "✉" },
-              { t: "2d ago", text: "Watched walkthrough reel 2× on Instagram", icon: "▶" },
+              { t: "14h ago", text: "Replied to your reel DM: 'Is this still available?'", icon: MessageCircle },
+              { t: "1d ago", text: "Opened email: New in Berkeley Hills", icon: Mail },
+              { t: "2d ago", text: "Watched walkthrough reel 2× on Instagram", icon: Clapperboard },
               { t: "5d ago", text: "Followed @jordan.maes", icon: "+" },
             ].map((e, i) => (
               <li key={i} style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                <span style={{ width: 26, height: 26, background: "var(--bg-card)", border: "1px solid var(--rule)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>{e.icon}</span>
+                <span style={{ width: 26, height: 26, background: "var(--bg-card)", border: "1px solid var(--rule)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>{typeof e.icon === "string" ? e.icon : <e.icon size={13} />}</span>
                 <div style={{ flex: 1 }}>
                   <div>{e.text}</div>
                   <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{e.t}</div>

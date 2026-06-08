@@ -2,6 +2,7 @@
 /* eslint-disable */
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Heart, ChevronLeft, Zap, Play, X } from "lucide-react";
 import { AGENT, useIsMobile } from "@/components/site/shared";
 
 // ====== RENTAL MOCK DATA (ported from rentals-data.jsx) ======
@@ -178,13 +179,13 @@ function LiveNav({ savedCount, onBackToSite }) {
         )}
         <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center" }}>
           <button className="btn btn-ghost btn-sm" style={{ position: "relative" }}>
-            ♡ Saved {savedCount > 0 && (
+            <Heart size={14} fill="none" style={{ marginRight: 6, verticalAlign: "-2px" }} />Saved {savedCount > 0 && (
               <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: "var(--coral)", color: "#fff", fontSize: 9, fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{savedCount}</span>
             )}
           </button>
           {!isMobile && (
             <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
-              ← agents
+              <ChevronLeft size={14} style={{ marginRight: 4, verticalAlign: "-3px" }} />agents
             </button>
           )}
           <button className="btn btn-primary btn-sm">Sign up</button>
@@ -378,11 +379,11 @@ function UnitCard({ unit, onPick, saved, onSave }) {
           <div style={{ display: "flex", gap: 6 }}>
             {unit.concession && (
               <span style={{ background: "var(--coral)", color: "#fff", fontSize: 10, fontFamily: "var(--font-mono)", padding: "4px 8px", borderRadius: 4, fontWeight: 700, letterSpacing: "0.04em" }}>
-                ⚡ {unit.concession.toUpperCase()}
+                <Zap size={10} fill="currentColor" style={{ verticalAlign: "-1px", marginRight: 3 }} />{unit.concession.toUpperCase()}
               </span>
             )}
             <span style={{ background: "rgba(255,255,255,0.95)", color: "var(--ink)", fontSize: 10, fontFamily: "var(--font-mono)", padding: "4px 8px", borderRadius: 4, fontWeight: 600 }}>
-              ▶ AGENT REEL · 32s
+              <Play size={10} fill="currentColor" style={{ verticalAlign: "-1px", marginRight: 3 }} />AGENT REEL · 32s
             </span>
           </div>
           <button
@@ -394,7 +395,7 @@ function UnitCard({ unit, onPick, saved, onSave }) {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 14, transition: "all 0.15s ease",
             }}>
-            {saved ? "♥" : "♡"}
+            <Heart size={16} fill={saved ? "currentColor" : "none"} />
           </button>
         </div>
 
@@ -407,7 +408,7 @@ function UnitCard({ unit, onPick, saved, onSave }) {
           color: "var(--ink)", fontSize: 18, fontWeight: 700,
           transition: "all 0.2s ease",
           opacity: hovered ? 1 : 0.85,
-        }}>▶</div>
+        }}><Play size={18} fill="currentColor" /></div>
 
         {/* Bottom: price */}
         <div style={{ position: "absolute", left: 14, bottom: 12, right: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-end", color: "#fff" }}>
@@ -502,7 +503,7 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
             fontSize: 16, backdropFilter: "blur(8px)", zIndex: 5,
             alignSelf: isMobile ? "flex-start" : undefined,
             marginRight: isMobile ? -36 : undefined,
-          }}>×</button>
+          }}><X size={16} /></button>
 
           <div className="phone" style={{ boxShadow: "none" }}>
             <div className="phone-notch"></div>
@@ -574,7 +575,7 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
               <span className="display" style={{ fontSize: 36 }}>{rentShort(unit.rent)}<span style={{ fontSize: 16, fontWeight: 500, color: "var(--ink-soft)" }}>/mo</span></span>
               {unit.concession && (
                 <span style={{ background: "var(--coral)", color: "#fff", fontSize: 11, fontFamily: "var(--font-mono)", padding: "4px 8px", borderRadius: 4, fontWeight: 700 }}>
-                  ⚡ {unit.concession.toUpperCase()}
+                  <Zap size={10} fill="currentColor" style={{ verticalAlign: "-1px", marginRight: 3 }} />{unit.concession.toUpperCase()}
                 </span>
               )}
             </div>
@@ -624,7 +625,7 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
             </button>
             <button className="btn btn-outline" style={{ padding: "14px 18px" }}>Apply now</button>
             <button onClick={onSave} className="btn btn-outline" style={{ padding: "14px 16px" }}>
-              {saved ? "♥" : "♡"}
+              <Heart size={16} fill={saved ? "currentColor" : "none"} />
             </button>
           </div>
           <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", textAlign: "center" }}>

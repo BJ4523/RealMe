@@ -18,6 +18,15 @@ import {
   findUnit,
   useIsMobile,
 } from "@/components/site/shared";
+import {
+  Clapperboard,
+  ArrowUpRight,
+  Check,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Zap,
+} from "lucide-react";
 
 function statusPillUnit(status) {
   const map = {
@@ -207,8 +216,8 @@ function PerfCardRental({ label, value, delta, data, good }) {
       <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
         <div className="display" style={{ fontSize: 32 }}>{value}</div>
-        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ok)" }}>
-          {good ? "↘" : "↗"} {delta}
+        <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ok)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          {good ? <TrendingDown size={14} /> : <TrendingUp size={14} />} {delta}
         </div>
       </div>
       <div style={{ marginTop: 8 }}>
@@ -224,10 +233,10 @@ function RentalQuickActions({ setSection }) {
       <span className="eyebrow">Quick actions</span>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {[
-          { l: "Reel for #412 walkthrough", icon: "▶", to: "studio", primary: true },
-          { l: "Push concessions to 8 ILSes", icon: "↗", to: "syndication" },
-          { l: "Approve Wren Foley application", icon: "✓", to: "pipeline", coral: true },
-          { l: "Tour confirm: Naomi 2PM", icon: "▣", to: "pipeline" },
+          { l: "Reel for #412 walkthrough", icon: Clapperboard, to: "studio", primary: true },
+          { l: "Push concessions to 8 ILSes", icon: ArrowUpRight, to: "syndication" },
+          { l: "Approve Wren Foley application", icon: Check, to: "pipeline", coral: true },
+          { l: "Tour confirm: Naomi 2PM", icon: Calendar, to: "pipeline" },
         ].map((a, i) => (
           <button key={i} onClick={() => setSection(a.to)} style={{
             display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
@@ -236,7 +245,7 @@ function RentalQuickActions({ setSection }) {
             border: a.primary || a.coral ? "none" : "1px solid var(--rule)",
             borderRadius: 10, fontSize: 13, fontWeight: 500, textAlign: "left",
           }}>
-            <span style={{ width: 18 }}>{a.icon}</span>
+            <span style={{ width: 18, display: "inline-flex", alignItems: "center" }}><a.icon size={16} /></span>
             <span style={{ flex: 1 }}>{a.l}</span>
             <span>→</span>
           </button>
@@ -439,13 +448,13 @@ function UnitsTable({ units, setSection }) {
               <td style={{ padding: "12px 14px", fontFamily: "var(--font-mono)" }}>{u.sqft.toLocaleString()}</td>
               <td style={{ padding: "12px 14px" }}>
                 <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>{rentShort(u.rent)}<span style={{ fontWeight: 400, color: "var(--ink-soft)" }}>/mo</span></div>
-                {u.concession && <div style={{ fontSize: 10, color: "var(--coral)", fontFamily: "var(--font-mono)", marginTop: 2 }}>↘ {u.concession}</div>}
+                {u.concession && <div style={{ fontSize: 10, color: "var(--coral)", fontFamily: "var(--font-mono)", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}><TrendingDown size={12} /> {u.concession}</div>}
               </td>
               <td style={{ padding: "12px 14px", fontFamily: "var(--font-mono)", fontSize: 12 }}>{u.available}</td>
               <td style={{ padding: "12px 14px" }}>{statusPillUnit(u.status)}</td>
               <td style={{ padding: "12px 14px" }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 12 }}>
-                  ▶ <span>{Math.floor(u.views / 800) + 2}</span>
+                  <Clapperboard size={14} /> <span>{Math.floor(u.views / 800) + 2}</span>
                 </span>
               </td>
               <td style={{ padding: "12px 14px", fontFamily: "var(--font-mono)" }}>{u.leads}</td>
@@ -773,7 +782,7 @@ export function ConcessionsView() {
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.65) 100%)" }} />
             <div style={{ position: "absolute", top: 16, left: 16, right: 16, display: "flex", justifyContent: "space-between" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--coral)", color: "#fff", fontSize: 11, fontFamily: "var(--font-mono)", padding: "4px 8px", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em" }}>
-                ⚡ {concession.name.toUpperCase()}
+                <Zap size={14} /> {concession.name.toUpperCase()}
               </span>
               <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "4px 7px", borderRadius: 4, background: "rgba(0,0,0,0.5)", color: "#fff", backdropFilter: "blur(8px)" }}>
                 PREVIEW · 18s

@@ -16,6 +16,7 @@ import {
 import { useDashboardData } from "./data-context";
 import { studioGenerate } from "@/lib/site/studio-actions";
 import { pollVideoStatus } from "@/app/(app)/videos/actions";
+import { Download, Clapperboard, RefreshCw, ChevronRight, Check } from "lucide-react";
 
 export function ListingsView({ setSection }) {
   const router = useRouter();
@@ -76,7 +77,7 @@ function ListingCard({ listing, setSection }) {
           {listing.status === "new" && <span style={{ background: "var(--lime)", padding: "3px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }}>NEW · {listing.daysListed}d</span>}
           {listing.status === "active" && <span style={{ background: "rgba(255,255,255,0.9)", padding: "3px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, fontFamily: "var(--font-mono)" }}>ACTIVE</span>}
           {listing.status === "pending" && <span style={{ background: "var(--coral)", color: "#fff", padding: "3px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, fontFamily: "var(--font-mono)" }}>PENDING</span>}
-          {listing.autoImported && <span style={{ background: "rgba(0,0,0,0.6)", color: "#fff", padding: "3px 8px", borderRadius: 4, fontSize: 10, fontFamily: "var(--font-mono)" }}>⇣ MLS</span>}
+          {listing.autoImported && <span style={{ background: "rgba(0,0,0,0.6)", color: "#fff", padding: "3px 8px", borderRadius: 4, fontSize: 10, fontFamily: "var(--font-mono)", display: "inline-flex", alignItems: "center", gap: 3 }}><Download size={11} /> MLS</span>}
         </div>
         <div style={{ position: "absolute", bottom: 10, right: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "rgba(255,255,255,0.8)" }}>
           {listing.photos} photos
@@ -100,8 +101,8 @@ function ListingCard({ listing, setSection }) {
       </div>
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn btn-primary btn-sm" onClick={() => setSection("studio")} style={{ flex: 1, justifyContent: "center" }}>
-          ▶ Make reel
+        <button className="btn btn-primary btn-sm" onClick={() => setSection("studio")} style={{ flex: 1, justifyContent: "center", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <Clapperboard size={14} /> Make reel
         </button>
         <button className="btn btn-outline btn-sm" style={{ padding: "7px 10px" }}>···</button>
       </div>
@@ -293,7 +294,7 @@ export function StudioView() {
         <div className="card" style={{ padding: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <span className="eyebrow">Script · AI-drafted, your voice</span>
-            <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}>↻ Re-draft</button>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}><RefreshCw size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />Re-draft</button>
           </div>
           <ScriptEditor script={script || []} setScript={setScript} />
         </div>
@@ -305,7 +306,7 @@ export function StudioView() {
               : generating
                 ? "Rendering…"
                 : generated
-                  ? "↻ Regenerate"
+                  ? <><RefreshCw size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Regenerate</>
                   : "Generate video →"}
           </button>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", fontFamily: "var(--font-mono)" }}>
@@ -339,7 +340,7 @@ export function StudioView() {
                     color: done ? "var(--ok)" : active ? "var(--ink)" : "var(--ink-faint)",
                     padding: "6px 8px", background: active ? "var(--lime)" : "var(--bg)", borderRadius: 6,
                   }}>
-                    {done ? "✓" : active ? "›" : "·"} {s}
+                    {done ? <Check size={12} style={{ verticalAlign: "-2px" }} /> : active ? <ChevronRight size={12} style={{ verticalAlign: "-2px" }} /> : "·"} {s}
                   </div>
                 );
               })}

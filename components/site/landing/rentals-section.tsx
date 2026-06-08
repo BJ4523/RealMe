@@ -3,6 +3,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ILS_CHANNELS, UNITS, BUILDINGS, RENTAL_MANAGER, buildingOf, rentShort, useIsMobile } from "@/components/site/shared";
+import { ArrowUpRight, Zap, Play } from "lucide-react";
 
 // RealMe — Rentals + RealMe Live landing section
 // Drops into the landing page to introduce the rental + ILS extension
@@ -48,8 +49,8 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
               <button className="btn btn-primary" onClick={onOpenApp} style={{ padding: "16px 24px", fontSize: 15 }}>
                 Open rentals dashboard →
               </button>
-              <button className="btn btn-outline" onClick={onOpenLive} style={{ padding: "16px 24px", fontSize: 15 }}>
-                Visit RealMe Live ↗
+              <button className="btn btn-outline" onClick={onOpenLive} style={{ padding: "16px 24px", fontSize: 15, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Visit RealMe Live <ArrowUpRight size={15} />
               </button>
             </div>
           </div>
@@ -106,7 +107,7 @@ function ILSFanVisual({ isMobile }) {
         }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.5) 100%)" }} />
           <div style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "#fff", background: "rgba(0,0,0,0.5)", padding: "3px 7px", borderRadius: 4, letterSpacing: "0.06em", backdropFilter: "blur(4px)" }}>
-            ▶ ONE REEL · 32s
+            <Play size={10} fill="currentColor" style={{ verticalAlign: "-1px" }} /> ONE REEL · 32s
           </div>
           <div style={{ position: "absolute", left: 12, bottom: 10, color: "#fff" }}>
             <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, letterSpacing: "-0.02em" }}>{BUILDINGS[0].name} #412</div>
@@ -248,15 +249,15 @@ function RealMeLivePreview({ onOpenLive }) {
                   }}>
                     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.5) 100%)" }} />
                     {u.concession && (
-                      <span style={{ position: "absolute", top: 8, left: 8, background: "var(--coral)", color: "#fff", fontSize: 9, fontFamily: "var(--font-mono)", padding: "3px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: "0.04em" }}>
-                        ⚡ {u.concession.toUpperCase()}
+                      <span style={{ position: "absolute", top: 8, left: 8, background: "var(--coral)", color: "#fff", fontSize: 9, fontFamily: "var(--font-mono)", padding: "3px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                        <Zap size={10} fill="currentColor" /> {u.concession.toUpperCase()}
                       </span>
                     )}
                     <div style={{
                       position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
                       width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.92)",
                       display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)", fontSize: 12,
-                    }}>▶</div>
+                    }}><Play size={12} fill="currentColor" /></div>
                     <div style={{ position: "absolute", left: 10, bottom: 8, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
                       <div className="display" style={{ fontSize: 20, lineHeight: 1 }}>{rentShort(u.rent)}<span style={{ fontSize: 11, fontWeight: 500, opacity: 0.85 }}>/mo</span></div>
                     </div>

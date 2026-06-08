@@ -3,6 +3,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AGENT, LISTINGS, VIDEO_TEMPLATES, POSTS_WEEK, LEADS, STAGES, CheckIcon, listingBg, priceShort, useCount, PlatformIcon, ListingThumb, useIsMobile } from "@/components/site/shared";
+import { Star, RefreshCw, Check, Play } from "lucide-react";
 
 // RealMe — Landing page lower sections
 
@@ -144,7 +145,7 @@ export function LiveDemoSection({ onOpenApp }) {
                     borderRadius: 12,
                     position: "relative",
                   }}>
-                  {t.popular && <span style={{ position: "absolute", top: 8, right: 8, fontSize: 9, fontFamily: "var(--font-mono)", opacity: 0.6 }}>★ TOP</span>}
+                  {t.popular && <span style={{ position: "absolute", top: 8, right: 8, fontSize: 9, fontFamily: "var(--font-mono)", opacity: 0.6, display: "inline-flex", alignItems: "center", gap: 3 }}><Star size={10} fill="currentColor" /> TOP</span>}
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{t.name}</div>
                   <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", opacity: 0.55, marginTop: 2 }}>{t.duration}</div>
                 </button>
@@ -162,8 +163,8 @@ export function LiveDemoSection({ onOpenApp }) {
               onClick={go}
               disabled={generating}
               className="btn btn-lime"
-              style={{ width: "100%", padding: "14px 18px", fontSize: 14, opacity: generating ? 0.6 : 1 }}>
-              {generating ? "Generating…" : generated ? "↻ Regenerate" : "Generate reel →"}
+              style={{ width: "100%", padding: "14px 18px", fontSize: 14, opacity: generating ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              {generating ? "Generating…" : generated ? <><RefreshCw size={14} /> Regenerate</> : "Generate reel →"}
             </button>
             {generated && (
               <div style={{
@@ -233,7 +234,7 @@ function GenerationVisual({ progress, steps, allSteps, listing }) {
               color: done ? "var(--lime)" : active ? "var(--bg-warm)" : "rgba(246,242,234,0.3)",
               display: "flex", alignItems: "center", gap: 8,
             }}>
-              <span style={{ width: 10 }}>{done ? "✓" : active ? "›" : "·"}</span>
+              <span style={{ width: 10, display: "inline-flex", alignItems: "center" }}>{done ? <Check size={11} /> : active ? "›" : "·"}</span>
               {s}
             </div>
           );
@@ -303,7 +304,7 @@ function FinishedReel({ listing, template, done }) {
           borderRadius: 10, fontSize: 11, fontFamily: "var(--font-mono)",
           color: "var(--lime)",
         }}>
-          ▶ Preview · {template?.name} for {listing.address}
+          <Play size={11} fill="currentColor" style={{ verticalAlign: "-1px" }} /> Preview · {template?.name} for {listing.address}
         </div>
       )}
     </div>
@@ -679,7 +680,8 @@ export function Pricing({ onOpenApp }) {
                 padding: "6px 14px",
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
                 fontFamily: "var(--font-mono)", textTransform: "uppercase",
-              }}>★ {t.tag}</div>
+                display: "inline-flex", alignItems: "center", gap: 5,
+              }}><Star size={11} fill="currentColor" /> {t.tag}</div>
             )}
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: t.featured ? "rgba(246,242,234,0.55)" : "var(--ink-soft)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               {t.name}
