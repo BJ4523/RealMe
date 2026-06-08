@@ -13,6 +13,8 @@ export interface CreateAvatarResult {
 
 export interface GenerateVideoInput {
   avatarId: string;
+  /** "digital_twin" renders a realistic cutout avatar; default talking_photo. */
+  avatarKind?: "talking_photo" | "digital_twin";
   voiceId?: string;
   script: string;
   /** Listing photo URLs shown behind/around the avatar. */

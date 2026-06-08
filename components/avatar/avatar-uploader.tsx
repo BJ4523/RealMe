@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VoiceInput } from "@/components/avatar/voice-input";
 
-const MAX_BYTES = 32 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 48 * 1024 * 1024; // under the 50MiB Storage bucket cap
 
 export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: string }) {
   const router = useRouter();
@@ -19,6 +20,7 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
     undefined,
   );
   const [preview, setPreview] = useState<string | null>(null);
+  const [previewKind, setPreviewKind] = useState<"image" | "video" | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
@@ -32,7 +34,13 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-    setPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+    const kind = file.type.startsWith("video/")
+      ? "video"
+      : file.type.startsWith("image/")
+        ? "image"
+        : null;
+    setPreviewKind(kind);
+    setPreview(kind ? URL.createObjectURL(file) : null);
   }
 
   // Upload the photo (and optional voice clip) straight to Storage from the
@@ -44,13 +52,19 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
 
     const form = e.currentTarget;
     const photo = inputRef.current?.files?.[0];
-    if (!photo) return setClientError("Choose a photo of yourself.");
-    if (photo.size > MAX_BYTES) return setClientError("Photo must be under 32MB.");
+    if (!photo) return setClientError("Choose a photo or video of yourself.");
+    const isVideo = photo.type.startsWith("video/");
+    if (isVideo && photo.size > MAX_VIDEO_BYTES) {
+      return setClientError("Video must be under 48MB — keep it to ~15–60s.");
+    }
+    if (!isVideo && photo.size > MAX_IMAGE_BYTES) {
+      return setClientError("Photo must be under 32MB.");
+    }
 
     const audio =
       (form.elements.namedItem("audio") as HTMLInputElement | null)?.files?.[0] ??
       null;
-    if (audio && audio.size > MAX_BYTES) {
+    if (audio && audio.size > MAX_IMAGE_BYTES) {
       return setClientError("Voice clip must be under 32MB.");
     }
     const name =
@@ -117,23 +131,27 @@ export function AvatarUploader({ redirectTo = "/dashboard" }: { redirectTo?: str
         onClick={() => inputRef.current?.click()}
         className="flex aspect-square w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-foreground/40"
       >
-        {preview ? (
+        {preview && previewKind === "image" ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="Preview" className="size-full object-cover" />
+        ) : preview && previewKind === "video" ? (
+          <video src={preview} className="size-full object-cover" muted playsInline />
         ) : (
           <>
             <UploadCloud className="size-8" />
             <span className="text-sm">
-              {fileName ?? "Tap to upload your photo"}
+              {fileName ?? "Tap to upload a photo or video"}
             </span>
-            <span className="text-xs">JPG or PNG · up to 32MB</span>
+            <span className="px-6 text-center text-xs">
+              Photo → talking avatar. Video of you (15–60s) → realistic AI twin.
+            </span>
           </>
         )}
       </button>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         className="hidden"
         onChange={onFileChange}
       />

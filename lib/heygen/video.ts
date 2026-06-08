@@ -39,15 +39,28 @@ export async function generateVideo(
   const usePhotos = photos.slice(0, MAX_SCENES);
   const voiceId = input.voiceId ?? DEFAULT_VOICE_ID;
 
-  const presenter = () => ({
-    type: "talking_photo" as const,
-    talking_photo_id: input.avatarId,
-    // Circle cutout, background removed, scaled small and placed bottom-right.
-    talking_photo_style: "circle" as const,
-    matting: true,
-    scale: 0.42,
-    offset: { x: 0.3, y: 0.34 },
-  });
+  // Digital twins render as a realistic, background-removed cutout (matting)
+  // composited over the listing photo; talking photos use the circle style.
+  // Both are placed as a presenter in the lower-right of the 9:16 frame.
+  const isTwin = input.avatarKind === "digital_twin";
+  const presenter = () =>
+    isTwin
+      ? {
+          type: "avatar" as const,
+          avatar_id: input.avatarId,
+          avatar_style: "normal" as const,
+          matting: true,
+          scale: 0.5,
+          offset: { x: 0.28, y: 0.3 },
+        }
+      : {
+          type: "talking_photo" as const,
+          talking_photo_id: input.avatarId,
+          talking_photo_style: "circle" as const,
+          matting: true,
+          scale: 0.42,
+          offset: { x: 0.3, y: 0.34 },
+        };
   const voiceFor = (text: string) => ({
     type: "text" as const,
     input_text: text,

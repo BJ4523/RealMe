@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { generateVideo } from "@/lib/heygen/video";
+import { getDigitalTwinStatus } from "@/lib/heygen/avatar";
 import { listingPhotos } from "@/lib/format";
 
 export type StudioGenerateResult =
@@ -29,6 +30,31 @@ export async function studioGenerate(
     .eq("is_active", true)
     .maybeSingle();
   if (!avatar?.heygen_avatar_id) return { error: "no_avatar" };
+
+  // Twins store a distinct group id in heygen_asset_id; talking photos store it
+  // equal to the avatar id. A twin must finish training before it can render.
+  const isTwin =
+    !!avatar.heygen_asset_id &&
+    avatar.heygen_asset_id !== avatar.heygen_avatar_id;
+  if (isTwin && avatar.status !== "ready") {
+    // Refresh training status on demand (no cron needed). Poll by LOOK id.
+    const status = await getDigitalTwinStatus(avatar.heygen_avatar_id);
+    if (status !== avatar.status) {
+      await supabase.from("avatars").update({ status }).eq("id", avatar.id);
+    }
+    if (status === "failed") {
+      return {
+        error: "generate_failed",
+        message: "Avatar training failed — please re-upload a clearer video.",
+      };
+    }
+    if (status !== "ready") {
+      return {
+        error: "generate_failed",
+        message: "Your avatar is still training — try again in a few minutes.",
+      };
+    }
+  }
 
   const { data: listing } = await supabase
     .from("listings")
@@ -57,6 +83,7 @@ export async function studioGenerate(
   try {
     const result = await generateVideo({
       avatarId: avatar.heygen_avatar_id,
+      avatarKind: isTwin ? "digital_twin" : "talking_photo",
       voiceId: avatar.voice_id ?? undefined,
       script: scriptText,
       photoUrls: photos,

@@ -86,6 +86,77 @@ export async function getAvatarStatus(
   return "ready";
 }
 
+export interface DigitalTwinResult {
+  /** The look id — used as avatar_id when generating video. */
+  lookId: string;
+  /** The avatar-group id — used for status polling and deletion. */
+  groupId: string;
+  status: HeygenAvatarStatus;
+}
+
+/**
+ * Create a HeyGen Digital Twin from a video of the person (v3). Gives a
+ * photorealistic avatar that can later be composited over listing photos via
+ * the v2 generate endpoint. Training is async — poll getDigitalTwinStatus.
+ * `videoUrl` must be publicly fetchable (a Storage signed URL works); footage
+ * must be 15-600s of real footage (HeyGen rejects AI-generated/synthetic video).
+ */
+export async function createDigitalTwin(input: {
+  videoUrl: string;
+  name: string;
+}): Promise<DigitalTwinResult> {
+  if (isMock) {
+    const seed = Math.abs(hashString(input.name)).toString(36);
+    return { lookId: `mock_twin_${seed}`, groupId: `mock_grp_${seed}`, status: "ready" };
+  }
+
+  const res = await heygenFetch<{
+    data: {
+      avatar_group: { id: string };
+      avatar_item: { id: string; status?: string };
+    };
+  }>(ENDPOINTS.createAvatarV3, {
+    method: "POST",
+    json: {
+      type: "digital_twin",
+      name: input.name,
+      file: { type: "url", url: input.videoUrl },
+    },
+  });
+
+  return {
+    lookId: res.data.avatar_item.id,
+    groupId: res.data.avatar_group.id,
+    status: normalizeTwinStatus(res.data.avatar_item.status),
+  };
+}
+
+/**
+ * Poll a digital twin's training status by its LOOK id. Note: the avatar-GROUP
+ * status reports the upload ("completed") even when training of the look itself
+ * failed — so we read the look's own status from the looks list.
+ */
+export async function getDigitalTwinStatus(
+  lookId: string,
+): Promise<HeygenAvatarStatus> {
+  if (isMock) return "ready";
+  try {
+    const res = await heygenFetch<{
+      data?: Array<{ id: string; status?: string }>;
+    }>(`${ENDPOINTS.listAvatarLooks}?avatar_type=digital_twin`);
+    const look = (res.data ?? []).find((l) => l.id === lookId);
+    return normalizeTwinStatus(look?.status);
+  } catch {
+    return "processing";
+  }
+}
+
+function normalizeTwinStatus(s: string | undefined): HeygenAvatarStatus {
+  if (s === "ready" || s === "completed" || s === "success") return "ready";
+  if (s === "failed" || s === "error") return "failed";
+  return "processing";
+}
+
 /**
  * Delete a HeyGen photo avatar so it stops counting against the plan's
  * (account-wide) photo-avatar quota. The PHOTO avatar GROUP is what the quota

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import {
   createAvatarFromAsset,
+  createDigitalTwin,
   cloneVoiceFromAudio,
   deleteHeygenAvatar,
 } from "@/lib/heygen/avatar";
@@ -53,8 +54,11 @@ export async function createAvatar(
   const name = (formData.get("name") as string) || "My avatar";
 
   if (typeof photoPath !== "string" || photoPath.length === 0) {
-    return { error: "Choose a photo of yourself." };
+    return { error: "Choose a photo or a video of yourself." };
   }
+  // A video upload creates a realistic Digital Twin (v3); a photo creates a
+  // talking-photo avatar. Detected from the uploaded file's content type.
+  const isVideo = photoContentType.startsWith("video/");
   const hasAudio = typeof audioPath === "string" && audioPath.length > 0;
 
   // The client supplies the storage path, so confirm it lives inside the user's
@@ -83,17 +87,41 @@ export async function createAvatar(
   }
 
   try {
-    const { data: photoBlob, error: photoErr } = await supabase.storage
-      .from("avatar-sources")
-      .download(photoPath);
-    if (photoErr || !photoBlob) {
-      throw new Error(photoErr?.message ?? "Could not read the uploaded photo.");
+    // heygen_avatar_id = the id used to render (talking_photo id or twin look id);
+    // heygen_asset_id = the talking_photo id (== avatar id) OR the twin group id.
+    let heygenAvatarId: string;
+    let heygenAssetId: string;
+    let avatarStatus: "ready" | "processing" | "failed";
+
+    if (isVideo) {
+      // Digital Twin: HeyGen fetches the footage by URL, so hand it a temporary
+      // signed URL to the private video in Storage (valid long enough to pull).
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("avatar-sources")
+        .createSignedUrl(photoPath, 3600);
+      if (signErr || !signed?.signedUrl) {
+        throw new Error(signErr?.message ?? "Could not prepare the video.");
+      }
+      const twin = await createDigitalTwin({ videoUrl: signed.signedUrl, name });
+      heygenAvatarId = twin.lookId;
+      heygenAssetId = twin.groupId;
+      avatarStatus = twin.status;
+    } else {
+      const { data: photoBlob, error: photoErr } = await supabase.storage
+        .from("avatar-sources")
+        .download(photoPath);
+      if (photoErr || !photoBlob) {
+        throw new Error(photoErr?.message ?? "Could not read the uploaded photo.");
+      }
+      const result = await createAvatarFromAsset({
+        bytes: await photoBlob.arrayBuffer(),
+        contentType: photoContentType,
+        name,
+      });
+      heygenAvatarId = result.avatarId;
+      heygenAssetId = result.assetId;
+      avatarStatus = result.status;
     }
-    const result = await createAvatarFromAsset({
-      bytes: await photoBlob.arrayBuffer(),
-      contentType: photoContentType,
-      name,
-    });
 
     // Optional: clone the agent's voice from the uploaded audio clip so the
     // avatar narrates in their own voice. Falls back to a stock voice if absent.
@@ -117,11 +145,13 @@ export async function createAvatar(
     // failures here never fail the create.
     const { data: previous } = await supabase
       .from("avatars")
-      .select("id, heygen_avatar_id, source_path")
+      .select("id, heygen_avatar_id, heygen_asset_id, source_path")
       .eq("user_id", userId)
       .neq("id", avatar.id);
     for (const prev of previous ?? []) {
-      await deleteHeygenAvatar(prev.heygen_avatar_id);
+      // Delete by the group id (heygen_asset_id) — that's what frees the quota
+      // for both talking photos and twins.
+      await deleteHeygenAvatar(prev.heygen_asset_id ?? prev.heygen_avatar_id);
       if (prev.source_path) {
         await supabase.storage.from("avatar-sources").remove([prev.source_path]);
       }
@@ -137,10 +167,10 @@ export async function createAvatar(
     await supabase
       .from("avatars")
       .update({
-        heygen_asset_id: result.assetId,
-        heygen_avatar_id: result.avatarId,
+        heygen_asset_id: heygenAssetId,
+        heygen_avatar_id: heygenAvatarId,
         voice_id: voiceId,
-        status: result.status,
+        status: avatarStatus,
         is_active: true,
       })
       .eq("id", avatar.id);
@@ -184,13 +214,13 @@ export async function deleteAvatar(formData: FormData) {
   const supabase = await createClient();
   const { data: avatar } = await supabase
     .from("avatars")
-    .select("id, heygen_avatar_id, source_path")
+    .select("id, heygen_avatar_id, heygen_asset_id, source_path")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
   if (!avatar) return;
 
-  await deleteHeygenAvatar(avatar.heygen_avatar_id);
+  await deleteHeygenAvatar(avatar.heygen_asset_id ?? avatar.heygen_avatar_id);
   if (avatar.source_path) {
     await supabase.storage.from("avatar-sources").remove([avatar.source_path]);
   }
