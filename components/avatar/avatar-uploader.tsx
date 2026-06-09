@@ -204,7 +204,7 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         <button
           type="button"
           onClick={() => footageInput.current?.click()}
-          className="group flex aspect-square w-full max-w-[260px] flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-foreground/40"
+          className="group flex aspect-[9/16] w-full max-w-[220px] flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-foreground/40"
         >
           {preview ? (
             <video src={preview} className="size-full object-cover" muted playsInline autoPlay loop />
@@ -215,7 +215,7 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
             </>
           )}
         </button>
-        <div className="mt-3 grid max-w-[260px] grid-cols-2 gap-3">
+        <div className="mt-3 grid max-w-[220px] grid-cols-2 gap-3">
           <Button type="button" variant="outline" className="rounded-full" onClick={() => footageInput.current?.click()}>
             <UploadCloud className="size-4" /> Upload
           </Button>
@@ -247,7 +247,7 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         <button
           type="button"
           onClick={() => consentRecord.current?.click()}
-          className="group flex aspect-video w-full max-w-[260px] flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-foreground/40"
+          className="group flex aspect-[9/16] w-full max-w-[220px] flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-foreground/40"
         >
           {consentPreview ? (
             <video src={consentPreview} className="size-full object-cover" muted playsInline autoPlay loop />
@@ -258,7 +258,7 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
             </>
           )}
         </button>
-        <div className="mt-3 grid max-w-[260px] grid-cols-2 gap-3">
+        <div className="mt-3 grid max-w-[220px] grid-cols-2 gap-3">
           <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => consentInput.current?.click()}>
             <UploadCloud className="size-4" /> Upload
           </Button>

@@ -9,7 +9,7 @@ export function VideoCard({ video }: { video: Tables<"videos"> }) {
       href={`/videos/${video.id}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-lg"
     >
-      <div className="relative aspect-video overflow-hidden bg-muted">
+      <div className="relative aspect-[9/16] overflow-hidden bg-muted">
         {video.thumbnail_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

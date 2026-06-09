@@ -85,10 +85,10 @@ export default async function AvatarSettingsPage() {
                   src={videoUrl}
                   controls
                   playsInline
-                  className="aspect-[3/4] size-full object-contain"
+                  className="aspect-[9/16] size-full object-contain"
                 />
               ) : (
-                <div className="flex aspect-[3/4] items-center justify-center text-xs text-muted-foreground">
+                <div className="flex aspect-[9/16] items-center justify-center text-xs text-muted-foreground">
                   Preview unavailable
                 </div>
               )}
