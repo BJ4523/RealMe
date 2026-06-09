@@ -1,10 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { getVideoStatus } from "@/lib/heygen/video";
+import { reconcileAvatar } from "@/lib/avatars/reconcile";
 import { env } from "@/lib/env";
 
 /**
- * Self-heals videos stuck in `processing` (e.g. a missed webhook). Protected by
+ * Self-heals videos AND avatars stuck in `processing` (e.g. a missed webhook, or
+ * digital-twin training that finished/failed with no callback). Protected by
  * CRON_SECRET. Runs on a schedule via vercel.json. Uses the service-role client.
  */
 export async function GET(request: NextRequest) {
@@ -52,5 +54,25 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ checked: stuck?.length ?? 0, reconciled });
+  // Digital twins never webhook on training, so reconcile any that are stuck on
+  // `processing` (marks them ready/failed with the HeyGen failure reason).
+  const { data: stuckAvatars } = await supabase
+    .from("avatars")
+    .select("id, status, heygen_avatar_id, error")
+    .eq("status", "processing")
+    .not("heygen_avatar_id", "is", null)
+    .limit(50);
+
+  let avatarsReconciled = 0;
+  for (const a of stuckAvatars ?? []) {
+    const updated = await reconcileAvatar(supabase, a);
+    if (updated.status !== "processing") avatarsReconciled++;
+  }
+
+  return NextResponse.json({
+    checked: stuck?.length ?? 0,
+    reconciled,
+    avatarsChecked: stuckAvatars?.length ?? 0,
+    avatarsReconciled,
+  });
 }

@@ -115,24 +115,54 @@ export async function createDigitalTwin(input: {
   };
 }
 
+export interface DigitalTwinInfo {
+  status: HeygenAvatarStatus;
+  /** Human-readable failure reason from HeyGen when status is "failed". */
+  error: string | null;
+}
+
 /**
- * Poll a digital twin's training status by its LOOK id. Note: the avatar-GROUP
- * status reports the upload ("completed") even when training of the look itself
- * failed — so we read the look's own status from the looks list.
+ * Read a digital twin's training status (and failure reason) by its LOOK id.
+ * Note: the avatar-GROUP status reports the upload ("completed") even when
+ * training of the look itself failed — so we read the look's own status from the
+ * looks list. HeyGen never webhooks on twin training, so callers must poll this
+ * to learn that a twin finished or failed (e.g. "Footage is too short or too
+ * long"). Falls back to "processing" with no error if the lookup itself fails.
+ */
+export async function getDigitalTwinInfo(
+  lookId: string,
+): Promise<DigitalTwinInfo> {
+  if (isMock) return { status: "ready", error: null };
+  try {
+    const res = await heygenFetch<{
+      data?: Array<{
+        id: string;
+        status?: string;
+        error?: { code?: string; message?: string };
+      }>;
+    }>(`${ENDPOINTS.listAvatarLooks}?avatar_type=digital_twin`);
+    const look = (res.data ?? []).find((l) => l.id === lookId);
+    const status = normalizeTwinStatus(look?.status);
+    return {
+      status,
+      error:
+        status === "failed"
+          ? look?.error?.message ?? "Twin training failed."
+          : null,
+    };
+  } catch {
+    return { status: "processing", error: null };
+  }
+}
+
+/**
+ * Poll a digital twin's training status by its LOOK id. Thin wrapper around
+ * {@link getDigitalTwinInfo} for callers that only need the status.
  */
 export async function getDigitalTwinStatus(
   lookId: string,
 ): Promise<HeygenAvatarStatus> {
-  if (isMock) return "ready";
-  try {
-    const res = await heygenFetch<{
-      data?: Array<{ id: string; status?: string }>;
-    }>(`${ENDPOINTS.listAvatarLooks}?avatar_type=digital_twin`);
-    const look = (res.data ?? []).find((l) => l.id === lookId);
-    return normalizeTwinStatus(look?.status);
-  } catch {
-    return "processing";
-  }
+  return (await getDigitalTwinInfo(lookId)).status;
 }
 
 function normalizeTwinStatus(s: string | undefined): HeygenAvatarStatus {

@@ -9,6 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const MAX_VIDEO_BYTES = 48 * 1024 * 1024; // under the 50MiB Storage bucket cap
+// HeyGen rejects digital-twin footage outside this window ("Footage is too
+// short or too long" — a training failure that only surfaces minutes later), so
+// catch it in the browser before we ever upload.
+const MIN_DURATION_S = 15;
+const MAX_DURATION_S = 600;
+
+/** Read a video file's duration (seconds) via a throwaway <video> element. */
+function probeDuration(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    el.onloadedmetadata = () => resolve(el.duration);
+    el.onerror = () => reject(new Error("Could not read video metadata."));
+    el.src = url;
+  });
+}
 
 /**
  * Avatar = Digital Twin. The agent must provide a short VIDEO of themselves
@@ -38,7 +54,7 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
     };
   }, [preview]);
 
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("video/")) {
@@ -49,11 +65,28 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
       setClientError("Video must be under 48MB — keep it to ~15–60s.");
       return;
     }
+
+    const url = URL.createObjectURL(file);
+    // Reject clips outside HeyGen's training window before uploading — a single
+    // 15–60s take works best.
+    try {
+      const dur = await probeDuration(url);
+      if (Number.isFinite(dur) && (dur < MIN_DURATION_S || dur > MAX_DURATION_S)) {
+        URL.revokeObjectURL(url);
+        setClientError(
+          `Clip is ${Math.round(dur)}s — it must be ${MIN_DURATION_S}–${MAX_DURATION_S}s. Record a single continuous 15–60s take.`,
+        );
+        return;
+      }
+    } catch {
+      // Couldn't read metadata — let it through; HeyGen will validate server-side.
+    }
+
     setClientError(null);
     setVideo(file);
     setPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
+      return url;
     });
   }
 
