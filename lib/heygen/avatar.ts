@@ -119,6 +119,8 @@ export interface DigitalTwinInfo {
   status: HeygenAvatarStatus;
   /** Human-readable failure reason from HeyGen when status is "failed". */
   error: string | null;
+  /** The voice HeyGen cloned from the twin's footage during training. */
+  defaultVoiceId: string | null;
 }
 
 /**
@@ -132,13 +134,14 @@ export interface DigitalTwinInfo {
 export async function getDigitalTwinInfo(
   lookId: string,
 ): Promise<DigitalTwinInfo> {
-  if (isMock) return { status: "ready", error: null };
+  if (isMock) return { status: "ready", error: null, defaultVoiceId: null };
   try {
     const res = await heygenFetch<{
       data?: Array<{
         id: string;
         status?: string;
         error?: { code?: string; message?: string };
+        default_voice_id?: string;
       }>;
     }>(`${ENDPOINTS.listAvatarLooks}?avatar_type=digital_twin`);
     const look = (res.data ?? []).find((l) => l.id === lookId);
@@ -149,9 +152,10 @@ export async function getDigitalTwinInfo(
         status === "failed"
           ? look?.error?.message ?? "Twin training failed."
           : null,
+      defaultVoiceId: look?.default_voice_id ?? null,
     };
   } catch {
-    return { status: "processing", error: null };
+    return { status: "processing", error: null, defaultVoiceId: null };
   }
 }
 

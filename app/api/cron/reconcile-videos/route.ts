@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   // `processing` (marks them ready/failed with the HeyGen failure reason).
   const { data: stuckAvatars } = await supabase
     .from("avatars")
-    .select("id, status, heygen_avatar_id, error")
+    .select("id, status, heygen_avatar_id, error, voice_id")
     .eq("status", "processing")
     .not("heygen_avatar_id", "is", null)
     .limit(50);
