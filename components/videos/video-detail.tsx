@@ -70,16 +70,19 @@ export function VideoDetail({ initialVideo }: { initialVideo: Video }) {
       </div>
 
       {/* Player / progress surface */}
-      <div className="overflow-hidden rounded-3xl border border-border bg-foreground">
+      {/* Walkthroughs render 9:16 (vertical), so frame the player as portrait
+          and center it — otherwise a 16:9 box pillarboxes it with black bars. */}
+      <div className="mx-auto w-full max-w-[380px] overflow-hidden rounded-3xl border border-border bg-foreground">
         {video.status === "completed" && video.video_url ? (
           <video
             src={video.video_url}
             poster={video.thumbnail_url ?? undefined}
             controls
-            className="aspect-video w-full bg-black"
+            playsInline
+            className="aspect-[9/16] w-full bg-black object-cover"
           />
         ) : (
-          <div className="flex aspect-video w-full flex-col items-center justify-center gap-4 text-background">
+          <div className="flex aspect-[9/16] w-full flex-col items-center justify-center gap-4 text-background">
             {video.status === "failed" ? (
               <p className="text-destructive">
                 {video.error ?? "Generation failed."}

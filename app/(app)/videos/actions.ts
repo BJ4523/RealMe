@@ -96,6 +96,14 @@ export async function submitVideo(videoId: string) {
   try {
     const result = await generateVideo({
       avatarId: avatar?.heygen_avatar_id ?? "mock_avatar",
+      // Digital twins store distinct look/group ids; a legacy talking photo
+      // stores the same id in both. Passing the kind makes a twin render as a
+      // matted, background-removed presenter standing in the room (not a circle).
+      avatarKind:
+        avatar?.heygen_asset_id &&
+        avatar.heygen_asset_id !== avatar.heygen_avatar_id
+          ? "digital_twin"
+          : "talking_photo",
       voiceId: avatar?.voice_id ?? undefined,
       script: video.script,
       photoUrls: photos,
