@@ -7,7 +7,6 @@ import { getTwinConsentStatus } from "@/lib/heygen/avatar";
 import { deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
-import { ConsentButton } from "@/components/avatar/consent-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/videos/status-badge";
@@ -126,40 +125,36 @@ export default async function AvatarSettingsPage() {
                 </p>
               )}
 
-              {/* Cinematic verification (Seedance Avatar Shots needs a
-                  consent-validated twin). Only meaningful for a ready twin. */}
+              {/* Cinematic readiness (Seedance Avatar Shots needs a
+                  consent-validated twin — captured during creation). */}
               {isTwin && current.status === "ready" ? (
-                <div className="mt-1 rounded-2xl border border-border bg-muted/40 p-4">
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <Clapperboard className="size-4 text-foreground" />
-                    <p className="text-sm font-medium">Cinematic mode</p>
-                    {consentVerified ? (
-                      <span className="rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
-                        Verified
+                <div className="mt-1 flex items-start gap-2.5 rounded-2xl border border-border bg-muted/40 p-4">
+                  <Clapperboard
+                    className={`mt-0.5 size-4 shrink-0 ${consentVerified ? "text-foreground" : "text-muted-foreground"}`}
+                  />
+                  <div className="flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <p className="text-sm font-medium">Cinematic mode</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${
+                          consentVerified
+                            ? "bg-accent text-accent-foreground"
+                            : consentPending
+                              ? "bg-secondary text-secondary-foreground"
+                              : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {consentVerified ? "Ready" : consentPending ? "Verifying" : "Locked"}
                       </span>
-                    ) : null}
-                  </div>
-                  {consentVerified ? (
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Your identity is verified — your twin can star in cinematic
-                      walkthroughs.
+                      {consentVerified
+                        ? "Your identity is verified — your twin can star inside AI-generated cinematic scenes."
+                        : consentPending
+                          ? "Consent is being verified — check back in a few minutes."
+                          : "Add a consent clip to unlock cinematic. Re-create your twin below and record the short consent clip in step 2."}
                     </p>
-                  ) : (
-                    <>
-                      <p className="mb-3 text-xs text-muted-foreground">
-                        To put your twin <em>inside</em> the scene (not just a
-                        presenter), HeyGen requires a one-time identity check:
-                        record a short consent clip reading their statement + a
-                        code.
-                        {consentPending
-                          ? " Verification is processing — refresh in a moment."
-                          : ""}
-                      </p>
-                      <ConsentButton
-                        label={consentPending ? "Re-record consent" : "Verify identity"}
-                      />
-                    </>
-                  )}
+                  </div>
                 </div>
               ) : null}
 

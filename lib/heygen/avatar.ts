@@ -88,6 +88,9 @@ export interface DigitalTwinResult {
 export async function createDigitalTwin(input: {
   videoUrl: string;
   name: string;
+  /** Public URL to a consent clip — sets the twin's consent_status, which is
+   * required for cinematic (Seedance). Omit for a presenter-only twin. */
+  consentUrl?: string;
 }): Promise<DigitalTwinResult> {
   if (isMock) {
     const seed = Math.abs(hashString(input.name)).toString(36);
@@ -105,6 +108,9 @@ export async function createDigitalTwin(input: {
       type: "digital_twin",
       name: input.name,
       file: { type: "url", url: input.videoUrl },
+      ...(input.consentUrl
+        ? { video_consent_url: input.consentUrl }
+        : {}),
     },
   });
 

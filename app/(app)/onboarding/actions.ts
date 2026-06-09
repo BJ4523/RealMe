@@ -8,7 +8,6 @@ import {
   createDigitalTwin,
   cloneVoiceFromUrl,
   deleteHeygenAvatar,
-  startTwinConsent,
 } from "@/lib/heygen/avatar";
 
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
@@ -50,6 +49,13 @@ export async function createAvatar(
   const photoContentType =
     (formData.get("photoContentType") as string) || "image/jpeg";
   const name = (formData.get("name") as string) || "My avatar";
+  // Optional consent clip path (unlocks cinematic) — owner-scoped like the footage.
+  const consentPathRaw = formData.get("consentPath");
+  const consentPath =
+    typeof consentPathRaw === "string" &&
+    consentPathRaw.startsWith(`${userId}/`)
+      ? consentPathRaw
+      : null;
 
   if (typeof photoPath !== "string" || photoPath.length === 0) {
     return { error: "Add a video of yourself." };
@@ -99,7 +105,20 @@ export async function createAvatar(
       if (signErr || !signed?.signedUrl) {
         throw new Error(signErr?.message ?? "Could not prepare the video.");
       }
-      const twin = await createDigitalTwin({ videoUrl: signed.signedUrl, name });
+      // Sign the consent clip too (best-effort) so HeyGen can fetch it and
+      // validate the twin's consent — unlocking cinematic.
+      let consentUrl: string | undefined;
+      if (consentPath) {
+        const { data: c } = await supabase.storage
+          .from("avatar-sources")
+          .createSignedUrl(consentPath, 3600);
+        consentUrl = c?.signedUrl ?? undefined;
+      }
+      const twin = await createDigitalTwin({
+        videoUrl: signed.signedUrl,
+        name,
+        consentUrl,
+      });
       heygenAvatarId = twin.lookId;
       heygenAssetId = twin.groupId;
       avatarStatus = twin.status;
@@ -174,39 +193,6 @@ export async function createAvatar(
 
   revalidatePath("/", "layout");
   return { ok: true };
-}
-
-/**
- * Begin HeyGen identity-consent for the user's active twin and return the
- * hosted recording URL (the client opens it in a new tab). Required before the
- * twin can be used in cinematic (Seedance) videos. Owner-scoped.
- */
-export async function startAvatarConsent(): Promise<{
-  url?: string;
-  error?: string;
-}> {
-  const { userId } = await requireUser();
-  const supabase = await createClient();
-  const { data: avatar } = await supabase
-    .from("avatars")
-    .select("heygen_asset_id")
-    .eq("user_id", userId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (!avatar?.heygen_asset_id) {
-    return { error: "Create your avatar first, then verify it." };
-  }
-  try {
-    const consent = await startTwinConsent(avatar.heygen_asset_id);
-    if (!consent.url) {
-      return { error: "Verification isn't available for this avatar yet." };
-    }
-    return { url: consent.url };
-  } catch (e) {
-    return {
-      error: e instanceof Error ? e.message : "Could not start verification.",
-    };
-  }
 }
 
 export async function setActiveAvatar(formData: FormData) {
