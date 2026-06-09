@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Self-hosted ffmpeg.wasm core (minified vendor asset) — not our source.
+    "public/ffmpeg/**",
   ]),
 ]);
 

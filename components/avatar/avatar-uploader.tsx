@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 import { Sparkles, Video, UploadCloud } from "lucide-react";
 import { createAvatar, type AvatarState } from "@/app/(app)/onboarding/actions";
 import { createClient } from "@/lib/supabase/client";
+import { compressVideo } from "@/lib/video/compress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const MAX_VIDEO_BYTES = 48 * 1024 * 1024; // under the 50MiB Storage bucket cap
+// Clips at or below this upload as-is; larger ones are compressed in the browser
+// to land under the 50MiB Storage bucket cap before upload.
+const COMPRESS_TARGET_BYTES = 42 * 1024 * 1024;
+// Sanity ceiling on the raw file we'll even try to load into ffmpeg.wasm.
+const MAX_INPUT_BYTES = 1024 * 1024 * 1024; // 1GB
 // HeyGen rejects digital-twin footage outside this window ("Footage is too
 // short or too long" — a training failure that only surfaces minutes later), so
 // catch it in the browser before we ever upload.
@@ -40,7 +45,10 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
   const [video, setVideo] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "compressing" | "uploading">("idle");
+  const [compressPct, setCompressPct] = useState(0);
   const [clientError, setClientError] = useState<string | null>(null);
+  const durationRef = useRef<number | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const recordRef = useRef<HTMLInputElement>(null);
 
@@ -61,16 +69,18 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
       setClientError("Please choose a video file.");
       return;
     }
-    if (file.size > MAX_VIDEO_BYTES) {
-      setClientError("Video must be under 48MB — keep it to ~15–60s.");
+    if (file.size > MAX_INPUT_BYTES) {
+      setClientError("That video is too large to process — keep it to ~15–60s.");
       return;
     }
 
     const url = URL.createObjectURL(file);
+    durationRef.current = null;
     // Reject clips outside HeyGen's training window before uploading — a single
     // 15–60s take works best.
     try {
       const dur = await probeDuration(url);
+      durationRef.current = dur;
       if (Number.isFinite(dur) && (dur < MIN_DURATION_S || dur > MAX_DURATION_S)) {
         URL.revokeObjectURL(url);
         setClientError(
@@ -114,11 +124,42 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         return;
       }
 
-      const ext = video.name.split(".").pop() || "mp4";
+      // Big phone clips won't fit the Storage bucket, so transcode in-browser
+      // to a small MP4 first. ffmpeg.wasm is heavy — only load it when needed.
+      let toUpload = video;
+      if (video.size > COMPRESS_TARGET_BYTES) {
+        setPhase("compressing");
+        setCompressPct(0);
+        try {
+          toUpload = await compressVideo(video, {
+            durationSec: durationRef.current ?? 30,
+            targetBytes: COMPRESS_TARGET_BYTES,
+            onProgress: (f) => setCompressPct(Math.round(f * 100)),
+          });
+        } catch {
+          setClientError(
+            "Couldn't compress that video. Try a shorter clip (15–60s) or a smaller file.",
+          );
+          return;
+        }
+        // If it's somehow still too big, the bucket would reject it — bail clearly.
+        if (toUpload.size > COMPRESS_TARGET_BYTES * 1.15) {
+          setClientError(
+            "That clip is too long to compress under the size limit — keep it to ~15–60s.",
+          );
+          return;
+        }
+      }
+
+      setPhase("uploading");
+      const ext = toUpload.name.split(".").pop() || "mp4";
       const videoPath = `${user.id}/twin-${Date.now()}.${ext}`;
       const up = await supabase.storage
         .from("avatar-sources")
-        .upload(videoPath, video, { contentType: video.type || "video/mp4", upsert: true });
+        .upload(videoPath, toUpload, {
+          contentType: toUpload.type || "video/mp4",
+          upsert: true,
+        });
       if (up.error) {
         setClientError(`Video upload failed: ${up.error.message}`);
         return;
@@ -126,13 +167,14 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
 
       const fd = new FormData();
       fd.set("photoPath", videoPath);
-      fd.set("photoContentType", video.type || "video/mp4");
+      fd.set("photoContentType", toUpload.type || "video/mp4");
       fd.set("name", name);
       formAction(fd);
     } catch {
       setClientError("Something went wrong during upload. Please try again.");
     } finally {
       setUploading(false);
+      setPhase("idle");
     }
   }
 
@@ -213,7 +255,11 @@ export function AvatarUploader({ redirectTo = "/app" }: { redirectTo?: string })
         {pending ? (
           <>
             <Sparkles className="size-4 animate-pulse" />{" "}
-            {uploading ? "Uploading…" : "Creating your AI twin…"}
+            {phase === "compressing"
+              ? `Compressing video… ${compressPct}%`
+              : phase === "uploading"
+                ? "Uploading…"
+                : "Creating your AI twin…"}
           </>
         ) : (
           "Create my AI twin"

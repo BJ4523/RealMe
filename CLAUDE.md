@@ -51,13 +51,14 @@ Before changing a feature, confirm which system the user means — the same conc
 
 ### Integration layers (depend on the interface, not the concrete impl)
 
-- **HeyGen** (`lib/heygen/`): **every endpoint string lives in `client.ts`** — the single place to verify/pin against live docs when going off-mock (HeyGen is mid v2→v3 migration). `avatar.ts` (talking-photo + instant voice clone), `video.ts` (generate/status). Recorded voice clips are re-encoded to mono WAV (`lib/audio/wav.ts`) because HeyGen's clone rejects browser webm/opus.
+- **HeyGen** (`lib/heygen/`): **every endpoint string lives in `client.ts`** — the single place to verify/pin against live docs when going off-mock (HeyGen is mid v2→v3 migration). `avatar.ts` (digital-twin + talking-photo + instant voice clone), `video.ts` (generate/status). `heygenFetch` **throws on any non-200**, so callers that hit it inside a poll (`pollVideoStatus`) will 500 if HeyGen errors on a lookup. Recorded voice clips are re-encoded to mono WAV (`lib/audio/wav.ts`) because HeyGen's clone rejects browser webm/opus.
+- **Avatar = Digital Twin** (one per user; creating a new one replaces the old): the agent records/uploads a 15–600s video → HeyGen v3 `digital_twin`. **HeyGen never webhooks on twin training**, so a failed twin (e.g. "Footage is too short or too long") would otherwise sit on `processing` forever and silently block video generation. `lib/avatars/reconcile.ts` (`reconcileAvatar`) polls the look's real status and patches the row to `ready`/`failed` (+reason); it runs on the `/settings/avatar` page load and in the video cron. That page also **views** the twin (signed URL to the `avatar-sources` clip) and **replaces** it. The uploader (`components/avatar/avatar-uploader.tsx`) **compresses big clips client-side** via `ffmpeg.wasm` (single-thread core self-hosted in `public/ffmpeg/`, no cross-origin-isolation headers; `lib/video/compress.ts`) to fit the 50MiB bucket, and **guards duration 15–600s** before upload.
 - **Listings** (`lib/listings/`): `ListingProvider` interface with `manual`, `url_scrape`, and a `simplyrets` stub, registered in `index.ts`. UI/API depend only on the interface; add MLS aggregators (RESO/MLS Grid) without UI changes. Agent-level filtering uses RESO `ListAgentMlsId` stored on `profiles.mls_agent_id`.
 - **Script** (`lib/ai/script.ts`): Claude `messages.parse()` with a Zod schema; templated fallback when `ANTHROPIC_API_KEY` is unset.
 
 ### Async video job loop
 
-Generate → `processing` → `completed`, driven by **either** the HeyGen webhook (`app/api/webhooks/heygen`, shared-secret query param) **or** the daily cron reconciler (`app/api/cron/reconcile-videos`, scheduled in `vercel.json`, guarded by `CRON_SECRET`) for jobs that miss their webhook.
+Generate → `processing` → `completed`, driven by **either** the HeyGen webhook (`app/api/webhooks/heygen`, shared-secret query param) **or** the daily cron reconciler (`app/api/cron/reconcile-videos`, scheduled in `vercel.json`, guarded by `CRON_SECRET`) for jobs that miss their webhook. The same cron also reconciles stuck **avatars** (twin training sends no webhook). A video stuck in `processing` is unstuck by hitting that endpoint with the prod `CRON_SECRET` (the value is encrypted in Vercel — trigger from the Vercel dashboard's Cron tab, not from the repo).
 
 ## Environment & cloud resources
 

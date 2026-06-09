@@ -51,14 +51,29 @@ To go live: set `HEYGEN_MOCK=0` and `HEYGEN_API_KEY`, then verify the endpoints 
 
 ## Avatar creation (`lib/heygen/avatar.ts`)
 
-The app uses a **talking photo**: upload one image → get a `talking_photo_id` that's usable in
-video generation immediately (no training wait, no manual studio step). It's stored on
-`avatars.heygen_avatar_id`. (HeyGen's newer **Avatar IV** photo-avatar path is an alternative —
-swap the upload/create calls in `avatar.ts` if you prefer it.)
+The app's avatar is a **Digital Twin** (v3, video-only — one per user): the agent records/uploads a
+15–600s clip → `POST /v3/avatars` with `type: "digital_twin"` → a `look id` (stored on
+`avatars.heygen_avatar_id`, used to render) and a `group id` (`avatars.heygen_asset_id`, used for
+deletion). Voice is **cloned from the same clip** (`/v2/voices/clone`, `avatars.voice_id`), falling
+back to `HEYGEN_DEFAULT_VOICE_ID` so generation never blocks. Creating a new twin **replaces** the
+old one (deletes it from HeyGen + Storage + DB). `createAvatarFromAsset` (talking photo) remains as
+a legacy fallback for image uploads.
 
-Voice is either a HeyGen **stock voice** (`GET /v2/voices`, default `HEYGEN_DEFAULT_VOICE_ID`) or a
-**cloned voice** of the agent from an uploaded audio clip (`/v2/voices/clone`), stored as
-`avatars.voice_id`. Cloning is best-effort with a stock-voice fallback so generation never blocks.
+**Twin training is async and has NO webhook.** `createDigitalTwin` returns `processing`; the look
+trains over minutes and can **fail** (commonly "Footage is too short or too long"). Read the look's
+real status (and failure reason) via `getDigitalTwinInfo(lookId)` — note the avatar *group* reports
+the upload as `completed` even when the *look* failed, so we read the look. `reconcileAvatar`
+(`lib/avatars/reconcile.ts`) patches a stuck `processing` row to `ready`/`failed`; it runs on the
+`/settings/avatar` page load and in the video cron. Without it a failed twin sits on `processing`
+forever and silently blocks video generation with a confusing "avatar is still processing" 400.
+
+**Upload guards (`components/avatar/avatar-uploader.tsx`).** The browser uploads the clip straight
+to the `avatar-sources` bucket (50MiB cap), so the uploader (a) **rejects clips outside 15–600s**
+before upload (duration probed via a throwaway `<video>`), and (b) **compresses anything over ~42MB
+client-side** with `ffmpeg.wasm` → 720p H.264 + AAC MP4 (audio preserved for voice cloning). The
+single-thread core is self-hosted in `public/ffmpeg/` and lazy-loaded only when needed, so it needs
+**no `SharedArrayBuffer` / cross-origin-isolation headers** (`lib/video/compress.ts`). If
+compression fails, the user gets a clear message and small clips upload unchanged.
 
 ## Video generation (`lib/heygen/video.ts`)
 
