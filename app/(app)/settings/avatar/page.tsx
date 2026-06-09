@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Trash2, AlertTriangle, Clapperboard } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileAvatar } from "@/lib/avatars/reconcile";
+import { getTwinConsentStatus } from "@/lib/heygen/avatar";
 import { deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
+import { ConsentButton } from "@/components/avatar/consent-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/videos/status-badge";
@@ -30,6 +32,23 @@ export default async function AvatarSettingsPage() {
   if (current) current = await reconcileAvatar(supabase, current);
 
   const failed = current?.status === "failed";
+
+  // A digital twin stores distinct look/group ids (a legacy talking photo stores
+  // the same id in both). Cinematic (Seedance) videos need a consent-VALIDATED
+  // twin, so read the group's consent_status to drive the verify UI.
+  const isTwin =
+    !!current?.heygen_asset_id &&
+    current.heygen_asset_id !== current.heygen_avatar_id;
+  let consentStatus: string | null = null;
+  if (isTwin && current?.status === "ready" && current.heygen_asset_id) {
+    consentStatus = await getTwinConsentStatus(current.heygen_asset_id);
+  }
+  const consentVerified =
+    consentStatus === "validated" || consentStatus === "approved";
+  const consentPending =
+    consentStatus === "pending" ||
+    consentStatus === "processing" ||
+    consentStatus === "in_progress";
 
   // The twin's source clip lives in the private `avatar-sources` bucket, so mint
   // a short-lived signed URL to actually play it back in the browser.
@@ -106,6 +125,44 @@ export default async function AvatarSettingsPage() {
                     : "Your twin is still training — this can take a few minutes."}
                 </p>
               )}
+
+              {/* Cinematic verification (Seedance Avatar Shots needs a
+                  consent-validated twin). Only meaningful for a ready twin. */}
+              {isTwin && current.status === "ready" ? (
+                <div className="mt-1 rounded-2xl border border-border bg-muted/40 p-4">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <Clapperboard className="size-4 text-foreground" />
+                    <p className="text-sm font-medium">Cinematic mode</p>
+                    {consentVerified ? (
+                      <span className="rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
+                        Verified
+                      </span>
+                    ) : null}
+                  </div>
+                  {consentVerified ? (
+                    <p className="text-xs text-muted-foreground">
+                      Your identity is verified — your twin can star in cinematic
+                      walkthroughs.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        To put your twin <em>inside</em> the scene (not just a
+                        presenter), HeyGen requires a one-time identity check:
+                        record a short consent clip reading their statement + a
+                        code.
+                        {consentPending
+                          ? " Verification is processing — refresh in a moment."
+                          : ""}
+                      </p>
+                      <ConsentButton
+                        label={consentPending ? "Re-record consent" : "Verify identity"}
+                      />
+                    </>
+                  )}
+                </div>
+              ) : null}
+
               <form action={deleteAvatar} className="mt-auto">
                 <input type="hidden" name="id" value={current.id} />
                 <Button

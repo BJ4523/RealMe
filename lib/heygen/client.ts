@@ -37,6 +37,11 @@ export const ENDPOINTS = {
   // talking video with the avatar_iv engine. Verified live (POST -> 400/200, not 403).
   createAvatarV3: `${HEYGEN_BASE}/v3/avatars`,
   getAvatarV3: (id: string) => `${HEYGEN_BASE}/v3/avatars/${id}`,
+  // Identity-consent for a twin GROUP. POST returns a HeyGen-hosted URL the
+  // agent visits to record the consent video; GET the group reads consent_status.
+  // Cinematic (Seedance Avatar Shots) requires a consent-validated twin.
+  avatarConsent: (groupId: string) =>
+    `${HEYGEN_BASE}/v3/avatars/${groupId}/consent`,
   listAvatarLooks: `${HEYGEN_BASE}/v3/avatars/looks`,
   generateVideoV3: `${HEYGEN_BASE}/v3/videos`,
   videoStatusV3: (id: string) => `${HEYGEN_BASE}/v3/videos/${id}`,

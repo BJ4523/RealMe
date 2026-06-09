@@ -8,6 +8,7 @@ import {
   createDigitalTwin,
   cloneVoiceFromUrl,
   deleteHeygenAvatar,
+  startTwinConsent,
 } from "@/lib/heygen/avatar";
 
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
@@ -173,6 +174,39 @@ export async function createAvatar(
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Begin HeyGen identity-consent for the user's active twin and return the
+ * hosted recording URL (the client opens it in a new tab). Required before the
+ * twin can be used in cinematic (Seedance) videos. Owner-scoped.
+ */
+export async function startAvatarConsent(): Promise<{
+  url?: string;
+  error?: string;
+}> {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+  const { data: avatar } = await supabase
+    .from("avatars")
+    .select("heygen_asset_id")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!avatar?.heygen_asset_id) {
+    return { error: "Create your avatar first, then verify it." };
+  }
+  try {
+    const consent = await startTwinConsent(avatar.heygen_asset_id);
+    if (!consent.url) {
+      return { error: "Verification isn't available for this avatar yet." };
+    }
+    return { url: consent.url };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Could not start verification.",
+    };
+  }
 }
 
 export async function setActiveAvatar(formData: FormData) {

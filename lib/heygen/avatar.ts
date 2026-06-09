@@ -169,6 +169,43 @@ export async function getDigitalTwinStatus(
   return (await getDigitalTwinInfo(lookId)).status;
 }
 
+export interface TwinConsent {
+  /** HeyGen group consent_status: 'skipped' | 'pending' | 'validated' | ... */
+  status: string;
+  /** Hosted recording URL the agent visits to record the consent video. */
+  url: string | null;
+}
+
+/**
+ * Start (or restart) HeyGen's hosted identity-consent flow for a twin GROUP.
+ * Returns a URL the agent opens to record the consent video (reads a statement
+ * + a verification code). A consent-validated twin is REQUIRED for cinematic
+ * (Seedance Avatar Shots) generation; plain narrated videos don't need it.
+ */
+export async function startTwinConsent(groupId: string): Promise<TwinConsent> {
+  if (isMock) return { status: "validated", url: null };
+  const res = await heygenFetch<{
+    data: { avatar_group?: { consent_status?: string }; url?: string };
+  }>(ENDPOINTS.avatarConsent(groupId), { method: "POST", json: {} });
+  return {
+    status: res.data.avatar_group?.consent_status ?? "pending",
+    url: res.data.url ?? null,
+  };
+}
+
+/** Read a twin group's consent_status. Returns "unknown" on lookup failure. */
+export async function getTwinConsentStatus(groupId: string): Promise<string> {
+  if (isMock) return "validated";
+  try {
+    const res = await heygenFetch<{ data?: { consent_status?: string } }>(
+      ENDPOINTS.getAvatarV3(groupId),
+    );
+    return res.data?.consent_status ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 function normalizeTwinStatus(s: string | undefined): HeygenAvatarStatus {
   if (s === "ready" || s === "completed" || s === "success") return "ready";
   if (s === "failed" || s === "error") return "failed";
