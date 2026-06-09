@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   Clapperboard,
+  Film,
   Download,
   Share2,
   Sparkles,
@@ -11,6 +12,7 @@ import {
 import { toast } from "sonner";
 import {
   submitVideo,
+  submitCinematicVideo,
   updateScript,
   pollVideoStatus,
 } from "@/app/(app)/videos/actions";
@@ -21,7 +23,14 @@ import { StatusBadge } from "./status-badge";
 
 type Video = Tables<"videos">;
 
-export function VideoDetail({ initialVideo }: { initialVideo: Video }) {
+export function VideoDetail({
+  initialVideo,
+  cinematicReady = false,
+}: {
+  initialVideo: Video;
+  /** True when the active twin is consent-verified — unlocks cinematic mode. */
+  cinematicReady?: boolean;
+}) {
   const [video, setVideo] = useState<Video>(initialVideo);
   const [script, setScript] = useState(initialVideo.script ?? "");
   const [pending, startTransition] = useTransition();
@@ -47,6 +56,16 @@ export function VideoDetail({ initialVideo }: { initialVideo: Video }) {
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
       await submitVideo(video.id);
+      const latest = await pollVideoStatus(video.id);
+      if (latest) setVideo(latest);
+    });
+  }
+
+  function handleCinematic() {
+    startTransition(async () => {
+      await updateScript(video.id, script);
+      setVideo((v) => ({ ...v, status: "submitting" }));
+      await submitCinematicVideo(video.id);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -141,7 +160,20 @@ export function VideoDetail({ initialVideo }: { initialVideo: Video }) {
             rows={8}
             className="rounded-2xl"
           />
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {cinematicReady ? (
+              <Button
+                onClick={handleCinematic}
+                disabled={pending || !script.trim()}
+                size="lg"
+                variant="outline"
+                className="rounded-full"
+                title="Your twin moving through AI-generated scenes (Seedance)"
+              >
+                <Film className="size-5" />
+                {pending ? "Working…" : "Generate cinematic"}
+              </Button>
+            ) : null}
             <Button
               onClick={handleSubmit}
               disabled={pending || !script.trim()}
@@ -152,6 +184,13 @@ export function VideoDetail({ initialVideo }: { initialVideo: Video }) {
               {pending ? "Submitting…" : "Generate video"}
             </Button>
           </div>
+          {cinematicReady ? (
+            <p className="text-right text-xs text-muted-foreground">
+              Cinematic puts your twin inside AI-generated scenes steered by your
+              photos — striking, but the rooms are AI visualizations, not the
+              actual property. Use the standard video for a faithful tour.
+            </p>
+          ) : null}
         </div>
       )}
 

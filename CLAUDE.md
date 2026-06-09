@@ -58,7 +58,12 @@ Before changing a feature, confirm which system the user means — the same conc
 
 ### Async video job loop
 
-Generate → `processing` → `completed`, driven by **either** the HeyGen webhook (`app/api/webhooks/heygen`, shared-secret query param) **or** the daily cron reconciler (`app/api/cron/reconcile-videos`, scheduled in `vercel.json`, guarded by `CRON_SECRET`) for jobs that miss their webhook. The same cron also reconciles stuck **avatars** (twin training sends no webhook). A video stuck in `processing` is unstuck by hitting that endpoint with the prod `CRON_SECRET` (the value is encrypted in Vercel — trigger from the Vercel dashboard's Cron tab, not from the repo).
+Generate → `processing` → `completed`, driven by **either** the HeyGen webhook (`app/api/webhooks/heygen`, shared-secret query param) **or** the daily cron reconciler (`app/api/cron/reconcile-videos`, scheduled in `vercel.json`, guarded by `CRON_SECRET`) for jobs that miss their webhook. The same cron also reconciles stuck **avatars** (twin training sends no webhook) and assembles **cinematic** videos. A video stuck in `processing` is unstuck by hitting that endpoint with the prod `CRON_SECRET` (the value is encrypted in Vercel — trigger from the Vercel dashboard's Cron tab, not from the repo).
+
+### Two video modes (`app/(app)/videos/actions.ts`)
+
+1. **Presenter** (default, `submitVideo`): HeyGen v2 `/video/generate` — the twin as a matted, background-removed presenter over the **real listing photos**, narrating in the cloned voice. Faithful to the property.
+2. **Cinematic** (`submitCinematicVideo`, opt-in, gated on a **consent-verified** twin): one HeyGen **Cinematic Avatar / Seedance** clip per photo (`lib/heygen/cinematic.ts`, `POST /v3/videos` `type:"cinematic_avatar"`, ≤15s each) → server-side **stitch + cloned-voice narration mux** via a bundled static ffmpeg (`lib/video/stitch.ts`, `ffmpeg-static` — traced into the function in `next.config.ts`) → uploaded to `video-cache`. Job state is encoded migration-free in `videos.heygen_video_id` as `cine:<jobId,jobId,…>`; assembly (`lib/video/cinematic.ts`, `assembleCinematicVideo`) runs from the poll **and** the cron, self-locking via `processing→submitting`. **Consent**: cinematic requires `consent_status: validated` on the twin group — cleared via HeyGen's hosted flow (`startTwinConsent` → recorder URL, shown on `/settings/avatar`). **Caveat:** cinematic scenes are AI-generated approximations steered by the photos, *not* the real rooms — surfaced as an in-UI disclosure; keep presenter mode for faithful tours. Narration uses standalone TTS (`lib/heygen/voice.ts`, `/v1/audio/text_to_speech`).
 
 ## Environment & cloud resources
 

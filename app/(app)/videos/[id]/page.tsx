@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getTwinConsentStatus } from "@/lib/heygen/avatar";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 
@@ -11,7 +12,7 @@ export default async function VideoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  const { userId } = await requireUser();
   const { id } = await params;
   const supabase = await createClient();
 
@@ -25,6 +26,23 @@ export default async function VideoPage({
   const { listings, ...videoRow } = video;
   const listing = listings as { address: string } | null;
 
+  // Cinematic mode needs a consent-verified digital twin — check the active one.
+  const { data: avatar } = await supabase
+    .from("avatars")
+    .select("heygen_avatar_id, heygen_asset_id, status")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+  let cinematicReady = false;
+  if (
+    avatar?.status === "ready" &&
+    avatar.heygen_asset_id &&
+    avatar.heygen_asset_id !== avatar.heygen_avatar_id
+  ) {
+    const consent = await getTwinConsentStatus(avatar.heygen_asset_id);
+    cinematicReady = consent === "validated" || consent === "approved";
+  }
+
   return (
     <>
       <Link
@@ -37,7 +55,7 @@ export default async function VideoPage({
         title={video.title ?? "Walkthrough video"}
         description={listing?.address}
       />
-      <VideoDetail initialVideo={videoRow} />
+      <VideoDetail initialVideo={videoRow} cinematicReady={cinematicReady} />
     </>
   );
 }

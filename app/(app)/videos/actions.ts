@@ -7,9 +7,19 @@ import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { generateWalkthroughScript } from "@/lib/ai/script";
 import { generateVideo, getVideoStatus } from "@/lib/heygen/video";
+import { generateCinematicClip } from "@/lib/heygen/cinematic";
+import { getTwinConsentStatus } from "@/lib/heygen/avatar";
+import {
+  assembleCinematicVideo,
+  encodeCinematicJobs,
+  isCinematic,
+} from "@/lib/video/cinematic";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import type { Json, Tables } from "@/lib/types/database";
+
+/** Max cinematic shots (one per listing photo) — caps render cost/time. */
+const MAX_CINEMATIC_SHOTS = 4;
 
 /**
  * Step 1 — create a video job for a listing and generate its script.
@@ -133,6 +143,93 @@ export async function submitVideo(videoId: string) {
   revalidatePath(`/videos/${videoId}`);
 }
 
+/** Motion brief for one cinematic shot — describes the action/camera, NOT the
+ * narration (that's muxed separately in the agent's cloned voice). */
+function cinematicPrompt(
+  listing: Tables<"listings"> | null,
+  index: number,
+  total: number,
+): string {
+  const place = listing?.address
+    ? `a room of the property at ${listing.address}`
+    : "a bright, well-staged room";
+  return `Cinematic real-estate walkthrough. The same person moves naturally through ${place}, gesturing toward the key features and looking around with genuine warmth. Smooth tracking camera following them, soft natural light, photorealistic. Shot ${index + 1} of ${total}.`;
+}
+
+/**
+ * Cinematic alternative to submitVideo: generate one Seedance "Avatar Shots"
+ * clip per listing photo (the verified twin moving through the scene), to be
+ * stitched + narrated by assembleCinematicVideo. Requires a consent-validated
+ * digital twin. Stores the clip job ids in heygen_video_id (cine:<id,id,...>).
+ */
+export async function submitCinematicVideo(videoId: string) {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("videos")
+    .select("*, listings(*), avatars(*)")
+    .eq("id", videoId)
+    .single();
+  if (!video || !video.script) return;
+
+  const listing = video.listings as Tables<"listings"> | null;
+  const avatar = video.avatars as Tables<"avatars"> | null;
+  const isTwin =
+    !!avatar?.heygen_asset_id &&
+    avatar.heygen_asset_id !== avatar.heygen_avatar_id;
+
+  const fail = async (error: string) => {
+    await supabase.from("videos").update({ status: "failed", error }).eq("id", videoId);
+    revalidatePath(`/videos/${videoId}`);
+  };
+
+  if (!avatar || !isTwin || !avatar.heygen_avatar_id) {
+    return fail("Cinematic mode needs a digital-twin avatar.");
+  }
+  if (!isMock) {
+    const consent = await getTwinConsentStatus(avatar.heygen_asset_id!);
+    if (consent !== "validated" && consent !== "approved") {
+      return fail(
+        "Verify your twin's identity (Settings → Avatar → Cinematic mode) to use cinematic.",
+      );
+    }
+  }
+
+  const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
+  const usePhotos = photos.slice(0, MAX_CINEMATIC_SHOTS);
+  if (usePhotos.length === 0) {
+    return fail("Add listing photos to generate a cinematic walkthrough.");
+  }
+
+  await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
+
+  try {
+    const jobs = await Promise.all(
+      usePhotos.map((url, i) =>
+        generateCinematicClip({
+          avatarLookId: avatar.heygen_avatar_id!,
+          referenceUrl: url,
+          prompt: cinematicPrompt(listing, i, usePhotos.length),
+          duration: 10,
+        }),
+      ),
+    );
+    await supabase
+      .from("videos")
+      .update({
+        heygen_video_id: encodeCinematicJobs(jobs.map((j) => j.jobId)),
+        status: "processing",
+        thumbnail_url: usePhotos[0] ?? null,
+      })
+      .eq("id", videoId)
+      .eq("user_id", userId);
+  } catch (e) {
+    await fail(e instanceof Error ? e.message : "Cinematic generation failed.");
+    return;
+  }
+  revalidatePath(`/videos/${videoId}`);
+}
+
 /**
  * Polls a job's status and returns the latest video row. In mock mode it
  * simulates a realistic processing window (~6s) before completing — no webhook
@@ -149,6 +246,33 @@ export async function pollVideoStatus(
     .eq("id", videoId)
     .single();
   if (!video) return null;
+
+  // Cinematic walkthroughs are assembled from several Seedance clips: poll them
+  // and, once ready, stitch + narrate (assembleCinematicVideo self-locks so
+  // concurrent polls don't double-run the heavy step).
+  if (isCinematic(video.heygen_video_id) && video.status === "processing") {
+    const { data: av } = await supabase
+      .from("avatars")
+      .select("voice_id")
+      .eq("id", video.avatar_id ?? "")
+      .maybeSingle();
+    await assembleCinematicVideo(
+      supabase,
+      {
+        id: video.id,
+        user_id: video.user_id,
+        script: video.script,
+        heygen_video_id: video.heygen_video_id,
+      },
+      av?.voice_id ?? null,
+    );
+    const { data: latest } = await supabase
+      .from("videos")
+      .select("*")
+      .eq("id", videoId)
+      .single();
+    return latest ?? video;
+  }
 
   if (video.status === "processing" && video.heygen_video_id) {
     const elapsed = Date.now() - new Date(video.updated_at).getTime();

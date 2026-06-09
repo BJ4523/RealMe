@@ -35,6 +35,9 @@ export const ENDPOINTS = {
   // Digital-twin CREATION is gated on v2 (/v2/video_avatar -> 403) but open on
   // v3 for this plan. Create from a 15-600s video; generate photorealistic 9:16
   // talking video with the avatar_iv engine. Verified live (POST -> 400/200, not 403).
+  // Standalone TTS (Starfish) — generate cloned-voice narration audio for
+  // cinematic walkthroughs (cinematic clips are silent/voice-over).
+  textToSpeech: `${HEYGEN_BASE}/v1/audio/text_to_speech`,
   createAvatarV3: `${HEYGEN_BASE}/v3/avatars`,
   getAvatarV3: (id: string) => `${HEYGEN_BASE}/v3/avatars/${id}`,
   // Identity-consent for a twin GROUP. POST returns a HeyGen-hosted URL the
