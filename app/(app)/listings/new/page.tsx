@@ -12,7 +12,7 @@ export default async function NewListingPage() {
     <>
       <PageHeader
         title="Add a listing"
-        description="Enter the details by hand, or import them from a listing URL."
+        description="Paste a Zillow/Redfin/Realtor link to auto-import, or enter details and drag in photos."
       />
       <Card className="rounded-3xl">
         <CardContent className="pt-6">

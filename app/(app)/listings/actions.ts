@@ -129,7 +129,7 @@ export async function importFromUrl(
     if (!draft) {
       return {
         error:
-          "Couldn't read listing details from that URL. Try entering them manually.",
+          "Couldn't read that link (some sites block scraping). Switch to Manual entry and drag your photos in instead.",
       };
     }
     return { draft };
