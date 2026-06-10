@@ -1,4 +1,4 @@
-# Hype Reel — third video mode design
+# Hype Reel + faithful-tour retrofit — video modes design
 
 **Date:** 2026-06-10
 **Status:** Approved (pending spec review)
@@ -6,166 +6,195 @@
 
 ## Summary
 
-A third video mode — **Hype Reel** — alongside `presenter` and `cinematic`. It produces a
-~20s vertical (9:16) "produced TV segment" for a listing: the agent's digital twin **hosts
-on camera** (lip-synced cloned voice) as bookends around a **beat-synced cinematic room tour**,
-all over a royalty-free music bed with **kinetic text overlays** auto-pulled from listing data.
+Two linked changes, unified by one new building block:
 
-This was scoped as the "wow-factor" alternative to a twin-rapping music video. The rapping idea
-was deferred because it requires unsolved R&D (a second voice clone for singing + HeyGen lip-sync
-surviving rap tempo). Hype Reel keeps the twin + music + cinematic energy while using **only
-existing plumbing** for the AI calls; the genuinely new work is one ffmpeg assembler.
+1. **New "Hype Reel" mode** — a ~20s vertical (9:16) "produced TV segment": the agent's digital
+   twin **hosts on camera** (lip-synced cloned voice) as bookends around a **beat-synced tour**,
+   over a royalty-free music bed with **kinetic text overlays** from listing data.
+2. **Retrofit existing "Cinematic" mode** — today it shows **pure AI-generated fantasy rooms**,
+   which violates the new faithfulness rule below. It is reworked to the same faithful model.
+
+### Cross-cutting principle (applies to ALL video modes)
+
+> **The real listing photos are the faithful backbone of every video. AI-generated cinematic
+> (Seedance) clips are accents only — flair and transitions — never the entire tour.**
+
+Mode compliance:
+
+| Mode | Today | After this work |
+| --- | --- | --- |
+| **Presenter** | Real photos (faithful) | Unchanged — already compliant |
+| **Cinematic** | Pure AI fantasy rooms ❌ | Real-photo motion tour + a few cinematic accents + narration ✅ |
+| **Hype Reel** (new) | — | Real-photo motion tour + cinematic accents + host bookends + music + overlays ✅ |
+
+This was scoped as the "wow-factor" alternative to a twin-rapping music video. Rapping was deferred
+(needs unsolved R&D: a 2nd singing voice clone + lip-sync surviving rap tempo). Hype Reel keeps the
+twin + music + cinematic energy while staying faithful to the real property.
 
 ## Decisions (locked)
 
 | Decision | Choice |
 | --- | --- |
+| Faithfulness | Real photos = backbone everywhere; Seedance = accents only |
+| Cinematic retrofit | **Yes, same effort** (not a fast-follow) |
 | Mode name | **Hype Reel** (changeable) |
-| Length | ~20s — host intro + **3** cinematic room shots + host outro |
-| Host on camera | Yes — v2 presenter lip-sync bookends (intro + outro) |
-| Host backdrop | Over the **listing hero photo** (reuses presenter path untouched) |
-| Music source | **Hosted royalty-free library**, tracks pre-annotated with BPM/beat grid |
-| Beat-synced cuts | Yes — room clips trimmed to whole beats |
+| Hype Reel length | ~20s — host intro + 3 room shots (real-photo + ≤1 cinematic accent) + host outro |
+| Host on camera | Yes — v2 presenter lip-sync bookends (intro + outro) over the listing hero photo |
+| Music source | Hosted royalty-free library, tracks pre-annotated with BPM/beat grid |
+| Beat-synced cuts | Yes — room shots trimmed to whole beats |
 | Text overlays | Yes — auto from listing data (price, beds/baths/sqft, address, 2–3 feature callouts) |
-| Consent | Gated like cinematic (stars the twin; cinematic clips require consent) |
-| Migrations | None — job state encoded in `videos.heygen_video_id` (free-text), same trick as cinematic |
+| Consent | Hype Reel + Cinematic gated on consent-verified twin |
+| Migrations | None — job state encoded in `videos.heygen_video_id` (free-text), same as cinematic today |
 
-## Timeline
+## The shared new primitive: a "scene" model + faithful montage assembler
 
-```
-[Host intro ~5s]  →  [Room 1] [Room 2] [Room 3]  →  [Host outro ~4s]
-   twin on cam        beat-synced cinematic tour       twin on cam, CTA
-   talking            (silent clips + text overlays)    talking
-   music ducked       music full volume                 music ducked
-```
+Both Cinematic and Hype Reel are built from an **ordered list of scenes**, normalized to 720×1280 /
+30fps and concatenated in one ffmpeg pass. Scene types:
+
+- `{ type: 'photo', url, durationMs, motion }` — **Ken Burns** pan/zoom over a **real listing
+  photo** via ffmpeg `zoompan` (the faithful backbone — NEW).
+- `{ type: 'cinematic', jobId, durationMs }` — a Seedance accent clip (trimmed). Existing
+  `generateCinematicClip`, now used sparingly.
+- `{ type: 'host', videoUrl }` — a v2 presenter lip-sync segment with embedded synced voice
+  (Hype Reel bookends only). Existing `generateVideo`.
+
+The montage assembler takes scenes + options (`{ narration? , music?, overlays?, beatGrid? }`)
+and emits the final MP4. Cinematic and Hype Reel differ only in which options they pass.
 
 ## Architecture
 
 ### Reused as-is (existing plumbing)
-- `generateCinematicClip({ avatarLookId, referenceUrl?, prompt, duration? }) → { jobId }`
-  (`lib/heygen/cinematic.ts`) — the 3 room clips.
-- `getCinematicClipStatus(jobId) → { status, videoUrl?, error? }` — v3 clip polling.
-- `generateVideo(...)` v2 presenter render (`lib/heygen/video.ts`) — the 2 host bookends; returns
-  an MP4 with synced voice baked in.
+- `generateCinematicClip(...)` / `getCinematicClipStatus(...)` (`lib/heygen/cinematic.ts`) — accents.
+- `generateVideo(...)` v2 presenter (`lib/heygen/video.ts`) — Hype Reel host bookends.
+- `generateSpeech(text, voiceId)` (`lib/heygen/voice.ts`) — Cinematic narration.
 - Consent: `getTwinConsentStatus` + `isConsentVerified` (`lib/heygen/avatar.ts`).
-- Storage: `video-cache` bucket, admin-client upload, 7-day signed URL (same as cinematic).
-- Cron backstop: `app/api/cron/reconcile-videos` — extend its query to also pick up reel rows.
-- Self-locking `processing→submitting` assembly pattern from `assembleCinematicVideo`.
-- Mock mode (`HEYGEN_MOCK=1`) — fake clip ids + sample MP4; assembly still runs the real ffmpeg
-  path on samples + a bundled sample track, so the full flow is dev-testable with no keys.
+- Storage: `video-cache` bucket, admin-client upload, 7-day signed URL.
+- Cron backstop `app/api/cron/reconcile-videos` + self-locking `processing→submitting`.
+- Mock mode (`HEYGEN_MOCK=1`): Ken Burns runs on real seeded photos; Seedance/host are sample MP4s
+  → full flow dev-testable with no keys.
 
 ### Net-new components
 
-1. **Track library** — `lib/video/music/tracks.ts`
-   - Static list of royalty-free tracks; files in `public/music/` (or `video-cache`-style asset).
-   - Each entry: `{ id, title, url, bpm, beatOffsetMs, durationSec, mood }`.
-   - v1 ships with one default track; dropdown selects among any present.
+1. **Scene model + montage assembler** — `lib/video/scenes.ts`
+   - `Scene` type (above) + `assembleMontage({ scenes, narration?, music?, overlays?, beatGrid? })`.
+   - Thin exec wrapper around a single ffmpeg `filter_complex` (built by pure helpers below).
 
-2. **Beat math** — `lib/video/music/beats.ts` (PURE, side-effect-free → unit-testable)
-   - `beatTimesMs(bpm, beatOffsetMs, untilMs): number[]`
-   - `clipDurationsForBeats(bpm, beatOffsetMs, shotCount, windowMs): number[]` — returns each
-     room clip's trimmed duration so cuts land on beat boundaries.
+2. **Ken Burns motion** — `lib/video/kenburns.ts` (PURE → unit-testable)
+   - `kenBurnsFilter(motion, durationMs): string` — `zoompan`/scale-crop snippet per photo scene.
+   - A small set of motion presets (slow zoom-in, pan-left, push-up, etc.) rotated per scene.
 
-3. **Overlay builder** — `lib/video/overlay.ts` (PURE → unit-testable)
-   - `buildDrawtextFilters(overlays: Overlay[], beatTimesMs): string` — emits the ffmpeg
-     `drawtext` filter chain (text, position, fade-in/out enable expressions on beats).
-   - `Overlay = { text, lane: 'price'|'stats'|'address'|'feature', startMs }`.
+3. **Beat math** — `lib/video/music/beats.ts` (PURE → unit-testable)
+   - `beatTimesMs(bpm, beatOffsetMs, untilMs)` and
+     `clipDurationsForBeats(bpm, beatOffsetMs, shotCount, windowMs)`.
 
-4. **Script variant** — extend `lib/ai/script.ts`
-   - Returns `{ intro: string, outro: string, featureCallouts: string[] }` (Zod schema).
-   - Templated fallback when `ANTHROPIC_API_KEY` is unset (matches existing script behavior).
+4. **Overlay builder** — `lib/video/overlay.ts` (PURE → unit-testable)
+   - `buildDrawtextFilters(overlays, beatTimesMs): string` — `drawtext` chain with beat-keyed fades.
 
-5. **Assembler** — `lib/video/hypereel.ts` → `assembleHypeReel(supabase, video, voiceId)`
-   - Sibling to `assembleCinematicVideo`. Same signature/return contract
-     (`"processing" | "completed" | "failed"`), same self-lock.
+5. **Track library** — `lib/video/music/tracks.ts`
+   - Static `{ id, title, url, bpm, beatOffsetMs, durationSec, mood }[]`; files in `public/music/`.
+   - v1 ships one default track.
 
-6. **Stitch helper** — extend `lib/video/stitch.ts`
-   - New `stitchHypeReel({ introClip, roomClips, outroClip, musicBuf, overlays, beatGrid })`.
-   - Reuses the existing 9:16 normalize/pad/fps logic; adds beat-trim, drawtext, and audio mix.
+6. **Script variant** — extend `lib/ai/script.ts`
+   - Hype Reel: `{ intro, outro, featureCallouts[] }` (Zod schema + templated fallback).
+   - Cinematic keeps its existing narration script.
 
-7. **Submit action** — `submitHypeReelVideo(videoId, trackId?)` in `app/(app)/videos/actions.ts`
-   - Parallel to `submitCinematicVideo`. Same consent gate.
+7. **Assemblers** (both call `assembleMontage`)
+   - `lib/video/cinematic.ts` → `assembleCinematicVideo` **reworked**: build photo scenes from the
+     real listing photos + interleave ≤1–2 cinematic accents; pass `narration` (existing TTS). Same
+     signature/return contract, same self-lock.
+   - `lib/video/hypereel.ts` → `assembleHypeReel`: host bookends + photo scenes + ≤1 accent;
+     pass `music` + `overlays` + `beatGrid`. Sibling signature.
 
-8. **Job encoding** — `lib/video/hypereel.ts`
-   - `REEL_PREFIX = "reel:"`; encode as `reel:<introV2;outroV2;cineId,cineId,cineId>`.
-   - `isHypeReel(id)`, `encodeReelJobs(...)`, `decodeReelJobs(...)`.
+8. **Job encoding** (free-text `heygen_video_id`, migration-free)
+   - Cinematic keeps `cine:<accentJobId,...>` — only the *accent* job ids; photo scenes are
+     reconstructed from the listing at assembly time (no job needed).
+   - Hype Reel `reel:<introV2;outroV2;accentJobId,...>`.
+   - `isCinematic`/`isHypeReel` route the poll + cron to the right assembler.
 
-9. **UI** — `components/videos/video-detail.tsx` + `app/(app)/videos/[id]/page.tsx`
-   - "Generate hype reel" button next to cinematic, gated on the same `cinematicReady` consent flag.
-   - Simple track `<select>` (defaults to the one library track in v1).
+9. **Submit actions** — `app/(app)/videos/actions.ts`
+   - `submitCinematicVideo` updated (fewer/zero-to-few Seedance jobs; photos drive the tour).
+   - `submitHypeReelVideo(videoId, trackId?)` added; same consent gate.
 
-## Data flow
+10. **UI** — `components/videos/video-detail.tsx` + `app/(app)/videos/[id]/page.tsx`
+    - "Generate hype reel" button + track `<select>`, gated on the existing `cinematicReady` flag.
+    - Cinematic's existing AI-approximation disclosure relaxed to reflect it's now real-photo-based
+      with accents.
+
+## Hype Reel timeline
+
+```
+[Host intro ~5s]  →  [Room 1] [Room 2] [Room 3]  →  [Host outro ~4s]
+   twin on cam        real-photo Ken Burns +           twin on cam, CTA
+   talking            ≤1 cinematic accent, beat-cut     talking
+   music ducked       text overlays, music full         music ducked
+```
+
+## Data flow (Hype Reel)
 
 ```
 submitHypeReelVideo(videoId, trackId?)
-  → consent check (isConsentVerified) — fail with Settings → Avatar hint if not
-  → select 3 listing photos + 1 hero photo
-  → script: { intro, outro, featureCallouts }  (Claude or templated fallback)
-  → fire in parallel:
-       generateVideo(intro line, [hero])          → introV2 jobId
-       generateVideo(outro line, [hero])          → outroV2 jobId
-       generateCinematicClip(photo_i) × 3         → cineId × 3
-  → write videos row: status=processing, heygen_video_id = reel:<...>
-  → poll (UI 2.5s) AND cron both call assembleHypeReel:
-       decode job ids → poll all 5 (v2 status + getCinematicClipStatus)
-       if any processing → return "processing"
-       if any failed → mark failed + reason
-       else: self-lock processing→submitting, then:
-         fetch 5 MP4 buffers + selected track buffer
-         compute beat grid + per-room-clip durations
-         build drawtext overlays from listing data + featureCallouts
-         stitchHypeReel(...) → final 9:16 MP4
-         upload to video-cache (admin client), signed URL (7d)
-         update videos: status=completed, video_url, duration
+  → consent check (isConsentVerified) — else fail w/ Settings → Avatar hint
+  → pick hero photo + 3 room photos from listing
+  → script: { intro, outro, featureCallouts }
+  → fire: generateVideo(intro,[hero])→introV2 ; generateVideo(outro,[hero])→outroV2 ;
+          generateCinematicClip(accentPhoto)→accentJob   (≤1–2 accents)
+  → write row: status=processing, heygen_video_id = reel:<introV2;outroV2;accentJob>
+  → poll (UI 2.5s) + cron call assembleHypeReel:
+       poll host(v2) + accent(v3) jobs; processing→wait; failed→fail
+       self-lock processing→submitting
+       build scenes: [host intro] + [3 room photo/accent scenes] + [host outro]
+       compute beat grid → trim room scenes to beats
+       build overlays from listing data + featureCallouts
+       assembleMontage({ scenes, music, overlays, beatGrid }) → MP4
+       upload video-cache (admin), signed URL (7d), row=completed
 ```
 
-## ffmpeg design (the core new work)
+Cinematic flow is the same shape minus host/music/overlays, plus `narration` from TTS.
 
-Single `ffmpeg` invocation, extending the existing `stitch.ts` pattern:
+## ffmpeg design (core new work)
 
-- **Video:** normalize all 5 segments to 720×1280 / 30fps / SAR 1 (existing logic). Trim the
-  3 room clips to their beat-aligned durations (`-t` per input or `trim` filter). Concat in
-  order: intro → room1 → room2 → room3 → outro.
-- **Overlays:** chain `drawtext` filters over the montage section; fade in/out keyed to
-  `beatTimesMs` via `enable='between(t,a,b)'` and `alpha` expressions. Bundled font.
-- **Audio:** three sources mixed —
-  - intro voice (from introV2, embedded) — plays during intro window
-  - outro voice (from outroV2, embedded) — plays during outro window
-  - music track — full length, volume automated **down ~-12dB** under intro/outro windows
-    (`volume=enable=...` or two `volume` segments + `amix`), full during montage.
-  - `-shortest` not used (timeline length is deterministic from segment durations); explicit
-    total duration instead.
-- Output: H.264 (CRF 18, medium preset), AAC 192k, `+faststart` — same as cinematic.
+Single `ffmpeg` per video, one `filter_complex`:
+- **Photo scenes:** `zoompan` Ken Burns over the real photo, scaled/padded to 720×1280, 30fps.
+- **Cinematic/host scenes:** existing normalize/pad/fps; trim to target/beat duration.
+- **Concat** all scene video streams in order.
+- **Overlays:** `drawtext` chain over the montage window, beat-keyed fade in/out (bundled font).
+- **Audio:**
+  - Cinematic → single narration track (existing TTS) muxed, `-shortest`-style to montage length.
+  - Hype Reel → music track full-length, volume automated **down ~-12dB** under host windows
+    (host segments carry their own embedded synced voice), full during the montage; `amix`.
+- Output: H.264 CRF 18 / medium, AAC 192k, `+faststart` (matches current stitch).
 
 ## Error handling
-
-- Any sub-job `failed` → reel row `failed` with the sub-job's reason (mirror cinematic).
-- `heygenFetch` throws on non-200 during a poll → caught by assembler, leaves row `processing`
-  for the next poll/cron (mirror cinematic's resilience).
-- Stale `submitting` lock (crashed assembly) → cron resets to `processing` (existing pattern).
+- Any sub-job `failed` → row `failed` + reason (mirror cinematic).
+- `heygenFetch` non-200 during poll → caught; leave `processing` for next poll/cron.
+- Stale `submitting` lock → cron resets to `processing`.
 - Missing listing photos → fail early in submit with actionable message.
-- No consent → fail early with "Verify your twin's identity (Settings → Avatar → Cinematic mode)".
+- No consent → fail early with the Settings → Avatar hint.
 
 ## Testing / verification
-
-- Pure helpers (`beats.ts`, `overlay.ts`) kept side-effect-free for a future harness (per CLAUDE.md;
-  no framework scaffolded now).
+- Pure helpers (`kenburns.ts`, `beats.ts`, `overlay.ts`, scene/filter builders) side-effect-free
+  for a future harness (per CLAUDE.md; no framework scaffolded now).
 - `node scripts/verify-db.mjs` unaffected (no schema change).
-- Manual: `HEYGEN_MOCK=1` end-to-end — submit a hype reel on a seeded listing, confirm the assembler
-  produces a real stitched MP4 from sample clips + bundled sample track, lands in `video-cache`,
-  and the row goes `completed`.
-- `npm run build` for typecheck.
+- `HEYGEN_MOCK=1` end-to-end for **both** modes on a seeded listing: Ken Burns renders from real
+  photos, sample accents/host MP4s, output lands in `video-cache`, row → `completed`.
+- `npm run build` typecheck.
+
+## Build order (for the implementation plan)
+1. Shared primitive: `scenes.ts` + `kenburns.ts` + the montage assembler (with mock path).
+2. Retrofit `assembleCinematicVideo` + `submitCinematicVideo` onto the primitive; verify cinematic
+   is now faithful (real photos + accents) in mock.
+3. Hype Reel: `beats.ts`, `overlay.ts`, `tracks.ts`, script variant, `assembleHypeReel`,
+   `submitHypeReelVideo`, poll/cron routing, UI button + track picker.
+4. Full mock E2E of both modes; build typecheck.
 
 ## Scope split
-
-- **~70% reuse:** clip gen, presenter render, polling, cron, storage, consent, job-id encoding,
-  status transitions, mock flow.
-- **~30% new:** the ffmpeg assembler (beat-trim + drawtext + audio ducking), track library +
-  beat math, script variant, submit action, UI button + track picker.
+- **~60% reuse:** clip gen, presenter render, TTS, polling, cron, storage, consent, status
+  transitions, mock flow, job-id encoding scheme.
+- **~40% new:** the shared scene/montage assembler + Ken Burns motion (the faithfulness backbone),
+  beat math, overlay builder, track library, script variant, Hype Reel submit/UI, and the cinematic
+  retrofit wiring.
 
 ## Open / deferred
-
-- **Deferred:** twin *rapping* (AI song-gen second voice clone + rap-tempo lip-sync) — revisit as
-  a separate R&D spike if Hype Reel lands well.
-- **v1 defaults:** one library track; host over hero photo; 3 room shots. Track library, backdrop
-  styling, and shot count are the obvious post-v1 expansion levers.
+- **Deferred:** twin *rapping* (2nd singing voice clone + rap-tempo lip-sync) — separate R&D spike.
+- **v1 defaults:** one library track; host over hero photo; 3 room shots; ≤1–2 cinematic accents
+  per video. Accent ratio, track library, and shot count are the post-v1 levers.
