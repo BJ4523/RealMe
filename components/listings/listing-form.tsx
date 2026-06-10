@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createListing, type ListingFormState } from "@/app/(app)/listings/actions";
 import type { ListingDraft } from "@/lib/listings/provider";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PhotoUploader } from "./photo-uploader";
 
 function SaveButton() {
   const { pending } = useFormStatus();
@@ -63,6 +64,14 @@ export function ListingForm({
     createListing,
     undefined,
   );
+
+  const [photosText, setPhotosText] = useState(
+    draft?.photos?.map((p) => p.url).join("\n") ?? "",
+  );
+  const photoUrls = photosText
+    .split(/[\n,]/)
+    .map((u) => u.trim())
+    .filter(Boolean);
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -129,14 +138,35 @@ export function ListingForm({
         />
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="photos">Photo URLs (one per line)</Label>
+      <div className="grid gap-3">
+        <Label htmlFor="photos">Photos</Label>
+        <PhotoUploader
+          onUploaded={(urls) =>
+            setPhotosText((prev) =>
+              [prev, ...urls].filter(Boolean).join("\n"),
+            )
+          }
+        />
+        {photoUrls.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {photoUrls.map((url) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={url}
+                src={url}
+                alt=""
+                className="aspect-square w-full rounded-lg border border-border object-cover"
+              />
+            ))}
+          </div>
+        ) : null}
         <Textarea
           id="photos"
           name="photos"
           rows={3}
-          defaultValue={draft?.photos?.map((p) => p.url).join("\n")}
-          placeholder={"https://…/photo-1.jpg\nhttps://…/photo-2.jpg"}
+          value={photosText}
+          onChange={(e) => setPhotosText(e.target.value)}
+          placeholder={"Or paste photo URLs, one per line\nhttps://…/photo-1.jpg"}
         />
       </div>
 
