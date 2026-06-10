@@ -10,8 +10,10 @@ const nextConfig: NextConfig = {
   // (the cron reconciler and the /videos/[id] server actions).
   outputFileTracingIncludes: {
     "/api/cron/reconcile-videos": ["./node_modules/ffmpeg-static/**", "./assets/fonts/**", "./public/music/**"],
-    "/videos/[id]": ["./node_modules/ffmpeg-static/**"],
-    "/app/(app)/videos/**": ["./assets/fonts/**", "./public/music/**"],
+    // Route-group "(app)" is stripped from the route path, so the key is
+    // "/videos/[id]" — that page's server actions (pollVideoStatus) run the
+    // montage ffmpeg, so it needs the binary AND the font/music assets.
+    "/videos/[id]": ["./node_modules/ffmpeg-static/**", "./assets/fonts/**", "./public/music/**"],
   },
 };
 
