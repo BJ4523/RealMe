@@ -93,7 +93,6 @@ export type Database = {
           baths: number | null
           beds: number | null
           city: string | null
-          connection_id: string | null
           created_at: string
           description: string | null
           external_id: string | null
@@ -118,7 +117,6 @@ export type Database = {
           baths?: number | null
           beds?: number | null
           city?: string | null
-          connection_id?: string | null
           created_at?: string
           description?: string | null
           external_id?: string | null
@@ -143,7 +141,6 @@ export type Database = {
           baths?: number | null
           beds?: number | null
           city?: string | null
-          connection_id?: string | null
           created_at?: string
           description?: string | null
           external_id?: string | null
@@ -165,55 +162,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "listings_connection_id_fkey"
-            columns: ["connection_id"]
-            isOneToOne: false
-            referencedRelation: "mls_connections"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "listings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      mls_connections: {
-        Row: {
-          created_at: string
-          credentials: Json
-          id: string
-          last_synced_at: string | null
-          provider: Database["public"]["Enums"]["connection_provider"]
-          status: Database["public"]["Enums"]["connection_status"]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          credentials?: Json
-          id?: string
-          last_synced_at?: string | null
-          provider?: Database["public"]["Enums"]["connection_provider"]
-          status?: Database["public"]["Enums"]["connection_status"]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          credentials?: Json
-          id?: string
-          last_synced_at?: string | null
-          provider?: Database["public"]["Enums"]["connection_provider"]
-          status?: Database["public"]["Enums"]["connection_status"]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mls_connections_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -229,7 +178,6 @@ export type Database = {
           full_name: string | null
           headshot_url: string | null
           id: string
-          mls_agent_id: string | null
           onboarding_completed: boolean
           phone: string | null
           updated_at: string
@@ -241,7 +189,6 @@ export type Database = {
           full_name?: string | null
           headshot_url?: string | null
           id: string
-          mls_agent_id?: string | null
           onboarding_completed?: boolean
           phone?: string | null
           updated_at?: string
@@ -253,7 +200,6 @@ export type Database = {
           full_name?: string | null
           headshot_url?: string | null
           id?: string
-          mls_agent_id?: string | null
           onboarding_completed?: boolean
           phone?: string | null
           updated_at?: string
@@ -348,6 +294,8 @@ export type Database = {
     }
     Enums: {
       avatar_status: "uploading" | "processing" | "ready" | "failed"
+      // NOTE: simplyrets/reso/mlsgrid enum values are retained (Postgres can't
+      // drop enum values cleanly); they are unused after the MLS removal.
       connection_provider:
         | "manual"
         | "url_scrape"
