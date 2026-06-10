@@ -143,17 +143,38 @@ export async function submitVideo(videoId: string) {
   revalidatePath(`/videos/${videoId}`);
 }
 
-/** Motion brief for one cinematic shot — describes the action/camera, NOT the
- * narration (that's muxed separately in the agent's cloned voice). */
+/**
+ * Motion brief for ONE cinematic shot. This is what makes the agent appear to
+ * be *inside* the room (walking/presenting), not composited in front of a photo.
+ * It describes the subject's action + camera move + look; the reference photo
+ * steers the room, and the narration is muxed separately (so this is voice-over,
+ * not lip-sync). Varied camera moves per shot keep the walkthrough dynamic.
+ */
 function cinematicPrompt(
   listing: Tables<"listings"> | null,
   index: number,
   total: number,
 ): string {
+  const moves = [
+    "the camera walks in behind the agent on a smooth gimbal, following them into the space",
+    "a steady tracking shot glides alongside the agent as they move through the room",
+    "a slow cinematic dolly-in pushes toward the agent as they gesture to the room",
+    "the camera slowly orbits the agent, revealing the room around them",
+  ];
+  const move = moves[index % moves.length];
   const place = listing?.address
-    ? `a room of the property at ${listing.address}`
-    : "a bright, well-staged room";
-  return `Cinematic real-estate walkthrough. The same person moves naturally through ${place}, gesturing toward the key features and looking around with genuine warmth. Smooth tracking camera following them, soft natural light, photorealistic. Shot ${index + 1} of ${total}.`;
+    ? `the home at ${listing.address}`
+    : "a bright, beautifully staged home";
+  return [
+    "Photorealistic vertical 9:16 real-estate walkthrough.",
+    `A friendly, well-dressed real-estate agent is physically inside a room of ${place},`,
+    "walking through the space and presenting it to the viewer — looking around,",
+    "gesturing naturally toward the room's best features with genuine warmth and confidence.",
+    `Camera: ${move}; cinematic, steady, handheld realism.`,
+    "Bright natural daylight, inviting and true-to-life, matching the reference interior.",
+    "Continuous lifelike human motion, full body visible, the same person throughout.",
+    `Shot ${index + 1} of ${total}.`,
+  ].join(" ");
 }
 
 /**
