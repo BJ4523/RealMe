@@ -7,7 +7,6 @@ import {
 /** Manual entry — the agent types listing details into a form. */
 export const manualProvider: ListingProvider = {
   id: "manual",
-  requiresConnection: false,
   async fetchListings() {
     return [];
   },

@@ -44,8 +44,6 @@ export interface FetchOneRef {
 
 export interface ListingProvider {
   readonly id: ProviderId;
-  /** Whether this provider needs saved credentials before it can sync. */
-  readonly requiresConnection: boolean;
   /** Pull all listings this provider can resolve (manual/url return none). */
   fetchListings(opts: FetchListingsOptions): Promise<ListingDraft[]>;
   /** Resolve a single listing by external id (aggregators) or URL (scrape). */
