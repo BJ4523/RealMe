@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   Clapperboard,
@@ -26,10 +27,13 @@ type Video = Tables<"videos">;
 export function VideoDetail({
   initialVideo,
   cinematicReady = false,
+  hasTwin = false,
 }: {
   initialVideo: Video;
   /** True when the active twin is consent-verified — unlocks cinematic mode. */
   cinematicReady?: boolean;
+  /** True when the active avatar is a ready digital twin (consent may still be pending). */
+  hasTwin?: boolean;
 }) {
   const [video, setVideo] = useState<Video>(initialVideo);
   const [script, setScript] = useState(initialVideo.script ?? "");
@@ -162,27 +166,65 @@ export function VideoDetail({
           />
           <div className="flex flex-wrap items-center justify-end gap-3">
             {cinematicReady ? (
+              <>
+                {/* Cinematic is the hero/default; presenter demotes to secondary. */}
+                <Button
+                  onClick={handleSubmit}
+                  disabled={pending || !script.trim()}
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full"
+                  title="Your twin presenting over the real listing photos"
+                >
+                  <Clapperboard className="size-5" />
+                  {pending ? "Working…" : "Standard video"}
+                </Button>
+                <Button
+                  onClick={handleCinematic}
+                  disabled={pending || !script.trim()}
+                  size="lg"
+                  className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+                  title="Your twin moving through AI-generated scenes (Seedance)"
+                >
+                  <Film className="size-5" />
+                  {pending ? "Working…" : "Generate cinematic"}
+                </Button>
+              </>
+            ) : hasTwin ? (
+              <>
+                {/* Twin exists but isn't consent-verified — steer to verify,
+                    keep presenter available so onboarding is never blocked. */}
+                <Button
+                  onClick={handleSubmit}
+                  disabled={pending || !script.trim()}
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full"
+                >
+                  <Clapperboard className="size-5" />
+                  {pending ? "Submitting…" : "Generate standard video"}
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+                >
+                  <Link href="/settings/avatar">
+                    <Film className="size-5" /> Verify your twin to unlock cinematic
+                  </Link>
+                </Button>
+              </>
+            ) : (
               <Button
-                onClick={handleCinematic}
+                onClick={handleSubmit}
                 disabled={pending || !script.trim()}
                 size="lg"
-                variant="outline"
-                className="rounded-full"
-                title="Your twin moving through AI-generated scenes (Seedance)"
+                className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
               >
-                <Film className="size-5" />
-                {pending ? "Working…" : "Generate cinematic"}
+                <Clapperboard className="size-5" />
+                {pending ? "Submitting…" : "Generate video"}
               </Button>
-            ) : null}
-            <Button
-              onClick={handleSubmit}
-              disabled={pending || !script.trim()}
-              size="lg"
-              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-            >
-              <Clapperboard className="size-5" />
-              {pending ? "Submitting…" : "Generate video"}
-            </Button>
+            )}
           </div>
           {cinematicReady ? (
             <p className="text-right text-xs text-muted-foreground">
@@ -190,7 +232,19 @@ export function VideoDetail({
               photos — striking, but the rooms are AI visualizations, not the
               actual property. Use the standard video for a faithful tour.
             </p>
-          ) : null}
+          ) : hasTwin ? (
+            <p className="text-right text-xs text-muted-foreground">
+              Cinematic is our most striking format — it needs a one-time identity
+              check. Verify your twin, or generate a faithful standard video now.
+            </p>
+          ) : (
+            <p className="text-right text-xs text-muted-foreground">
+              <Link href="/settings/avatar" className="underline">
+                Create a digital twin
+              </Link>{" "}
+              to unlock cinematic mode.
+            </p>
+          )}
         </div>
       )}
 

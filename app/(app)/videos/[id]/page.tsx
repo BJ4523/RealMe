@@ -33,12 +33,13 @@ export default async function VideoPage({
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
-  let cinematicReady = false;
-  if (
+  const isTwin = !!(
     avatar?.status === "ready" &&
     avatar.heygen_asset_id &&
     avatar.heygen_asset_id !== avatar.heygen_avatar_id
-  ) {
+  );
+  let cinematicReady = false;
+  if (isTwin && avatar?.heygen_asset_id) {
     const consent = await getTwinConsentStatus(avatar.heygen_asset_id);
     cinematicReady = isConsentVerified(consent);
   }
@@ -55,7 +56,11 @@ export default async function VideoPage({
         title={video.title ?? "Walkthrough video"}
         description={listing?.address}
       />
-      <VideoDetail initialVideo={videoRow} cinematicReady={cinematicReady} />
+      <VideoDetail
+        initialVideo={videoRow}
+        cinematicReady={cinematicReady}
+        hasTwin={isTwin}
+      />
     </>
   );
 }
