@@ -9,8 +9,9 @@ const nextConfig: NextConfig = {
   // Also ensure the binary is traced into the serverless functions that run it
   // (the cron reconciler and the /videos/[id] server actions).
   outputFileTracingIncludes: {
-    "/api/cron/reconcile-videos": ["./node_modules/ffmpeg-static/**"],
+    "/api/cron/reconcile-videos": ["./node_modules/ffmpeg-static/**", "./assets/fonts/**", "./public/music/**"],
     "/videos/[id]": ["./node_modules/ffmpeg-static/**"],
+    "/app/(app)/videos/**": ["./assets/fonts/**", "./public/music/**"],
   },
 };
 
