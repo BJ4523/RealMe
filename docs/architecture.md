@@ -42,7 +42,7 @@ app/
 lib/
   supabase/           server, client, middleware (proxy helper), admin (service-role)
   heygen/             client (all endpoint strings) · avatar · video · types
-  listings/           provider interface + manual / url_scrape / simplyrets (stub) + factory
+  listings/           provider interface + manual / url_scrape + factory
   ai/                 script.ts (Claude + templated fallback)
   auth.ts             requireUser / requireOnboarded
   format.ts, env.ts, utils.ts, types/database.ts
@@ -57,9 +57,8 @@ All tables live in `public`, **RLS enabled on every one**, owned by `auth.users`
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `profiles` | 1:1 with `auth.users`, created by trigger | `full_name`, `brokerage`, `mls_agent_id` (RESO `ListAgentMlsId`), `onboarding_completed` |
+| `profiles` | 1:1 with `auth.users`, created by trigger | `full_name`, `brokerage`, `onboarding_completed` |
 | `avatars` | agent's HeyGen avatars | `heygen_avatar_id`, `voice_id`, `source_path`, `status`, `is_active` |
-| `mls_connections` | chosen listing provider | `provider`, `status`, `credentials` |
 | `listings` | properties | address/price/beds/baths/sqft, `description`, `features[]`, `photos jsonb`, `source`, `external_id` |
 | `videos` | the async job + result | `listing_id`, `avatar_id`, `script`, `heygen_video_id`, `status`, `video_url`, `thumbnail_url`, `duration` |
 
@@ -91,7 +90,7 @@ row on signup. Verified by `scripts/verify-db.mjs` (trigger + cross-user isolati
 
 A `ListingProvider` interface (`fetchListings`, `fetchOne`, `normalize`) makes the listing
 source swappable. The UI and API depend only on the interface; concrete providers are resolved
-by `getListingProvider(id)`. See [mls-listings.md](./mls-listings.md).
+by `getListingProvider(id)`.
 
 ### HeyGen client (`lib/heygen/`)
 

@@ -1,7 +1,8 @@
 /**
- * Provider abstraction so the listing source (manual entry, URL scrape,
- * SimplyRETS, RESO, MLS Grid) is swappable behind one interface. The UI and
- * API routes depend only on this interface — never on a concrete provider.
+ * Provider abstraction so the listing source (manual entry, URL scrape) is
+ * swappable behind one interface. The UI and API routes depend only on this
+ * interface — never on a concrete provider. MLS aggregators were removed; add
+ * them back behind this same interface when re-enabled.
  */
 
 export interface ListingPhoto {
@@ -29,16 +30,9 @@ export interface ListingDraft {
   sourceUrl?: string;
 }
 
-export type ProviderId =
-  | "manual"
-  | "url_scrape"
-  | "simplyrets"
-  | "reso"
-  | "mlsgrid";
+export type ProviderId = "manual" | "url_scrape";
 
 export interface FetchListingsOptions {
-  /** RESO ListAgentMlsId — aggregators filter an agent's own listings by this. */
-  agentMlsId?: string;
   credentials?: Record<string, unknown>;
 }
 
@@ -50,9 +44,7 @@ export interface FetchOneRef {
 
 export interface ListingProvider {
   readonly id: ProviderId;
-  /** Whether this provider needs a saved mls_connection before it can sync. */
-  readonly requiresConnection: boolean;
-  /** Pull all of an agent's listings (aggregators filter by agentMlsId). */
+  /** Pull all listings this provider can resolve (manual/url return none). */
   fetchListings(opts: FetchListingsOptions): Promise<ListingDraft[]>;
   /** Resolve a single listing by external id (aggregators) or URL (scrape). */
   fetchOne(ref: FetchOneRef): Promise<ListingDraft | null>;

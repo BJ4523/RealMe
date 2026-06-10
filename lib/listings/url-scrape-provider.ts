@@ -18,7 +18,6 @@ import { scrapeListingViaFirecrawl } from "./firecrawl";
  */
 export const urlScrapeProvider: ListingProvider = {
   id: "url_scrape",
-  requiresConnection: false,
 
   async fetchListings() {
     return [];

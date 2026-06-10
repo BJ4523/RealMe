@@ -14,7 +14,6 @@ Anthropic · Tailwind + shadcn/ui**, deployable on **Vercel**.
 Full docs in [`docs/`](./docs/README.md):
 
 - [Architecture](./docs/architecture.md) — system design, data model + RLS, integration layers, the async video loop
-- [MLS listings](./docs/mls-listings.md) — **how agents get their listings** (RESO, aggregators, agent-level filtering, costs, the recommended path)
 - [HeyGen](./docs/heygen.md) — avatar/video API, mock mode, and the endpoint-verification caveat
 - [Setup](./docs/setup.md) — local dev, env vars, ports, verification scripts
 - [Production](./docs/production.md) — going-live checklist
@@ -42,7 +41,7 @@ clashing with other projects — see `supabase/config.toml`).
 |---|---|
 | Auth + session | `@supabase/ssr` clients in `lib/supabase/*`; session refresh in `proxy.ts` (Next 16's renamed Middleware) |
 | Data model + RLS | `supabase/migrations/*` — owner-scoped policies on every table, `handle_new_user` trigger creates the profile |
-| Listing sources | `lib/listings/` — `ListingProvider` interface with `manual`, `url_scrape`, and a `simplyrets` stub; swap in MLS aggregators without UI changes |
+| Listing sources | `lib/listings/` — `ListingProvider` interface with `manual` and `url_scrape` (Firecrawl-powered); swap in additional providers without UI changes |
 | Avatar + video | `lib/heygen/` — **all endpoint strings live in `client.ts`**; honors `HEYGEN_MOCK` |
 | Script generation | `lib/ai/script.ts` — Claude `messages.parse()` with a Zod schema; templated fallback when no key |
 | Async job loop | submit → `processing` → `completed`, driven by the webhook (`app/api/webhooks/heygen`) or the poll/cron reconciler (`app/api/cron/reconcile-videos`) |
@@ -52,11 +51,8 @@ clashing with other projects — see `supabase/config.toml`).
 1. **HeyGen:** set `HEYGEN_MOCK=0` + `HEYGEN_API_KEY`. Verify the endpoint paths/shapes in
    `lib/heygen/client.ts` against the live docs (HeyGen is mid v2→v3 migration).
 2. **Claude:** set `ANTHROPIC_API_KEY` for real script generation.
-3. **MLS listings:** implement a concrete `ListingProvider` (SimplyRETS is the fastest path —
-   the agent brings their own MLS credentials; filter to their listings via the RESO
-   `ListAgentMlsId` field stored on the profile) and register it in `lib/listings/index.ts`.
-4. **Supabase cloud:** point env at a cloud project; push migrations with `supabase db push`.
-5. **Vercel:** set the env vars (incl. `NEXT_PUBLIC_SITE_URL` so the HeyGen webhook callback
+3. **Supabase cloud:** point env at a cloud project; push migrations with `supabase db push`.
+4. **Vercel:** set the env vars (incl. `NEXT_PUBLIC_SITE_URL` so the HeyGen webhook callback
    resolves). The `vercel.json` cron reconciles any jobs that miss their webhook.
 
 ## Verification scripts

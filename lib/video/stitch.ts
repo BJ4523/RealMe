@@ -8,9 +8,10 @@ import ffmpegPath from "ffmpeg-static";
 /**
  * Concatenate cinematic clips into one vertical walkthrough and mux the
  * cloned-voice narration over the top (the clips are silent/voice-over). Runs a
- * bundled static ffmpeg in a Node serverless function. `-shortest` trims the
- * video to the narration length. Uses the concat *filter* (re-encode) so it's
- * robust to minor differences between clips.
+ * bundled static ffmpeg in a Node serverless function. Normalizes each clip to
+ * 720x1280/30fps, then concats and re-encodes at CRF 18 (`-preset medium`) so
+ * quality matches the HeyGen source clips. `-shortest` trims to narration
+ * length.
  *
  * NOTE: server-side ffmpeg in the Vercel runtime is the one piece that can only
  * be confirmed by a real run; on macOS the bundled binary is exercised by
@@ -36,15 +37,27 @@ export async function stitchClipsWithNarration(
     inputs.push("-i", narrPath);
 
     const n = clips.length;
+    // Normalize every clip to a common 720x1280 / 30fps / square-pixel space so
+    // the concat filter never errors on mismatched dimensions or SAR, then
+    // concat. force_original_aspect_ratio=decrease + pad preserves the image
+    // (letterboxes rather than stretching) without an upscale blur.
+    const norm = clips
+      .map(
+        (_, i) =>
+          `[${i}:v:0]scale=720:1280:force_original_aspect_ratio=decrease,` +
+          `pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}]`,
+      )
+      .join(";");
     const concat =
-      clips.map((_, i) => `[${i}:v:0]`).join("") + `concat=n=${n}:v=1:a=0[v]`;
+      clips.map((_, i) => `[v${i}]`).join("") + `concat=n=${n}:v=1:a=0[v]`;
+    const filter = `${norm};${concat}`;
     const outPath = join(dir, "out.mp4");
 
     const args = [
       "-y",
       ...inputs,
       "-filter_complex",
-      concat,
+      filter,
       "-map",
       "[v]",
       "-map",
@@ -52,13 +65,15 @@ export async function stitchClipsWithNarration(
       "-c:v",
       "libx264",
       "-preset",
-      "veryfast",
+      "medium",
+      "-crf",
+      "18",
       "-pix_fmt",
       "yuv420p",
       "-c:a",
       "aac",
       "-b:a",
-      "128k",
+      "192k",
       "-shortest",
       "-movflags",
       "+faststart",

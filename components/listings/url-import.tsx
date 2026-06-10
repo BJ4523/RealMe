@@ -31,7 +31,8 @@ export function UrlImport() {
     return (
       <div className="flex flex-col gap-4">
         <p className="rounded-xl bg-accent/30 px-3 py-2 text-sm">
-          We pulled what we could from the URL. Review and edit before saving.
+          We pulled what we could from the URL. Review the details and add or
+          remove photos below before saving.
         </p>
         <ListingForm draft={draft} source="url" />
       </div>
@@ -41,12 +42,12 @@ export function UrlImport() {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-2">
-        <Label htmlFor="import-url">Listing URL</Label>
+        <Label htmlFor="import-url">Listing URL (Zillow, Redfin, Realtor.com)</Label>
         <Input
           id="import-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://www.example-realty.com/listing/123-maple-ct"
+          placeholder="https://www.zillow.com/homedetails/…"
         />
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

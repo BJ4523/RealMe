@@ -24,10 +24,13 @@ try {
 
   const args = [
     "-y", "-i", c0, "-i", c1, "-i", narr,
-    "-filter_complex", "[0:v:0][1:v:0]concat=n=2:v=1:a=0[v]",
+    "-filter_complex",
+    "[0:v:0]scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v0];" +
+    "[1:v:0]scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v1];" +
+    "[v0][v1]concat=n=2:v=1:a=0[v]",
     "-map", "[v]", "-map", "2:a:0",
-    "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
-    "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", out,
+    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out,
   ];
   await run(ffmpegPath, args, { maxBuffer: 1 << 27 });
 
