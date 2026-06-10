@@ -20,7 +20,7 @@ site where every unit comes with the agent on camera. Sales **and** rentals
 
 Core pillars:
 1. **Avatar** — one photo + voice clip → on-camera talking avatar.
-2. **Listings** — connect MLS / import so the agent's real inventory is in the app.
+2. **Listings** — import via manual entry or paste-a-URL so the agent's real inventory is in the app.
 3. **Video Studio** — pick a listing + template → AI script → rendered video.
 4. **Distribution** — schedule, cross-post to IG/TikTok/YT/LinkedIn, email blasts.
 5. **Leads / CRM** — capture and nurture leads from reels and the public site.
@@ -40,7 +40,7 @@ Core pillars:
 | Listings: manual + URL import (real data) | ✅ Done |
 | Video Studio → **real** HeyGen video generation | ✅ Done |
 | Custom email delivery (Resend SMTP) | ⏳ Blocked on Resend API key |
-| MLS connection (real aggregator/RESO feed) | ❌ Not started (stubs only) |
+| MLS connection (aggregator/RESO feed) | ⏸ Deferred |
 | Distribution: scheduling + social cross-posting | ❌ Design only (demo) |
 | Email campaigns (send) | ❌ Design only (demo) |
 | Leads / CRM (persisted) | ❌ Design only (demo) |
@@ -53,7 +53,7 @@ Core pillars:
 
 ### Foundation & infra
 - [x] Next.js 16 app, design system (cream/lime/ink, Bricolage/Geist/JetBrains).
-- [x] Supabase schema: `profiles, avatars, mls_connections, listings, videos` with **RLS on every table**, storage buckets, `handle_new_user` trigger. Pushed to cloud project `srigrlqyzpfjuahmqdag` (verified Local == Remote).
+- [x] Supabase schema: `profiles, avatars, listings, videos` with **RLS on every table**, storage buckets, `handle_new_user` trigger. Pushed to cloud project `srigrlqyzpfjuahmqdag` (verified Local == Remote).
 - [x] **Magic-link auth** (`signInWithOtp` → `/auth/callback`); cloud Site URL + redirect allow-list set to the Vercel domain.
 - [x] Deployed to Vercel with env vars: Supabase URL/publishable/service-role, HeyGen key + default voice, `HEYGEN_MOCK=0`, webhook/cron secrets, site URL.
 - [x] Verified end-to-end (local + deployed): pages render, auth gate works, cloud Supabase connected.
@@ -99,12 +99,7 @@ Ordered roughly by product priority.
       data exists in the `videos` table). Surface generated reels in the
       dashboard + on listing cards ("reels live" count is currently demo).
 
-### P1 — listings at scale (MLS)
-- [ ] **Real MLS connection.** Implement a concrete `ListingProvider`
-      (SimplyRETS first — agent brings MLS creds; filter to their listings via
-      RESO `ListAgentMlsId` on `profiles.mls_agent_id`), then aggregators
-      (Trestle / MLS Grid / Realtyna). Wire the Settings → "Connect MLS" flow.
-      See `docs/mls-listings.md`.
+### P1 — listings at scale
 - [ ] **Listing photo handling** — mirror imported photos to Storage so HeyGen
       backgrounds and the player don't depend on third-party hosts.
 - [ ] **Real Claude script generation** in the Studio (currently uses the
@@ -169,5 +164,4 @@ Ordered roughly by product priority.
   `HEYGEN_DEFAULT_VOICE_ID` set. Real mode on.
 - **Resend:** pending key (`RESEND_API_KEY`) — see §4.
 - **Anthropic:** `ANTHROPIC_API_KEY` not set (Studio uses template script until added).
-- Full env list in `.env.example`; deeper docs in `docs/` (architecture, heygen,
-  mls-listings, setup, production).
+- Full env list in `.env.example`; deeper docs in `docs/` (architecture, heygen, setup, production).

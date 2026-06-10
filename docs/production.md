@@ -2,20 +2,17 @@
 
 The app ships mock-first. Here's the checklist to make it real.
 
-## Investor demo (no MLS required)
+## Investor demo
 
-The fastest credible demo needs **no MLS integration and no seed data** — the live flow is the
-pitch:
+The fastest credible demo needs **no seed data** — the live flow is the pitch:
 
 1. Set `HEYGEN_MOCK=0` + `HEYGEN_API_KEY` (and `ANTHROPIC_API_KEY` for sharper scripts).
 2. Sign up → on onboarding, **upload your photo** (avatar) and **a ~30s voice clip** (cloned
    voice). Both are real HeyGen calls.
-3. Add a listing via **manual entry** or **paste-a-URL** (no MLS).
+3. Add a listing via **manual entry** or **paste-a-URL**.
 4. Hit **Generate** → review the AI script → **Generate video** → a real avatar video in your
    voice, narrating the listing.
-5. Pre-generate one video beforehand so a slow render can't bite you on stage. Keep the
-   **Connect MLS** tile visible (it reads *Coming soon*) — that's the scale story, not a demo
-   dependency.
+5. Pre-generate one video beforehand so a slow render can't bite you on stage.
 
 Verify the HeyGen endpoints with your key first (see [heygen.md](./heygen.md)).
 
@@ -36,16 +33,7 @@ Verify the HeyGen endpoints with your key first (see [heygen.md](./heygen.md)).
   demos, weaker copy). Model is `claude-opus-4-8`; switch to `claude-haiku-4-5` in
   `lib/ai/script.ts` to cut cost on this simple structured task.
 
-## 3. MLS listings
-
-- Implement a concrete `ListingProvider` and register it in
-  [`lib/listings/index.ts`](../lib/listings/index.ts). **SimplyRETS** is the fastest path (the
-  agent brings their own MLS credentials). Filter to the agent's own listings via the RESO
-  `ListAgentMlsId` stored on `profiles.mls_agent_id`. Full guidance + alternatives in
-  [mls-listings.md](./mls-listings.md).
-- Store per-agent credentials in `mls_connections.credentials` (encrypt before storing).
-
-## 4. Supabase (cloud)
+## 3. Supabase (cloud)
 
 - Create a cloud project; point `NEXT_PUBLIC_SUPABASE_URL` / keys at it.
 - Push the schema: `supabase link` then `supabase db push`.
@@ -54,7 +42,7 @@ Verify the HeyGen endpoints with your key first (see [heygen.md](./heygen.md)).
   owner-prefixed paths). Service-role key stays server-side only.
 - Configure SMTP and email-confirmation settings (local dev has confirmations off).
 
-## 5. Vercel
+## 4. Vercel
 
 - Set all env vars in the project (Production + Preview). On Preview, set `NEXT_PUBLIC_SITE_URL`
   to the preview URL so webhooks resolve there too.
@@ -65,7 +53,7 @@ Verify the HeyGen endpoints with your key first (see [heygen.md](./heygen.md)).
   to a `video-cache` bucket (bucket + read policy already provisioned) and serving via signed URLs
   so shares can be revoked.
 
-## 6. Hardening before scale
+## 5. Hardening before scale
 
 - **Usage guards** — per-agent caps on video generation (HeyGen credits cost real money).
 - **Listing-photo mirroring** — copy imported photos into the `listing-photos` bucket so HeyGen
