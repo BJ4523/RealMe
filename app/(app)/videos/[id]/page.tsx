@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getTwinConsentStatus } from "@/lib/heygen/avatar";
+import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 
@@ -40,7 +40,7 @@ export default async function VideoPage({
     avatar.heygen_asset_id !== avatar.heygen_avatar_id
   ) {
     const consent = await getTwinConsentStatus(avatar.heygen_asset_id);
-    cinematicReady = consent === "validated" || consent === "approved";
+    cinematicReady = isConsentVerified(consent);
   }
 
   return (

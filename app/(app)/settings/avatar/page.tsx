@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle2, Trash2, AlertTriangle, Clapperboard } from "lu
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileAvatar } from "@/lib/avatars/reconcile";
-import { getTwinConsentStatus } from "@/lib/heygen/avatar";
+import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import { deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
@@ -43,12 +43,12 @@ export default async function AvatarSettingsPage() {
   if (isTwin && current?.status === "ready" && current.heygen_asset_id) {
     consentStatus = await getTwinConsentStatus(current.heygen_asset_id);
   }
-  const consentVerified =
-    consentStatus === "validated" || consentStatus === "approved";
+  const consentVerified = isConsentVerified(consentStatus);
   const consentPending =
-    consentStatus === "pending" ||
-    consentStatus === "processing" ||
-    consentStatus === "in_progress";
+    !consentVerified &&
+    (consentStatus === "pending" ||
+      consentStatus === "processing" ||
+      consentStatus === "in_progress");
 
   // The twin's source clip lives in the private `avatar-sources` bucket, so mint
   // a short-lived signed URL to actually play it back in the browser.

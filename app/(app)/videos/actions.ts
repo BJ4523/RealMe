@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
 import { generateWalkthroughScript } from "@/lib/ai/script";
 import { generateVideo, getVideoStatus } from "@/lib/heygen/video";
 import { generateCinematicClip } from "@/lib/heygen/cinematic";
-import { getTwinConsentStatus } from "@/lib/heygen/avatar";
+import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import {
   assembleCinematicVideo,
   encodeCinematicJobs,
@@ -209,7 +209,7 @@ export async function submitCinematicVideo(videoId: string) {
   }
   if (!isMock) {
     const consent = await getTwinConsentStatus(avatar.heygen_asset_id!);
-    if (consent !== "validated" && consent !== "approved") {
+    if (!isConsentVerified(consent)) {
       return fail(
         "Verify your twin's identity (Settings → Avatar → Cinematic mode) to use cinematic.",
       );

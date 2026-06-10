@@ -207,6 +207,15 @@ export async function startTwinConsent(
   };
 }
 
+/**
+ * Whether a twin's consent_status clears it for cinematic (Seedance). HeyGen
+ * uses "accepted" once a consent recording is validated; we also accept the
+ * "validated"/"approved" spellings seen across versions.
+ */
+export function isConsentVerified(status: string | null | undefined): boolean {
+  return status === "accepted" || status === "validated" || status === "approved";
+}
+
 /** Read a twin group's consent_status. Returns "unknown" on lookup failure. */
 export async function getTwinConsentStatus(groupId: string): Promise<string> {
   if (isMock) return "validated";
