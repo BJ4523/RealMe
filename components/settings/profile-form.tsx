@@ -53,15 +53,7 @@ export function ProfileForm({ profile }: { profile: Tables<"profiles"> | null })
         <Label htmlFor="phone">Phone</Label>
         <Input id="phone" name="phone" defaultValue={profile?.phone ?? ""} />
       </div>
-      <div className="grid gap-2">
-        <Label htmlFor="mlsAgentId">MLS agent ID</Label>
-        <Input
-          id="mlsAgentId"
-          name="mlsAgentId"
-          defaultValue={profile?.mls_agent_id ?? ""}
-          placeholder="Used to pull only your listings (RESO ListAgentMlsId)"
-        />
-      </div>
+
       {state?.error ? (
         <p className="text-sm text-destructive">{state.error}</p>
       ) : null}
