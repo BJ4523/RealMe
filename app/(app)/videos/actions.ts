@@ -18,8 +18,9 @@ import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import type { Json, Tables } from "@/lib/types/database";
 
-/** Max cinematic shots (one per listing photo) — caps render cost/time. */
-const MAX_CINEMATIC_SHOTS = 4;
+/** Max cinematic shots (one per listing photo) — caps render cost/time.
+ * Kept low (2) while validating quality + the stitch pipeline; raise once proven. */
+const MAX_CINEMATIC_SHOTS = 2;
 
 /**
  * Step 1 — create a video job for a listing and generate its script.

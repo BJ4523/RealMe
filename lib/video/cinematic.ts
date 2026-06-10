@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
+import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { generateSpeech } from "@/lib/heygen/voice";
@@ -103,13 +104,17 @@ export async function assembleCinematicVideo(
 
     const stitched = await stitchClipsWithNarration(clips, narrationBuf);
 
+    // Upload via the service-role client: the video-cache bucket's RLS only
+    // permits trusted writes, and assembly may run with the user client (from the
+    // poll path), which would hit "violates row-level security policy".
+    const storage = adminConfigured ? createAdminClient() : supabase;
     const path = `${video.user_id}/${video.id}.mp4`;
-    const up = await supabase.storage
+    const up = await storage.storage
       .from("video-cache")
       .upload(path, stitched, { contentType: "video/mp4", upsert: true });
     if (up.error) throw new Error(`upload failed: ${up.error.message}`);
 
-    const { data: signed } = await supabase.storage
+    const { data: signed } = await storage.storage
       .from("video-cache")
       .createSignedUrl(path, 60 * 60 * 24 * 7);
 

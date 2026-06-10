@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // The cinematic pipeline shells out to a bundled static ffmpeg (cinematic clip
-  // stitching + narration mux). Next's tracer can miss the binary because it's
-  // referenced as a runtime path, so include it explicitly for the routes that
-  // run it — the cron reconciler and the /videos/[id] server actions.
+  // ffmpeg-static locates its binary via __dirname. If Next/Turbopack BUNDLES it,
+  // __dirname is rewritten and the binary path becomes bogus (e.g. /ROOT/...) ->
+  // "spawn ffmpeg ENOENT". Keep it external so __dirname resolves to real
+  // node_modules at runtime (fixes local dev AND prod).
+  serverExternalPackages: ["ffmpeg-static"],
+  // Also ensure the binary is traced into the serverless functions that run it
+  // (the cron reconciler and the /videos/[id] server actions).
   outputFileTracingIncludes: {
     "/api/cron/reconcile-videos": ["./node_modules/ffmpeg-static/**"],
     "/videos/[id]": ["./node_modules/ffmpeg-static/**"],
