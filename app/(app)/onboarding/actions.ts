@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { env } from "@/lib/env";
 import {
   createAvatarFromAsset,
   createDigitalTwin,
   cloneVoiceFromUrl,
   deleteHeygenAvatar,
+  startTwinConsent,
 } from "@/lib/heygen/avatar";
 
 export type AvatarState = { error?: string; ok?: boolean } | undefined;
@@ -193,6 +195,43 @@ export async function createAvatar(
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Begin HeyGen's hosted identity-consent for the user's active twin and return
+ * the tokenized recorder URL (the client opens it; the agent records consent
+ * with NO HeyGen login). reroute_url brings them back to the avatar page, where
+ * we poll consent_status. Unlocks cinematic (Seedance). Owner-scoped.
+ */
+export async function startAvatarConsent(): Promise<{
+  url?: string;
+  error?: string;
+}> {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+  const { data: avatar } = await supabase
+    .from("avatars")
+    .select("heygen_asset_id")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!avatar?.heygen_asset_id) {
+    return { error: "Create your avatar first, then verify it." };
+  }
+  try {
+    const consent = await startTwinConsent(
+      avatar.heygen_asset_id,
+      `${env.siteUrl}/settings/avatar`,
+    );
+    if (!consent.url) {
+      return { error: "Verification isn't available for this avatar yet." };
+    }
+    return { url: consent.url };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Could not start verification.",
+    };
+  }
 }
 
 export async function setActiveAvatar(formData: FormData) {

@@ -14,7 +14,7 @@ export default function NotFound() {
       </div>
       <Button
         asChild
-        className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+        className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
       >
         <Link href="/">Back home</Link>
       </Button>

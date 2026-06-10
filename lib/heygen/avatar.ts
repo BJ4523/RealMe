@@ -184,15 +184,23 @@ export interface TwinConsent {
 
 /**
  * Start (or restart) HeyGen's hosted identity-consent flow for a twin GROUP.
- * Returns a URL the agent opens to record the consent video (reads a statement
- * + a verification code). A consent-validated twin is REQUIRED for cinematic
- * (Seedance Avatar Shots) generation; plain narrated videos don't need it.
+ * Returns a tokenized recorder URL the agent opens to record their consent clip
+ * (reading HeyGen's on-screen script) — NO HeyGen account/login needed; it's the
+ * "record from your phone/webcam" shareable flow. `rerouteUrl` is where HeyGen
+ * sends them back after recording. A consent-validated twin is REQUIRED for
+ * cinematic (Seedance Avatar Shots); plain narrated videos don't need it.
  */
-export async function startTwinConsent(groupId: string): Promise<TwinConsent> {
+export async function startTwinConsent(
+  groupId: string,
+  rerouteUrl?: string,
+): Promise<TwinConsent> {
   if (isMock) return { status: "validated", url: null };
   const res = await heygenFetch<{
     data: { avatar_group?: { consent_status?: string }; url?: string };
-  }>(ENDPOINTS.avatarConsent(groupId), { method: "POST", json: {} });
+  }>(ENDPOINTS.avatarConsent(groupId), {
+    method: "POST",
+    json: rerouteUrl ? { reroute_url: rerouteUrl } : {},
+  });
   return {
     status: res.data.avatar_group?.consent_status ?? "pending",
     url: res.data.url ?? null,

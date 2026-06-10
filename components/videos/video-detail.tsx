@@ -132,7 +132,7 @@ export function VideoDetail({
         <div className="flex flex-wrap gap-3">
           <Button
             asChild
-            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+            className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
           >
             <a href={video.video_url} download target="_blank" rel="noreferrer">
               <Download className="size-4" /> Download
@@ -178,7 +178,7 @@ export function VideoDetail({
               onClick={handleSubmit}
               disabled={pending || !script.trim()}
               size="lg"
-              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
             >
               <Clapperboard className="size-5" />
               {pending ? "Submitting…" : "Generate video"}

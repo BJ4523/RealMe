@@ -29,7 +29,7 @@ export default async function ListingsPage() {
             </Button>
             <Button
               asChild
-              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
             >
               <Link href="/listings/new">
                 <Plus className="size-4" /> Add listing
@@ -53,7 +53,7 @@ export default async function ListingsPage() {
           action={
             <Button
               asChild
-              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
             >
               <Link href="/listings/new">
                 <Plus className="size-4" /> Add listing

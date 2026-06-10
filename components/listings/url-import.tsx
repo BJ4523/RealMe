@@ -54,7 +54,7 @@ export function UrlImport() {
         <Button
           onClick={handleImport}
           disabled={pending || !url}
-          className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+          className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
         >
           {pending ? (
             <>

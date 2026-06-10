@@ -36,7 +36,7 @@ export default async function VideosPage() {
           action={
             <Button
               asChild
-              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
             >
               <Link href="/listings">
                 <Home className="size-4" /> Go to listings

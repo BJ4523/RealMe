@@ -21,7 +21,7 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
     <Button
       type="submit"
       disabled={pending}
-      className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+      className="w-full rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
     >
       {pending ? pendingLabel : label}
     </Button>

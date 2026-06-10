@@ -7,6 +7,7 @@ import { getTwinConsentStatus } from "@/lib/heygen/avatar";
 import { deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
+import { ConsentButton } from "@/components/avatar/consent-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/videos/status-badge";
@@ -147,13 +148,18 @@ export default async function AvatarSettingsPage() {
                         {consentVerified ? "Ready" : consentPending ? "Verifying" : "Locked"}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="mb-3 text-xs text-muted-foreground">
                       {consentVerified
                         ? "Your identity is verified — your twin can star inside AI-generated cinematic scenes."
                         : consentPending
-                          ? "Consent is being verified — check back in a few minutes."
-                          : "Add a consent clip to unlock cinematic. Re-create your twin below and record the short consent clip in step 2."}
+                          ? "Consent is recorded and being verified by HeyGen — usually under a minute. Hit refresh."
+                          : "One-time identity check: record a quick consent clip (read the on-screen script — no account needed). This unlocks cinematic, where your twin moves through AI-generated scenes."}
                     </p>
+                    {!consentVerified ? (
+                      <ConsentButton
+                        label={consentPending ? "Re-record consent" : "Verify for cinematic"}
+                      />
+                    ) : null}
                   </div>
                 </div>
               ) : null}

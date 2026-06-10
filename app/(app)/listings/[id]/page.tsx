@@ -78,7 +78,7 @@ export default async function ListingDetailPage({
           <Button
             type="submit"
             size="lg"
-            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+            className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
           >
             <Clapperboard className="size-5" /> Generate video
           </Button>
