@@ -26,31 +26,37 @@ export function PhotoUploader({
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function upload(files: FileList | null) {
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || busy) return;
     setError(null);
     setBusy(true);
     const supabase = createClient();
+    const urls: string[] = [];
+    const errors: string[] = [];
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not signed in");
 
-      const urls: string[] = [];
       for (const file of Array.from(files)) {
         if (!file.type.startsWith("image/")) continue;
         const path = `${user.id}/uploads/${crypto.randomUUID()}-${safeName(file.name)}`;
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) throw upErr;
+        if (upErr) {
+          errors.push(`${file.name}: ${upErr.message}`);
+          continue;
+        }
         const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
         urls.push(data.publicUrl);
       }
-      if (urls.length) onUploaded(urls);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      errors.push(e instanceof Error ? e.message : "Upload failed");
     } finally {
+      // Always surface whatever succeeded so partial batches aren't orphaned.
+      if (urls.length) onUploaded(urls);
+      if (errors.length) setError(errors.join("; "));
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
     }
@@ -60,6 +66,9 @@ export function PhotoUploader({
     <div className="grid gap-2">
       <button
         type="button"
+        disabled={busy}
+        aria-busy={busy}
+        aria-label="Upload listing photos"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
