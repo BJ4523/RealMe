@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, Plus, Link2 } from "lucide-react";
+import { Home, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shared/page-header";
@@ -21,21 +21,14 @@ export default async function ListingsPage() {
         title="Listings"
         description="Add a property, then generate a walkthrough video for it."
         action={
-          <div className="flex gap-2">
-            <Button asChild variant="outline" className="rounded-full">
-              <Link href="/settings/connections">
-                <Link2 className="size-4" /> Connect MLS
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-            >
-              <Link href="/listings/new">
-                <Plus className="size-4" /> Add listing
-              </Link>
-            </Button>
-          </div>
+          <Button
+            asChild
+            className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+          >
+            <Link href="/listings/new">
+              <Plus className="size-4" /> Add listing
+            </Link>
+          </Button>
         }
       />
 
