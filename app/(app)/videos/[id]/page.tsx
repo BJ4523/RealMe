@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
+import { TRACKS } from "@/lib/video/music/tracks";
 
 export default async function VideoPage({
   params,
@@ -60,6 +61,7 @@ export default async function VideoPage({
         initialVideo={videoRow}
         cinematicReady={cinematicReady}
         hasTwin={isTwin}
+        tracks={TRACKS.map((t) => ({ id: t.id, title: t.title }))}
       />
     </>
   );

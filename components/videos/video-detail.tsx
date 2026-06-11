@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import {
   submitVideo,
   submitCinematicVideo,
+  submitHypeReelVideo,
   updateScript,
   pollVideoStatus,
 } from "@/app/(app)/videos/actions";
@@ -28,15 +29,19 @@ export function VideoDetail({
   initialVideo,
   cinematicReady = false,
   hasTwin = false,
+  tracks = [],
 }: {
   initialVideo: Video;
   /** True when the active twin is consent-verified — unlocks cinematic mode. */
   cinematicReady?: boolean;
   /** True when the active avatar is a ready digital twin (consent may still be pending). */
   hasTwin?: boolean;
+  /** Hype Reel music tracks the agent can pick from. */
+  tracks?: { id: string; title: string }[];
 }) {
   const [video, setVideo] = useState<Video>(initialVideo);
   const [script, setScript] = useState(initialVideo.script ?? "");
+  const [trackId, setTrackId] = useState(tracks[0]?.id ?? "default");
   const [pending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -70,6 +75,16 @@ export function VideoDetail({
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
       await submitCinematicVideo(video.id);
+      const latest = await pollVideoStatus(video.id);
+      if (latest) setVideo(latest);
+    });
+  }
+
+  function handleHypeReel() {
+    startTransition(async () => {
+      await updateScript(video.id, script);
+      setVideo((v) => ({ ...v, status: "submitting" }));
+      await submitHypeReelVideo(video.id, trackId);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -188,6 +203,30 @@ export function VideoDetail({
                 >
                   <Film className="size-5" />
                   {pending ? "Working…" : "Generate cinematic"}
+                </Button>
+                {tracks.length > 0 ? (
+                  <select
+                    value={trackId}
+                    onChange={(e) => setTrackId(e.target.value)}
+                    className="rounded-full border border-border bg-background px-3 text-sm"
+                    aria-label="Hype Reel music track"
+                  >
+                    {tracks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <Button
+                  onClick={handleHypeReel}
+                  disabled={pending || !script.trim()}
+                  size="lg"
+                  className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+                  title="On-camera host + beat-synced tour of your real photos, set to music"
+                >
+                  <Film className="size-5" />
+                  {pending ? "Working…" : "Generate hype reel"}
                 </Button>
               </>
             ) : hasTwin ? (
