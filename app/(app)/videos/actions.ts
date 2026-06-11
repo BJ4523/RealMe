@@ -18,9 +18,8 @@ import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import type { Json, Tables } from "@/lib/types/database";
 
-/** Max cinematic shots (one per listing photo) — caps render cost/time.
- * Kept low (2) while validating quality + the stitch pipeline; raise once proven. */
-const MAX_CINEMATIC_SHOTS = 2;
+/** Cinematic ACCENT clips (AI flair) per video. Real photos are the backbone. */
+const MAX_CINEMATIC_ACCENTS = 1;
 
 /**
  * Step 1 — create a video job for a listing and generate its script.
@@ -218,20 +217,20 @@ export async function submitCinematicVideo(videoId: string) {
   }
 
   const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
-  const usePhotos = photos.slice(0, MAX_CINEMATIC_SHOTS);
-  if (usePhotos.length === 0) {
+  if (photos.length === 0) {
     return fail("Add listing photos to generate a cinematic walkthrough.");
   }
+  const accentPhotos = photos.slice(0, MAX_CINEMATIC_ACCENTS);
 
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
     const jobs = await Promise.all(
-      usePhotos.map((url, i) =>
+      accentPhotos.map((url, i) =>
         generateCinematicClip({
           avatarLookId: avatar.heygen_avatar_id!,
           referenceUrl: url,
-          prompt: cinematicPrompt(listing, i, usePhotos.length),
+          prompt: cinematicPrompt(listing, i, accentPhotos.length),
           duration: 10,
         }),
       ),
@@ -241,7 +240,7 @@ export async function submitCinematicVideo(videoId: string) {
       .update({
         heygen_video_id: encodeCinematicJobs(jobs.map((j) => j.jobId)),
         status: "processing",
-        thumbnail_url: usePhotos[0] ?? null,
+        thumbnail_url: photos[0] ?? null,
       })
       .eq("id", videoId)
       .eq("user_id", userId);
@@ -264,10 +263,13 @@ export async function pollVideoStatus(
   const supabase = await createClient();
   const { data: video } = await supabase
     .from("videos")
-    .select("*")
+    .select("*, listings(photos)")
     .eq("id", videoId)
     .single();
   if (!video) return null;
+
+  const pollListing = video.listings as { photos: Json } | null;
+  const photos = pollListing ? listingPhotos(pollListing.photos).map((p) => p.url) : [];
 
   // Cinematic walkthroughs are assembled from several Seedance clips: poll them
   // and, once ready, stitch + narrate (assembleCinematicVideo self-locks so
@@ -285,6 +287,7 @@ export async function pollVideoStatus(
         user_id: video.user_id,
         script: video.script,
         heygen_video_id: video.heygen_video_id,
+        photos,
       },
       av?.voice_id ?? null,
     );

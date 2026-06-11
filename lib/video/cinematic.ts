@@ -5,12 +5,18 @@ import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { generateSpeech } from "@/lib/heygen/voice";
-import { stitchClipsWithNarration } from "@/lib/video/stitch";
+import { motionForIndex } from "@/lib/video/kenburns";
+import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
 
 /** Prefix marking a video whose heygen_video_id holds cinematic clip job ids. */
 export const CINEMATIC_PREFIX = "cine:";
+
+/** Max real listing photos used as the faithful backbone (Ken-Burns motion). */
+const MAX_PHOTO_SCENES = 6;
+/** Floor per scene so each shot is long enough to read. */
+const MIN_SCENE_MS = 2500;
 
 export function isCinematic(heygenVideoId: string | null | undefined): boolean {
   return !!heygenVideoId && heygenVideoId.startsWith(CINEMATIC_PREFIX);
@@ -38,14 +44,17 @@ interface AssemblableVideo {
   user_id: string;
   script: string | null;
   heygen_video_id: string | null;
+  /** Real listing photo URLs — the faithful backbone of the montage. */
+  photos: string[];
 }
 
 /**
- * Drive a cinematic video to completion: poll its per-room clips; once all are
- * rendered, generate cloned-voice narration, stitch the clips and mux the
- * narration server-side, upload the result to the private video-cache bucket,
- * and complete the row. Idempotent-ish and best-effort: any failure marks the
- * row failed with a reason. Returns the resulting status.
+ * Drive a cinematic video to completion. The real listing photos are the
+ * faithful backbone (Ken-Burns motion); any rendered AI accent clips are
+ * interleaved (~1 per 3 photos) as flair. Once all accents (if any) are ready,
+ * generate cloned-voice narration, assemble the montage server-side, upload the
+ * result to the private video-cache bucket, and complete the row. Best-effort:
+ * any failure marks the row failed with a reason. Returns the resulting status.
  */
 export async function assembleCinematicVideo(
   supabase: Db,
@@ -54,16 +63,11 @@ export async function assembleCinematicVideo(
 ): Promise<"processing" | "completed" | "failed"> {
   if (!isCinematic(video.heygen_video_id)) return "processing";
   const jobIds = decodeCinematicJobs(video.heygen_video_id!);
-  if (jobIds.length === 0) {
-    await supabase
-      .from("videos")
-      .update({ status: "failed", error: "No cinematic clips were created." })
-      .eq("id", video.id);
-    return "failed";
-  }
 
   try {
-    const statuses = await Promise.all(jobIds.map(getCinematicClipStatus));
+    const statuses = jobIds.length
+      ? await Promise.all(jobIds.map(getCinematicClipStatus))
+      : [];
 
     if (statuses.some((s) => s.status === "failed")) {
       const reason =
@@ -81,8 +85,8 @@ export async function assembleCinematicVideo(
     if (clipUrls.length !== jobIds.length) return "processing";
 
     // Claim the row (processing -> submitting) so only one assembler runs the
-    // heavy download/stitch/upload. If we didn't win the claim, another run owns
-    // it — report processing and let that one finish.
+    // heavy download/assemble/upload. If we didn't win the claim, another run
+    // owns it — report processing and let that one finish.
     const { data: claimed } = await supabase
       .from("videos")
       .update({ status: "submitting" })
@@ -91,18 +95,37 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    // Narration in the agent's cloned voice (clips are silent/voice-over).
     const narration = await generateSpeech(
       video.script?.trim() || "Welcome to this beautiful home.",
       voiceId ?? DEFAULT_VOICE_ID,
     );
 
-    const [clips, narrationBuf] = await Promise.all([
-      Promise.all(clipUrls.map(fetchBuffer)),
-      fetchBuffer(narration.audioUrl),
-    ]);
+    const accentBufs = await Promise.all(clipUrls.map(fetchBuffer));
+    const photoUrls = video.photos.slice(0, MAX_PHOTO_SCENES);
+    const photoBufs = await Promise.all(photoUrls.map(fetchBuffer));
+    if (photoBufs.length === 0 && accentBufs.length === 0) {
+      throw new Error("No photos or clips to assemble.");
+    }
 
-    const stitched = await stitchClipsWithNarration(clips, narrationBuf);
+    const sceneCount = photoBufs.length + accentBufs.length;
+    const perSceneMs = Math.max(
+      MIN_SCENE_MS,
+      Math.round(((narration.duration || 30) * 1000) / Math.max(1, sceneCount)),
+    );
+    const scenes: MontageScene[] = [];
+    let ai = 0;
+    photoBufs.forEach((buf, i) => {
+      scenes.push({ kind: "photo", imageBuf: buf, motion: motionForIndex(i), durationMs: perSceneMs });
+      if (ai < accentBufs.length && i % 3 === 2) {
+        scenes.push({ kind: "video", videoBuf: accentBufs[ai++], durationMs: perSceneMs });
+      }
+    });
+    while (ai < accentBufs.length) {
+      scenes.push({ kind: "video", videoBuf: accentBufs[ai++], durationMs: perSceneMs });
+    }
+
+    const narrationBuf = await fetchBuffer(narration.audioUrl);
+    const assembled = await assembleMontage({ scenes, audio: { narration: narrationBuf } });
 
     // Upload via the service-role client: the video-cache bucket's RLS only
     // permits trusted writes, and assembly may run with the user client (from the
@@ -111,7 +134,7 @@ export async function assembleCinematicVideo(
     const path = `${video.user_id}/${video.id}.mp4`;
     const up = await storage.storage
       .from("video-cache")
-      .upload(path, stitched, { contentType: "video/mp4", upsert: true });
+      .upload(path, assembled, { contentType: "video/mp4", upsert: true });
     if (up.error) throw new Error(`upload failed: ${up.error.message}`);
 
     const { data: signed } = await storage.storage

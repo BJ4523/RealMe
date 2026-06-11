@@ -3,6 +3,7 @@ import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { getVideoStatus } from "@/lib/heygen/video";
 import { reconcileAvatar } from "@/lib/avatars/reconcile";
 import { assembleCinematicVideo, isCinematic } from "@/lib/video/cinematic";
+import { listingPhotos } from "@/lib/format";
 import { env } from "@/lib/env";
 
 /**
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
   // back to `processing` so it can be re-claimed and completed here.
   const { data: cineVideos } = await supabase
     .from("videos")
-    .select("id, user_id, script, heygen_video_id, status, avatar_id")
+    .select("id, user_id, script, heygen_video_id, status, avatar_id, listing_id")
     .in("status", ["processing", "submitting"])
     .like("heygen_video_id", "cine:%")
     .limit(20);
@@ -96,6 +97,8 @@ export async function GET(request: NextRequest) {
       .select("voice_id")
       .eq("id", v.avatar_id ?? "")
       .maybeSingle();
+    const { data: lst } = await supabase.from("listings").select("photos").eq("id", v.listing_id ?? "").maybeSingle();
+    const photos = lst ? listingPhotos(lst.photos).map((p) => p.url) : [];
     const result = await assembleCinematicVideo(
       supabase,
       {
@@ -103,6 +106,7 @@ export async function GET(request: NextRequest) {
         user_id: v.user_id,
         script: v.script,
         heygen_video_id: v.heygen_video_id,
+        photos,
       },
       av?.voice_id ?? null,
     );
