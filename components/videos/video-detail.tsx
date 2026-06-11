@@ -184,7 +184,7 @@ export function VideoDetail({
                   disabled={pending || !script.trim()}
                   size="lg"
                   className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-                  title="Your twin moving through AI-generated scenes (Seedance)"
+                  title="Your real photos with motion + a few AI accent shots"
                 >
                   <Film className="size-5" />
                   {pending ? "Working…" : "Generate cinematic"}
@@ -228,9 +228,9 @@ export function VideoDetail({
           </div>
           {cinematicReady ? (
             <p className="text-right text-xs text-muted-foreground">
-              Cinematic puts your twin inside AI-generated scenes steered by your
-              photos — striking, but the rooms are AI visualizations, not the
-              actual property. Use the standard video for a faithful tour.
+              Cinematic tours your real listing photos with motion and a few
+              AI-generated accent shots for flair — faithful to the property,
+              with a cinematic finish.
             </p>
           ) : hasTwin ? (
             <p className="text-right text-xs text-muted-foreground">
