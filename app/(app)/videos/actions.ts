@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { generateWalkthroughScript } from "@/lib/ai/script";
+import { generateWalkthroughScript, generateHypeReelScript } from "@/lib/ai/script";
+import { encodeReelJobs } from "@/lib/video/hypereel";
 import { generateVideo, getVideoStatus } from "@/lib/heygen/video";
 import { generateCinematicClip } from "@/lib/heygen/cinematic";
 import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
@@ -246,6 +247,69 @@ export async function submitCinematicVideo(videoId: string) {
       .eq("user_id", userId);
   } catch (e) {
     await fail(e instanceof Error ? e.message : "Cinematic generation failed.");
+    return;
+  }
+  revalidatePath(`/videos/${videoId}`);
+}
+
+/** Hype Reel: v2 host bookends + real-photo tour + <=1 accent + music + overlays. */
+export async function submitHypeReelVideo(videoId: string, trackId?: string) {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("videos").select("*, listings(*), avatars(*)").eq("id", videoId).single();
+  if (!video) return;
+
+  const listing = video.listings as Tables<"listings"> | null;
+  const avatar = video.avatars as Tables<"avatars"> | null;
+  const isTwin =
+    !!avatar?.heygen_asset_id && avatar.heygen_asset_id !== avatar.heygen_avatar_id;
+
+  const fail = async (error: string) => {
+    await supabase.from("videos").update({ status: "failed", error }).eq("id", videoId);
+    revalidatePath(`/videos/${videoId}`);
+  };
+
+  if (!avatar || !isTwin || !avatar.heygen_avatar_id) {
+    return fail("Hype Reel needs a digital-twin avatar.");
+  }
+  if (!isMock) {
+    const consent = await getTwinConsentStatus(avatar.heygen_asset_id!);
+    if (!isConsentVerified(consent)) {
+      return fail("Verify your twin's identity (Settings → Avatar → Cinematic mode) to use Hype Reel.");
+    }
+  }
+  const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
+  if (photos.length === 0) return fail("Add listing photos to generate a Hype Reel.");
+  const hero = photos[0];
+
+  await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
+
+  try {
+    const script = await generateHypeReelScript(listing as Tables<"listings">);
+    const avatarKind = "digital_twin" as const;
+    const webhookUrl = `${env.siteUrl}/api/webhooks/heygen?secret=${env.heygenWebhookSecret}`;
+    // Host bookends (v2 presenter, twin over the hero photo).
+    const [introJob, outroJob] = await Promise.all([
+      generateVideo({ avatarId: avatar.heygen_avatar_id!, avatarKind, voiceId: avatar.voice_id ?? undefined, script: script.intro, photoUrls: [hero], title: video.title ?? undefined, webhookUrl }),
+      generateVideo({ avatarId: avatar.heygen_avatar_id!, avatarKind, voiceId: avatar.voice_id ?? undefined, script: script.outro, photoUrls: [hero], title: video.title ?? undefined, webhookUrl }),
+    ]);
+    // One AI accent (flair) from the hero photo.
+    const accent = await generateCinematicClip({
+      avatarLookId: avatar.heygen_avatar_id!,
+      referenceUrl: hero,
+      prompt: cinematicPrompt(listing, 0, 1),
+      duration: 8,
+    });
+
+    await supabase.from("videos").update({
+      heygen_video_id: encodeReelJobs(introJob.videoId, outroJob.videoId, [accent.jobId]),
+      status: "processing",
+      thumbnail_url: hero,
+      script_segments: { hypeReel: { featureCallouts: script.featureCallouts, trackId: trackId ?? "default" } } as unknown as Json,
+    }).eq("id", videoId).eq("user_id", userId);
+  } catch (e) {
+    await fail(e instanceof Error ? e.message : "Hype Reel generation failed.");
     return;
   }
   revalidatePath(`/videos/${videoId}`);
