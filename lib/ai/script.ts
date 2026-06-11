@@ -123,3 +123,56 @@ function templatedScript(listing: Listing): WalkthroughScript {
 
   return { narration: lines.join(" "), segments };
 }
+
+const HypeReelSchema = z.object({
+  intro: z
+    .string()
+    .describe("Punchy ~5s on-camera host opener. One or two sentences."),
+  outro: z.string().describe("~4s closing call-to-action, on camera."),
+  featureCallouts: z
+    .array(z.string())
+    .describe(
+      "2-3 SHORT on-screen text callouts (e.g. 'Chef's kitchen'). Max ~24 chars each.",
+    ),
+});
+
+export type HypeReelScript = z.infer<typeof HypeReelSchema>;
+
+/**
+ * Generate a fast, high-energy hype-reel script: an on-camera host intro + outro
+ * (lip-synced by the twin) plus short on-screen callouts. Uses Claude when keyed;
+ * otherwise a deterministic templated fallback so the flow runs without a key.
+ */
+export async function generateHypeReelScript(
+  listing: Listing,
+): Promise<HypeReelScript> {
+  if (!env.anthropicApiKey) return templatedHypeReel(listing);
+  const client = new Anthropic({ apiKey: env.anthropicApiKey });
+  try {
+    const message = await client.messages.parse({
+      model: "claude-opus-4-8",
+      max_tokens: 800,
+      system:
+        "You are a real-estate agent hosting a fast, high-energy social hype reel of your listing. " +
+        "Use ONLY the facts provided — never invent rooms, finishes, or numbers. " +
+        "Write a punchy on-camera intro (~5s) and a closing CTA (~4s), plus 2-3 very short on-screen callouts.",
+      messages: [
+        { role: "user", content: JSON.stringify(listingForPrompt(listing)) },
+      ],
+      output_config: { format: zodOutputFormat(HypeReelSchema) },
+    });
+    return message.parsed_output ?? templatedHypeReel(listing);
+  } catch {
+    return templatedHypeReel(listing);
+  }
+}
+
+function templatedHypeReel(listing: Listing): HypeReelScript {
+  const place = [listing.address, listing.city].filter(Boolean).join(", ");
+  const intro = `Welcome to ${place || "your next home"} — let's take a look.`;
+  const outro = "Want to see it in person? Reach out today.";
+  const callouts = (listing.features ?? [])
+    .slice(0, 3)
+    .map((f) => String(f).slice(0, 24));
+  return { intro, outro, featureCallouts: callouts };
+}
