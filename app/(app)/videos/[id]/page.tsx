@@ -61,7 +61,11 @@ export default async function VideoPage({
         initialVideo={videoRow}
         cinematicReady={cinematicReady}
         hasTwin={isTwin}
-        tracks={TRACKS.map((t) => ({ id: t.id, title: t.title }))}
+        tracks={TRACKS.map((t) => ({
+          id: t.id,
+          title: t.title,
+          previewUrl: t.previewUrl,
+        }))}
       />
     </>
   );

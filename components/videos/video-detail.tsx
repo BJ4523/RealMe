@@ -9,6 +9,8 @@ import {
   Share2,
   Sparkles,
   RotateCcw,
+  Play,
+  Pause,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -37,13 +39,37 @@ export function VideoDetail({
   /** True when the active avatar is a ready digital twin (consent may still be pending). */
   hasTwin?: boolean;
   /** Hype Reel music tracks the agent can pick from. */
-  tracks?: { id: string; title: string }[];
+  tracks?: { id: string; title: string; previewUrl: string }[];
 }) {
   const [video, setVideo] = useState<Video>(initialVideo);
   const [script, setScript] = useState(initialVideo.script ?? "");
-  const [trackId, setTrackId] = useState(tracks[0]?.id ?? "default");
+  const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
+  const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentTrack = tracks.find((t) => t.id === trackId) ?? tracks[0];
+
+  // Stop preview playback whenever the selected track changes.
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setPreviewing(false);
+  }, [trackId]);
+
+  function togglePreview() {
+    const el = audioRef.current;
+    if (!el) return;
+    if (previewing) {
+      el.pause();
+      setPreviewing(false);
+    } else {
+      void el.play();
+      setPreviewing(true);
+    }
+  }
 
   const isWorking =
     video.status === "processing" || video.status === "submitting";
@@ -205,18 +231,42 @@ export function VideoDetail({
                   {pending ? "Working…" : "Generate cinematic"}
                 </Button>
                 {tracks.length > 0 ? (
-                  <select
-                    value={trackId}
-                    onChange={(e) => setTrackId(e.target.value)}
-                    className="rounded-full border border-border bg-background px-3 text-sm"
-                    aria-label="Hype Reel music track"
-                  >
-                    {tracks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      onClick={togglePreview}
+                      size="icon"
+                      variant="outline"
+                      className="size-9 rounded-full"
+                      aria-label={previewing ? "Pause preview" : "Preview track"}
+                      title="Preview the beat"
+                    >
+                      {previewing ? (
+                        <Pause className="size-4" />
+                      ) : (
+                        <Play className="size-4" />
+                      )}
+                    </Button>
+                    <select
+                      value={trackId}
+                      onChange={(e) => setTrackId(e.target.value)}
+                      className="rounded-full border border-border bg-background px-3 py-2 text-sm"
+                      aria-label="Hype Reel music track"
+                    >
+                      {tracks.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                    <audio
+                      ref={audioRef}
+                      src={currentTrack?.previewUrl}
+                      onEnded={() => setPreviewing(false)}
+                      preload="none"
+                      className="hidden"
+                    />
+                  </div>
                 ) : null}
                 <Button
                   onClick={handleHypeReel}

@@ -4,7 +4,11 @@ import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { getVideoStatus } from "@/lib/heygen/video";
-import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
+import {
+  assembleMontage,
+  HYPE_REEL_TARGET_MS,
+  type MontageScene,
+} from "@/lib/video/scenes";
 import { motionForIndex } from "@/lib/video/kenburns";
 import { roomDurationsMs, beatTimesMs } from "@/lib/video/music/beats";
 import { overlaysFromListing } from "@/lib/video/overlay";
@@ -146,11 +150,12 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
     const { data: signed } = await storage.storage.from("video-cache")
       .createSignedUrl(path, 60 * 60 * 24 * 7);
 
-    const totalSec = Math.round((introMs + montageMs + 6000) / 1000);
+    // The assembler clamps the output to a fixed length (HYPE_REEL_TARGET_MS),
+    // so the stored duration is the target, not the song or the scene sum.
     await supabase.from("videos").update({
       status: "completed",
       video_url: signed?.signedUrl ?? null,
-      duration: totalSec,
+      duration: Math.round(HYPE_REEL_TARGET_MS / 1000),
     }).eq("id", reel.id);
     return "completed";
   } catch (e) {

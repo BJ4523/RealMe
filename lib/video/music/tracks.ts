@@ -3,15 +3,20 @@
  * tempo + lead-in so beats.ts can sync cuts WITHOUT runtime beat detection.
  * Files live in public/music and are traced into the function (next.config.ts).
  *
- * IMPORTANT: ship only properly-licensed audio. `default.mp3` is generated for
- * dev by scripts/make-dev-track.mjs; replace it with a licensed track for prod.
+ * IMPORTANT: ship only properly-licensed audio. Confirm the license permits
+ * bundling in a SaaS that generates videos for end users (most "royalty-free"
+ * creator licenses do NOT — prefer CC0/public-domain or an explicit multi-user
+ * license).
  */
 export interface MusicTrack {
   id: string;
   title: string;
-  /** Repo-relative file path (also the public path under /music). */
+  /** Repo-relative file path the assembler reads server-side. */
   file: string;
+  /** Public URL (served from /public) for the in-app preview player. */
+  previewUrl: string;
   bpm: number;
+  /** Ms until the first downbeat (0 if the track starts on the beat). */
   beatOffsetMs: number;
   durationSec: number;
   mood: string;
@@ -19,12 +24,13 @@ export interface MusicTrack {
 
 export const TRACKS: MusicTrack[] = [
   {
-    id: "default",
-    title: "Uptempo (dev)",
-    file: "public/music/default.mp3",
-    bpm: 120,
+    id: "hype",
+    title: "Hype",
+    file: "public/music/hype.mp3",
+    previewUrl: "/music/hype.mp3",
+    bpm: 140,
     beatOffsetMs: 0,
-    durationSec: 30,
+    durationSec: 104,
     mood: "energetic",
   },
 ];

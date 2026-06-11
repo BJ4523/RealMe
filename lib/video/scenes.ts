@@ -32,6 +32,21 @@ function ff(args: string[]): Promise<void> {
   );
 }
 
+/** Fixed Hype Reel length (independent of the song). Tunable in one place. */
+export const HYPE_REEL_TARGET_MS = 15000;
+
+/** Read a media file's duration (ms) by parsing ffmpeg's probe output. */
+function probeDurationMs(path: string): Promise<number> {
+  if (!ffmpegPath) return Promise.resolve(0);
+  return new Promise((resolve) =>
+    execFile(ffmpegPath as string, ["-i", path], (_e, _so, stderr) => {
+      const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr || "");
+      if (!m) return resolve(0);
+      resolve((+m[1] * 3600 + +m[2] * 60 + parseFloat(m[3])) * 1000);
+    }),
+  );
+}
+
 /** Render one scene to a normalized segment file at `outPath`. */
 async function renderScene(
   scene: MontageScene,
@@ -134,25 +149,40 @@ export async function assembleMontage(opts: {
       // Hype Reel: music bed, optionally ducked under the concat's own audio.
       const musicPath = join(dir, "music");
       await writeFile(musicPath, opts.audio.music);
-      // The music input is looped forever (`-stream_loop -1`); `-shortest` does
-      // NOT reliably stop an infinitely-looped filtered stream, so bound the
-      // output to the montage length explicitly with `-t`.
-      const totalSec = (
-        opts.scenes.reduce((ms, s) => ms + s.durationMs, 0) / 1000
-      ).toFixed(3);
-      const audioGraph = opts.audio.duckUnderSceneAudio
-        ? // sidechain: music keyed by the concat audio (host VO) -> duck, then mix VO
-          // back on top. `[vo]` is consumed twice (key + mix), so split it first —
-          // an ffmpeg filter label can only be read once.
-          `[1:a]aformat=sample_rates=44100:channel_layouts=stereo[mus];` +
+
+      // FIXED length, independent of the song: clamp to HYPE_REEL_TARGET_MS and
+      // fade out at the very end. If the montage is shorter than the target, hold
+      // the last frame (tpad) so the video is always exactly the target length;
+      // the looped music is bounded by the final `-t`.
+      const realMs = await probeDurationMs(concatV);
+      const targetMs = HYPE_REEL_TARGET_MS;
+      const Dsec = (targetMs / 1000).toFixed(3);
+      const padSec = Math.max(0, (targetMs - realMs) / 1000);
+      const vFadeStart = Math.max(0, targetMs / 1000 - 1.0).toFixed(3);
+      const aFadeStart = Math.max(0, targetMs / 1000 - 1.2).toFixed(3);
+
+      // Overlays -> (hold last frame to target) -> 1s fade to black.
+      const ov = buildOverlayFilter("[0:v]", "[vov]", opts.overlays ?? [], FONT);
+      const vHold =
+        padSec > 0.04
+          ? `[vov]tpad=stop_mode=clone:stop_duration=${padSec.toFixed(3)}[vh];[vh]`
+          : `[vov]`;
+      const videoGraph = `${ov};${vHold}fade=t=out:st=${vFadeStart}:d=1.0[vout]`;
+
+      // `[vo]` is consumed twice (sidechain key + mix), so split it first — an
+      // ffmpeg filter label can only be read once. Fade the final mix out at end.
+      const audioCore = opts.audio.duckUnderSceneAudio
+        ? `[1:a]aformat=sample_rates=44100:channel_layouts=stereo[mus];` +
           `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[vokey][vomix];` +
           `[mus][vokey]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[ducked];` +
-          `[ducked][vomix]amix=inputs=2:duration=first:dropout_transition=0[aout]`
-        : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.8[aout]`;
+          `[ducked][vomix]amix=inputs=2:duration=first:dropout_transition=0[amix]`
+        : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.8[amix]`;
+      const audioGraph = `${audioCore};[amix]afade=t=out:st=${aFadeStart}:d=1.2[aout]`;
+
       await ff([
         "-y", "-i", concatV, "-stream_loop", "-1", "-i", musicPath,
-        "-filter_complex", `${overlayFilter};${audioGraph}`,
-        "-map", "[vout]", "-map", "[aout]", "-t", totalSec,
+        "-filter_complex", `${videoGraph};${audioGraph}`,
+        "-map", "[vout]", "-map", "[aout]", "-t", Dsec,
         "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out,
       ]);
