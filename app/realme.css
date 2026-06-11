@@ -66,17 +66,21 @@
   font-weight: 600;
   font-size: 14px;
   letter-spacing: -0.01em;
-  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   white-space: nowrap;
 }
 .btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
 .btn-primary { background: var(--ink); color: var(--bg-warm); }
-.btn-primary:hover { background: #000; }
+/* Invert on hover: filled-dark -> outlined-light, text flips warm<->ink. The
+   inset ring keeps the light hover state visible against the warm page. */
+.btn-primary:hover { background: var(--bg-warm); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
 .btn-lime { background: var(--lime); color: var(--ink); }
-.btn-lime:hover { background: var(--lime-dark); }
+/* Invert on hover: lime -> ink, text ink -> lime (matches the app's accent CTA). */
+.btn-lime:hover { background: var(--ink); color: var(--lime); }
 .btn-ghost { color: var(--ink); }
-.btn-ghost:hover { background: rgba(17,17,16,0.06); }
+/* Invert on hover: fill to ink, text -> warm. */
+.btn-ghost:hover { background: var(--ink); color: var(--bg-warm); }
 .btn-outline {
   border: 1px solid var(--ink);
   color: var(--ink);
