@@ -177,6 +177,11 @@ export function StudioView() {
     if ("error" in res) {
       setGenerating(false);
       if (res.error === "no_avatar") { router.push("/onboarding"); return; }
+      if (res.error === "needs_twin") {
+        setGenError(res.message || "Set up & verify your digital twin to generate.");
+        router.push("/settings/avatar");
+        return;
+      }
       setGenError(
         res.error === "no_listing"
           ? "Add a real listing first."

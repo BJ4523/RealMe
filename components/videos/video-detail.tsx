@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  submitVideo,
   submitCinematicVideo,
   submitHypeReelVideo,
   updateScript,
@@ -85,16 +84,6 @@ export function VideoDetail({
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [isWorking, video.id]);
-
-  function handleSubmit() {
-    startTransition(async () => {
-      await updateScript(video.id, script);
-      setVideo((v) => ({ ...v, status: "submitting" }));
-      await submitVideo(video.id);
-      const latest = await pollVideoStatus(video.id);
-      if (latest) setVideo(latest);
-    });
-  }
 
   function handleCinematic() {
     startTransition(async () => {
@@ -208,27 +197,18 @@ export function VideoDetail({
           <div className="flex flex-wrap items-center justify-end gap-3">
             {cinematicReady ? (
               <>
-                {/* Cinematic is the hero/default; presenter demotes to secondary. */}
-                <Button
-                  onClick={handleSubmit}
-                  disabled={pending || !script.trim()}
-                  size="lg"
-                  variant="outline"
-                  className="rounded-full"
-                  title="Your twin presenting over the real listing photos"
-                >
-                  <Clapperboard className="size-5" />
-                  {pending ? "Working…" : "Standard video"}
-                </Button>
+                {/* Digital-twin walkthrough is the only generation path. No
+                    presenter / avatar-over-photos anywhere. */}
                 <Button
                   onClick={handleCinematic}
                   disabled={pending || !script.trim()}
                   size="lg"
-                  className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-                  title="Your real photos with motion + a few AI accent shots"
+                  variant="outline"
+                  className="rounded-full"
+                  title="Your real listing photos with cinematic motion + your twin"
                 >
                   <Film className="size-5" />
-                  {pending ? "Working…" : "Generate cinematic"}
+                  {pending ? "Working…" : "Cinematic walkthrough"}
                 </Button>
                 {tracks.length > 0 ? (
                   <div className="flex items-center gap-1.5">
@@ -273,65 +253,58 @@ export function VideoDetail({
                   disabled={pending || !script.trim()}
                   size="lg"
                   className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-                  title="On-camera host + beat-synced tour of your real photos, set to music"
+                  title="On-camera twin host + beat-synced tour of your real photos, set to music"
                 >
                   <Film className="size-5" />
-                  {pending ? "Working…" : "Generate hype reel"}
+                  {pending ? "Working…" : "Hype reel"}
                 </Button>
               </>
             ) : hasTwin ? (
-              <>
-                {/* Twin exists but isn't consent-verified — steer to verify,
-                    keep presenter available so onboarding is never blocked. */}
-                <Button
-                  onClick={handleSubmit}
-                  disabled={pending || !script.trim()}
-                  size="lg"
-                  variant="outline"
-                  className="rounded-full"
-                >
-                  <Clapperboard className="size-5" />
-                  {pending ? "Submitting…" : "Generate standard video"}
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-                >
-                  <Link href="/settings/avatar">
-                    <Film className="size-5" /> Verify your twin to unlock cinematic
-                  </Link>
-                </Button>
-              </>
-            ) : (
+              // Twin exists but isn't consent-verified. Walkthroughs require it —
+              // route to verification rather than falling back to a presenter video.
               <Button
-                onClick={handleSubmit}
-                disabled={pending || !script.trim()}
+                asChild
                 size="lg"
                 className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
               >
-                <Clapperboard className="size-5" />
-                {pending ? "Submitting…" : "Generate video"}
+                <Link href="/settings/avatar">
+                  <Film className="size-5" /> Verify your twin to generate
+                </Link>
+              </Button>
+            ) : (
+              // No twin yet — every video stars the digital twin, so send them to set one up.
+              <Button
+                asChild
+                size="lg"
+                className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+              >
+                <Link href="/settings/avatar">
+                  <Film className="size-5" /> Create your digital twin to generate
+                </Link>
               </Button>
             )}
           </div>
           {cinematicReady ? (
             <p className="text-right text-xs text-muted-foreground">
-              Cinematic tours your real listing photos with motion and a few
-              AI-generated accent shots for flair — faithful to the property,
-              with a cinematic finish.
+              Every video is a digital-twin walkthrough of your real listing photos
+              with cinematic motion. “Hype reel” adds your on-camera twin host and a
+              music track. (No avatar-pasted-over-photo videos.)
             </p>
           ) : hasTwin ? (
             <p className="text-right text-xs text-muted-foreground">
-              Cinematic is our most striking format — it needs a one-time identity
-              check. Verify your twin, or generate a faithful standard video now.
+              Your twin needs a one-time identity verification before it can star in
+              a walkthrough.{" "}
+              <Link href="/settings/avatar" className="underline">
+                Verify now
+              </Link>
+              .
             </p>
           ) : (
             <p className="text-right text-xs text-muted-foreground">
               <Link href="/settings/avatar" className="underline">
                 Create a digital twin
               </Link>{" "}
-              to unlock cinematic mode.
+              to generate walkthrough videos.
             </p>
           )}
         </div>
@@ -348,8 +321,8 @@ export function VideoDetail({
           />
           <div className="flex justify-end">
             <Button
-              onClick={handleSubmit}
-              disabled={pending}
+              onClick={handleCinematic}
+              disabled={pending || !cinematicReady}
               className="rounded-full"
               variant="outline"
             >
