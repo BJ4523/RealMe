@@ -6,7 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { generateWalkthroughScript, generateHypeReelScript } from "@/lib/ai/script";
-import { encodeReelJobs } from "@/lib/video/hypereel";
+import {
+  encodeReelJobs,
+  isHypeReel,
+  assembleHypeReel,
+  type ReelListingFacts,
+} from "@/lib/video/hypereel";
 import { generateVideo, getVideoStatus } from "@/lib/heygen/video";
 import { generateCinematicClip } from "@/lib/heygen/cinematic";
 import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
@@ -320,6 +325,19 @@ export async function submitHypeReelVideo(videoId: string, trackId?: string) {
  * simulates a realistic processing window (~6s) before completing — no webhook
  * needed. Used by the video page client to drive the live UI.
  */
+/** Structured listing facts for Hype Reel overlays (price formatted for display). */
+function reelFacts(listing: Tables<"listings"> | null): ReelListingFacts {
+  return {
+    price: listing?.price
+      ? `$${Math.round(Number(listing.price)).toLocaleString("en-US")}`
+      : null,
+    beds: listing?.beds ?? null,
+    baths: listing?.baths ?? null,
+    sqft: listing?.sqft ?? null,
+    address: listing?.address ?? null,
+  };
+}
+
 export async function pollVideoStatus(
   videoId: string,
 ): Promise<Tables<"videos"> | null> {
@@ -327,13 +345,38 @@ export async function pollVideoStatus(
   const supabase = await createClient();
   const { data: video } = await supabase
     .from("videos")
-    .select("*, listings(photos)")
+    .select("*, listings(*)")
     .eq("id", videoId)
     .single();
   if (!video) return null;
 
-  const pollListing = video.listings as { photos: Json } | null;
+  const pollListing = video.listings as Tables<"listings"> | null;
   const photos = pollListing ? listingPhotos(pollListing.photos).map((p) => p.url) : [];
+
+  // Hype Reel: host bookends (v2) + accents (v3) → montage with music + overlays.
+  // Intercept before the generic v2 branch (a "reel:" id is not a real HeyGen id).
+  if (isHypeReel(video.heygen_video_id) && video.status === "processing") {
+    const meta = (
+      video.script_segments as {
+        hypeReel?: { featureCallouts?: string[]; trackId?: string };
+      } | null
+    )?.hypeReel;
+    await assembleHypeReel(supabase, {
+      id: video.id,
+      user_id: video.user_id,
+      heygen_video_id: video.heygen_video_id,
+      photos,
+      facts: reelFacts(pollListing),
+      featureCallouts: meta?.featureCallouts ?? [],
+      trackId: meta?.trackId ?? null,
+    });
+    const { data: latest } = await supabase
+      .from("videos")
+      .select("*")
+      .eq("id", videoId)
+      .single();
+    return latest ?? video;
+  }
 
   // Cinematic walkthroughs are assembled from several Seedance clips: poll them
   // and, once ready, stitch + narrate (assembleCinematicVideo self-locks so

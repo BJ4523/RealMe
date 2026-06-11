@@ -3,6 +3,7 @@ import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { getVideoStatus } from "@/lib/heygen/video";
 import { reconcileAvatar } from "@/lib/avatars/reconcile";
 import { assembleCinematicVideo, isCinematic } from "@/lib/video/cinematic";
+import { assembleHypeReel, isHypeReel } from "@/lib/video/hypereel";
 import { listingPhotos } from "@/lib/format";
 import { env } from "@/lib/env";
 
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
   for (const v of stuck ?? []) {
     if (!v.heygen_video_id) continue;
     if (isCinematic(v.heygen_video_id)) continue; // handled in the cinematic pass
+    if (isHypeReel(v.heygen_video_id)) continue; // handled in the hype-reel pass
     const status = await getVideoStatus(v.heygen_video_id, {
       thumbnailUrl: v.thumbnail_url ?? undefined,
     });
@@ -113,6 +115,56 @@ export async function GET(request: NextRequest) {
     if (result === "completed") cinematicAssembled++;
   }
 
+  // Hype Reels (host bookends + photo tour + music + overlays). Same backstop +
+  // stale-lock reset as the cinematic pass.
+  const { data: reelVideos } = await supabase
+    .from("videos")
+    .select("id, user_id, heygen_video_id, status, listing_id, script_segments")
+    .in("status", ["processing", "submitting"])
+    .like("heygen_video_id", "reel:%")
+    .limit(20);
+
+  let reelsAssembled = 0;
+  for (const v of reelVideos ?? []) {
+    if (!isHypeReel(v.heygen_video_id)) continue;
+    if (v.status === "submitting") {
+      await supabase
+        .from("videos")
+        .update({ status: "processing" })
+        .eq("id", v.id)
+        .eq("status", "submitting");
+    }
+    const { data: lst } = await supabase
+      .from("listings")
+      .select("*")
+      .eq("id", v.listing_id ?? "")
+      .maybeSingle();
+    const photos = lst ? listingPhotos(lst.photos).map((p) => p.url) : [];
+    const meta = (
+      v.script_segments as {
+        hypeReel?: { featureCallouts?: string[]; trackId?: string };
+      } | null
+    )?.hypeReel;
+    const result = await assembleHypeReel(supabase, {
+      id: v.id,
+      user_id: v.user_id,
+      heygen_video_id: v.heygen_video_id,
+      photos,
+      facts: {
+        price: lst?.price
+          ? `$${Math.round(Number(lst.price)).toLocaleString("en-US")}`
+          : null,
+        beds: lst?.beds ?? null,
+        baths: lst?.baths ?? null,
+        sqft: lst?.sqft ?? null,
+        address: lst?.address ?? null,
+      },
+      featureCallouts: meta?.featureCallouts ?? [],
+      trackId: meta?.trackId ?? null,
+    });
+    if (result === "completed") reelsAssembled++;
+  }
+
   return NextResponse.json({
     checked: stuck?.length ?? 0,
     reconciled,
@@ -120,5 +172,7 @@ export async function GET(request: NextRequest) {
     avatarsReconciled,
     cinematicChecked: cineVideos?.length ?? 0,
     cinematicAssembled,
+    reelsChecked: reelVideos?.length ?? 0,
+    reelsAssembled,
   });
 }
