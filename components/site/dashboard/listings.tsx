@@ -14,8 +14,7 @@ import {
   useIsMobile,
 } from "@/components/site/shared";
 import { useDashboardData } from "./data-context";
-import { studioGenerate } from "@/lib/site/studio-actions";
-import { pollVideoStatus } from "@/app/(app)/videos/actions";
+import { createDraftForListing } from "@/app/(app)/videos/actions";
 import { Download, Clapperboard, RefreshCw, ChevronRight, Check } from "lucide-react";
 
 export function ListingsView({ setSection }) {
@@ -167,46 +166,18 @@ export function StudioView() {
       return;
     }
     setGenerating(true);
-    setGenerated(false);
-    setProgress(0);
-    setSteps([]);
-    setVideoUrl(null);
 
+    // One place for every generation: create a draft + go to the video page,
+    // where the agent reviews the script and picks the type (Cinematic
+    // walkthrough vs Hype reel). No inline generation here anymore.
     const scriptText = (script || []).map((s) => s.text).join(" ");
-    const res = await studioGenerate(selected, scriptText, listing?.address);
+    const res = await createDraftForListing(selected, scriptText);
     if ("error" in res) {
       setGenerating(false);
-      if (res.error === "no_avatar") { router.push("/onboarding"); return; }
-      if (res.error === "needs_twin") {
-        setGenError(res.message || "Set up & verify your digital twin to generate.");
-        router.push("/settings/avatar");
-        return;
-      }
-      setGenError(
-        res.error === "no_listing"
-          ? "Add a real listing first."
-          : res.message || "Generation failed. Try again.",
-      );
+      setGenError(res.error || "Could not start. Try again.");
       return;
     }
-
-    // Poll the real HeyGen job to completion.
-    const poll = setInterval(async () => {
-      const v = await pollVideoStatus(res.videoId);
-      if (!v) return;
-      if (v.status === "completed") {
-        clearInterval(poll);
-        setProgress(100);
-        setSteps(generationSteps);
-        setGenerating(false);
-        setGenerated(true);
-        setVideoUrl(v.video_url);
-      } else if (v.status === "failed") {
-        clearInterval(poll);
-        setGenerating(false);
-        setGenError(v.error || "Generation failed.");
-      }
-    }, 4000);
+    router.push(`/videos/${res.videoId}`);
   }
 
   // Visual progress while the real job renders (caps at ~92% until completion).

@@ -28,6 +28,58 @@ import type { Json, Tables } from "@/lib/types/database";
 const MAX_CINEMATIC_ACCENTS = 1;
 
 /**
+ * Create a draft video for a listing and return its id (no redirect) so a CLIENT
+ * surface (e.g. the dashboard Studio) can navigate to /videos/[id] — the single
+ * place where the agent reviews the script and picks the type (Cinematic
+ * walkthrough vs Hype reel). Optionally seed the script (else one is generated).
+ */
+export async function createDraftForListing(
+  listingId: string,
+  scriptText?: string,
+): Promise<{ videoId: string } | { error: string }> {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+
+  const { data: listing } = await supabase
+    .from("listings")
+    .select("*")
+    .eq("id", listingId)
+    .maybeSingle();
+  if (!listing) return { error: "Listing not found." };
+
+  const { data: avatar } = await supabase
+    .from("avatars")
+    .select("id")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const { data: video, error } = await supabase
+    .from("videos")
+    .insert({
+      user_id: userId,
+      listing_id: listingId,
+      avatar_id: avatar?.id ?? null,
+      title: listing.address,
+      status: "pending_script",
+    })
+    .select("id")
+    .single();
+  if (error || !video) return { error: error?.message ?? "Could not start video." };
+
+  const seeded = scriptText?.trim();
+  const narration = seeded
+    ? seeded
+    : (await generateWalkthroughScript(listing as Tables<"listings">)).narration;
+
+  await supabase
+    .from("videos")
+    .update({ script: narration, status: "script_ready" })
+    .eq("id", video.id);
+
+  return { videoId: video.id };
+}
+
+/**
  * Step 1 — create a video job for a listing and generate its script.
  * Redirects to the video page where the agent reviews/edits the script.
  */
