@@ -14,10 +14,7 @@ export type KenBurnsMotion =
   | "pan-right"
   | "push-up";
 
-const W = 720;
-const H = 1280;
-const FPS = 30;
-const OVERSAMPLE = "1440:2560"; // 2× the target, 9:16
+const FPS = 30; // output frame rate (dimensions are hardcoded in the filter)
 
 /** Rotate motions so consecutive photo scenes don't repeat. */
 export function motionForIndex(i: number): KenBurnsMotion {
@@ -67,10 +64,13 @@ export function kenBurnsFilter(
       y = `(ih-ih/zoom)*(1-on/${frames})`;
       break;
   }
+  // Dimensions HARDCODED (not `${W}x${H}` / `${OVERSAMPLE}`): the Next 16 minifier
+  // corrupts filters built from adjacent numeric interpolations. Only the dynamic
+  // motion exprs (z/x/y/frames) are interpolated. See lib/video/scenes.ts note.
   return (
-    `${inLabel}scale=${OVERSAMPLE}:force_original_aspect_ratio=increase,` +
-    `crop=${OVERSAMPLE.replace(":", ":")},` +
-    `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${W}x${H}:fps=${FPS},` +
+    `${inLabel}scale=1440:2560:force_original_aspect_ratio=increase,` +
+    `crop=1440:2560,` +
+    `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=720x1280:fps=30,` +
     `setsar=1${outLabel}`
   );
 }

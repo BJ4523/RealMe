@@ -7,7 +7,7 @@ import ffmpegPath from "ffmpeg-static";
 import { kenBurnsFilter, type KenBurnsMotion } from "./kenburns";
 import { buildOverlayFilter, type Overlay } from "./overlay";
 
-const W = 720, H = 1280, FPS = 30;
+const FPS = 30; // dimensions are hardcoded in filter strings (minifier-safe)
 const FONT = resolve("assets/fonts/HypeReel.ttf");
 
 export type MontageScene =
@@ -69,9 +69,13 @@ async function renderScene(
   // video scene: normalize to 720x1280/30fps, trim to duration. Every segment
   // carries a stereo audio track (real for host scenes, silent otherwise) so the
   // concat demuxer sees a uniform layout.
+  // Dimensions are HARDCODED (not `${W}:${H}`) on purpose: the Next 16 production
+  // minifier corrupts a filter built from consecutive `${W}:${H}` interpolations,
+  // dropping the trailing literal (-> "scale=720:1280pad..." which ffmpeg rejects).
+  // A plain literal survives minification (same pattern as lib/video/stitch.ts).
   const vf =
-    `scale=${W}:${H}:force_original_aspect_ratio=decrease,` +
-    `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS}`;
+    "scale=720:1280:force_original_aspect_ratio=decrease," +
+    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30";
   if (scene.keepAudio) {
     // Keep the clip's own audio (e.g. host voice-over). Use amix with a silent
     // source so clips lacking an audio track still produce a stereo segment.
