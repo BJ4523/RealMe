@@ -25,9 +25,10 @@ import { listingPhotos } from "@/lib/format";
 import { wardrobePrompt } from "@/lib/video/wardrobe";
 import type { Json, Tables } from "@/lib/types/database";
 
-/** AI room clips per cinematic walkthrough — one Seedance clip per listing photo
- * (the twin walking through a faithful recreation of each room). Caps cost/time. */
-const MAX_CINEMATIC_ROOMS = 5;
+/** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
+ * listing photo). The agent picks how many within this; caps cost/render time. */
+const MAX_CINEMATIC_ROOMS = 8;
+const DEFAULT_CINEMATIC_ROOMS = 5;
 /** AI room clips in a Hype Reel's middle tour (between the host bookends). Must
  * match ROOM_PHOTO_SHOTS in lib/video/hypereel.ts (beat-synced durations). */
 const HYPE_REEL_ROOMS = 3;
@@ -251,8 +252,16 @@ function cinematicPrompt(
  * stitched + narrated by assembleCinematicVideo. Requires a consent-validated
  * digital twin. Stores the clip job ids in heygen_video_id (cine:<id,id,...>).
  */
-export async function submitCinematicVideo(videoId: string, outfitId?: string) {
+export async function submitCinematicVideo(
+  videoId: string,
+  outfitId?: string,
+  roomCount?: number,
+) {
   const wardrobe = wardrobePrompt(outfitId);
+  const rooms = Math.min(
+    Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
+    MAX_CINEMATIC_ROOMS,
+  );
   const { userId } = await requireUser();
   const supabase = await createClient();
   const { data: video } = await supabase
@@ -289,26 +298,47 @@ export async function submitCinematicVideo(videoId: string, outfitId?: string) {
   if (photos.length === 0) {
     return fail("Add listing photos to generate a cinematic walkthrough.");
   }
-  // One AI room per photo: the twin walks through a faithful recreation of each.
-  const roomPhotos = photos.slice(0, MAX_CINEMATIC_ROOMS);
+  // One AI room per photo (capped by the agent's chosen count): the twin walks
+  // through a faithful recreation of each.
+  const roomPhotos = photos.slice(0, rooms);
+  const hero = photos[0];
 
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    const jobs = await Promise.all(
-      roomPhotos.map((url, i) =>
-        generateCinematicClip({
-          avatarLookId: avatar.heygen_avatar_id!,
-          referenceUrl: url,
-          prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-          duration: 10,
-        }),
+    const hook = await generateHypeReelScript(listing as Tables<"listings">);
+    const webhookUrl = `${env.siteUrl}/api/webhooks/heygen?secret=${env.heygenWebhookSecret}`;
+    const hostInput = {
+      avatarId: avatar.heygen_avatar_id!,
+      avatarKind: "digital_twin" as const,
+      voiceId: avatar.voice_id ?? undefined,
+      photoUrls: [hero],
+      title: video.title ?? undefined,
+      webhookUrl,
+    };
+    // Lip-synced talking-head bookends (v2) + one Seedance room-walk clip per photo.
+    const [introJob, outroJob, roomJobs] = await Promise.all([
+      generateVideo({ ...hostInput, script: hook.intro }),
+      generateVideo({ ...hostInput, script: hook.outro }),
+      Promise.all(
+        roomPhotos.map((url, i) =>
+          generateCinematicClip({
+            avatarLookId: avatar.heygen_avatar_id!,
+            referenceUrl: url,
+            prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
+            duration: 10,
+          }),
+        ),
       ),
-    );
+    ]);
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs(jobs.map((j) => j.jobId)),
+        heygen_video_id: encodeCinematicJobs(
+          introJob.videoId,
+          outroJob.videoId,
+          roomJobs.map((j) => j.jobId),
+        ),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
       })

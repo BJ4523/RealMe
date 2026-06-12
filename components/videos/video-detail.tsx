@@ -45,6 +45,7 @@ export function VideoDetail({
   const [script, setScript] = useState(initialVideo.script ?? "");
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
   const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
+  const [roomCount, setRoomCount] = useState(5);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -91,7 +92,7 @@ export function VideoDetail({
     startTransition(async () => {
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
-      await submitCinematicVideo(video.id, outfitId);
+      await submitCinematicVideo(video.id, outfitId, roomCount);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -222,6 +223,22 @@ export function VideoDetail({
                         </option>
                       ))}
                     </optgroup>
+                  </select>
+                </label>
+                {/* How many rooms the cinematic walkthrough covers (1 clip each). */}
+                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  Rooms
+                  <select
+                    value={roomCount}
+                    onChange={(e) => setRoomCount(Number(e.target.value))}
+                    className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
+                    aria-label="Number of rooms"
+                  >
+                    {[3, 4, 5, 6, 7, 8].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 {/* Digital-twin walkthrough is the only generation path. No

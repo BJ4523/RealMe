@@ -148,7 +148,7 @@ export async function studioGenerate(
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs(jobs.map((j) => j.jobId)),
+        heygen_video_id: encodeCinematicJobs("", "", jobs.map((j) => j.jobId)),
         status: "processing",
       })
       .eq("id", video.id);

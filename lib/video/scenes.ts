@@ -221,7 +221,16 @@ export async function assembleMontage(opts: {
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out,
       ]);
     } else {
-      throw new Error("montage audio: provide narration or music");
+      // No bed: keep each scene's OWN audio (the concat already merged it). Used
+      // to stitch the cinematic's lip-synced host bookends around a pre-narrated
+      // room tour — each piece carries its own baked audio.
+      await ff([
+        "-y", "-i", concatV,
+        "-filter_complex", overlayFilter,
+        "-map", "[vout]", "-map", "0:a?",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out,
+      ]);
     }
 
     return await readFile(out);
