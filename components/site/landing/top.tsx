@@ -25,7 +25,7 @@ export function Logo({ size = 22 }) {
   );
 }
 
-export function TopNav({ onOpenApp, onOpenLive }) {
+export function TopNav({ onOpenApp, onOpenLive, authed = false }) {
   const isMobile = useIsMobile();
   return (
     <nav style={{
@@ -59,7 +59,9 @@ export function TopNav({ onOpenApp, onOpenLive }) {
               realme.live <ArrowUpRight size={14} />
             </button>
           )}
-          {!isMobile && <button className="btn btn-ghost btn-sm" onClick={onOpenApp}>Sign in</button>}
+          {/* Signed-in users already have the "Open dashboard" CTA — a "Sign in"
+              button next to it reads as "you're signed out" and confuses. */}
+          {!isMobile && !authed && <button className="btn btn-ghost btn-sm" onClick={onOpenApp}>Sign in</button>}
           <button className="btn btn-primary btn-sm" onClick={onOpenApp}>
             {isMobile ? "Dashboard →" : "Open dashboard →"}
           </button>

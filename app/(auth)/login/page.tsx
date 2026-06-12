@@ -31,10 +31,11 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const params = use(searchParams);
   const next = params.next ?? "/app";
+  const linkError = params.error === "callback";
   const [sendState, sendAction] = useActionState<AuthState, FormData>(
     sendMagicLink,
     undefined,
@@ -115,6 +116,12 @@ export default function LoginPage({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {linkError ? (
+          <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            That sign-in link was invalid or expired (links are single-use).
+            Request a fresh one below.
+          </p>
+        ) : null}
         <form action={sendAction} className="flex flex-col gap-4">
           <input type="hidden" name="next" value={next} />
           <div className="grid gap-2">
