@@ -9,9 +9,13 @@ import { compressVideo } from "@/lib/video/compress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Clips at or below this upload as-is; larger ones are compressed in the browser
-// to land under the 50MiB Storage bucket cap before upload.
-const COMPRESS_TARGET_BYTES = 42 * 1024 * 1024;
+// Clips at or below this upload FULL (no compression); larger ones are compressed
+// in-browser to ~1080p to land under the Storage upload limit. This is capped by
+// the Supabase project's global upload limit (default 50 MiB). To store bigger
+// raw clips, raise that limit in the Supabase dashboard (Settings → Storage →
+// Upload file size limit) and bump this constant to match.
+const STORAGE_LIMIT_BYTES = 48 * 1024 * 1024; // keep < the 50 MiB global default
+const COMPRESS_TARGET_BYTES = STORAGE_LIMIT_BYTES;
 const MAX_INPUT_BYTES = 1024 * 1024 * 1024; // 1GB sanity ceiling
 // HeyGen rejects digital-twin footage outside this window.
 const MIN_DURATION_S = 15;

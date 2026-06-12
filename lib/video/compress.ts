@@ -39,8 +39,8 @@ export interface CompressOptions {
 }
 
 /**
- * Transcode `input` to an MP4 sized to fit under `targetBytes`: capped at 720p
- * (longest side ≤ 1280, never upscaled) with a bitrate derived from duration,
+ * Transcode `input` to an MP4 sized to fit under `targetBytes`: capped at 1080p
+ * (longest side ≤ 1920, never upscaled) with a bitrate derived from duration,
  * H.264 video + 128k AAC audio (audio preserved for voice cloning). Returns a
  * new File; throws if ffmpeg fails so the caller can fall back / surface it.
  */
@@ -68,16 +68,16 @@ export async function compressVideo(
     const dur = Math.max(1, opts.durationSec);
     const videoKbps = Math.min(
       Math.max(Math.floor(budgetKbits / dur - audioKbps), 400),
-      6000,
+      12000,
     );
 
     await ff.exec([
       "-i",
       inName,
-      // Longest side ≤ 1280, preserve aspect, force even dimensions, no upscale.
+      // Longest side ≤ 1920 (1080p), preserve aspect, force even dimensions, no upscale.
       // Commas inside the expressions are escaped for ffmpeg's filtergraph parser.
       "-vf",
-      "scale=if(gte(iw\\,ih)\\,min(1280\\,iw)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(1280\\,ih))",
+      "scale=if(gte(iw\\,ih)\\,min(1920\\,iw)\\,-2):if(gte(iw\\,ih)\\,-2\\,min(1920\\,ih))",
       "-c:v",
       "libx264",
       "-preset",
