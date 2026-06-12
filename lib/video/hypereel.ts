@@ -9,7 +9,6 @@ import {
   HYPE_REEL_TARGET_MS,
   type MontageScene,
 } from "@/lib/video/scenes";
-import { motionForIndex } from "@/lib/video/kenburns";
 import { roomDurationsMs, beatTimesMs } from "@/lib/video/music/beats";
 import { overlaysFromListing } from "@/lib/video/overlay";
 import { getTrack } from "@/lib/video/music/tracks";
@@ -98,26 +97,21 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
     const track = getTrack(reel.trackId);
     const durations = roomDurationsMs(track.bpm, BEATS_PER_SHOT, ROOM_PHOTO_SHOTS);
 
-    const [introBuf, outroBuf, photoBufs, accentBufs, musicBuf] = await Promise.all([
+    const [introBuf, outroBuf, roomBufs, musicBuf] = await Promise.all([
       fetchBuffer(introUrl),
       fetchBuffer(outroUrl),
-      Promise.all(reel.photos.slice(0, ROOM_PHOTO_SHOTS).map(fetchBuffer)),
       Promise.all(accentUrls.map(fetchBuffer)),
       readFile(resolve(track.file)),
     ]);
 
-    // Scenes: host intro -> [photo, photo, accent, photo...] -> host outro.
-    const room: MontageScene[] = [];
-    let ai = 0;
-    photoBufs.forEach((buf, i) => {
-      room.push({ kind: "photo", imageBuf: buf, motion: motionForIndex(i), durationMs: durations[i] });
-      if (ai < accentBufs.length && i === 1) {
-        room.push({ kind: "video", videoBuf: accentBufs[ai++], durationMs: durations[i] });
-      }
-    });
-    while (ai < accentBufs.length) {
-      room.push({ kind: "video", videoBuf: accentBufs[ai++], durationMs: durations[durations.length - 1] });
-    }
+    // Scenes: host intro -> [AI room clip, AI room clip, ...] -> host outro. Each
+    // room clip is the twin walking through a faithful recreation of that room,
+    // beat-synced via the per-shot durations.
+    const room: MontageScene[] = roomBufs.map((buf, i) => ({
+      kind: "video",
+      videoBuf: buf,
+      durationMs: durations[Math.min(i, durations.length - 1)],
+    }));
 
     const scenes: MontageScene[] = [
       { kind: "video", videoBuf: introBuf, durationMs: 6000, keepAudio: true },

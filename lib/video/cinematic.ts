@@ -5,7 +5,6 @@ import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { generateSpeech } from "@/lib/heygen/voice";
-import { motionForIndex } from "@/lib/video/kenburns";
 import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
@@ -13,9 +12,7 @@ type Db = SupabaseClient<Database>;
 /** Prefix marking a video whose heygen_video_id holds cinematic clip job ids. */
 export const CINEMATIC_PREFIX = "cine:";
 
-/** Max real listing photos used as the faithful backbone (Ken-Burns motion). */
-const MAX_PHOTO_SCENES = 6;
-/** Floor per scene so each shot is long enough to read. */
+/** Floor per scene so each room shot is long enough to read. */
 const MIN_SCENE_MS = 2500;
 
 export function isCinematic(heygenVideoId: string | null | undefined): boolean {
@@ -100,29 +97,22 @@ export async function assembleCinematicVideo(
       voiceId ?? DEFAULT_VOICE_ID,
     );
 
-    const accentBufs = await Promise.all(clipUrls.map(fetchBuffer));
-    const photoUrls = video.photos.slice(0, MAX_PHOTO_SCENES);
-    const photoBufs = await Promise.all(photoUrls.map(fetchBuffer));
-    if (photoBufs.length === 0 && accentBufs.length === 0) {
-      throw new Error("No photos or clips to assemble.");
+    // The cinematic walkthrough IS the AI room clips (the twin walking through a
+    // faithful recreation of each room). Each clip is one scene; narration plays
+    // over the whole tour.
+    const roomBufs = await Promise.all(clipUrls.map(fetchBuffer));
+    if (roomBufs.length === 0) {
+      throw new Error("No room clips to assemble.");
     }
-
-    const sceneCount = photoBufs.length + accentBufs.length;
     const perSceneMs = Math.max(
       MIN_SCENE_MS,
-      Math.round(((narration.duration || 30) * 1000) / Math.max(1, sceneCount)),
+      Math.round(((narration.duration || 30) * 1000) / roomBufs.length),
     );
-    const scenes: MontageScene[] = [];
-    let ai = 0;
-    photoBufs.forEach((buf, i) => {
-      scenes.push({ kind: "photo", imageBuf: buf, motion: motionForIndex(i), durationMs: perSceneMs });
-      if (ai < accentBufs.length && i % 3 === 2) {
-        scenes.push({ kind: "video", videoBuf: accentBufs[ai++], durationMs: perSceneMs });
-      }
-    });
-    while (ai < accentBufs.length) {
-      scenes.push({ kind: "video", videoBuf: accentBufs[ai++], durationMs: perSceneMs });
-    }
+    const scenes: MontageScene[] = roomBufs.map((buf) => ({
+      kind: "video",
+      videoBuf: buf,
+      durationMs: perSceneMs,
+    }));
 
     const narrationBuf = await fetchBuffer(narration.audioUrl);
     const assembled = await assembleMontage({ scenes, audio: { narration: narrationBuf } });

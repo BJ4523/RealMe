@@ -24,8 +24,12 @@ import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import type { Json, Tables } from "@/lib/types/database";
 
-/** Cinematic ACCENT clips (AI flair) per video. Real photos are the backbone. */
-const MAX_CINEMATIC_ACCENTS = 1;
+/** AI room clips per cinematic walkthrough — one Seedance clip per listing photo
+ * (the twin walking through a faithful recreation of each room). Caps cost/time. */
+const MAX_CINEMATIC_ROOMS = 5;
+/** AI room clips in a Hype Reel's middle tour (between the host bookends). Must
+ * match ROOM_PHOTO_SHOTS in lib/video/hypereel.ts (beat-synced durations). */
+const HYPE_REEL_ROOMS = 3;
 
 /**
  * Create a draft video for a listing and return its id (no redirect) so a CLIENT
@@ -220,18 +224,19 @@ function cinematicPrompt(
     "the camera slowly orbits the agent, revealing the room around them",
   ];
   const move = moves[index % moves.length];
-  const place = listing?.address
-    ? `the home at ${listing.address}`
-    : "a bright, beautifully staged home";
+  const place = listing?.address ? `the home at ${listing.address}` : "this home";
   return [
     "Photorealistic vertical 9:16 real-estate walkthrough.",
-    `A friendly, well-dressed real-estate agent is physically inside a room of ${place},`,
-    "walking through the space and presenting it to the viewer — looking around,",
-    "gesturing naturally toward the room's best features with genuine warmth and confidence.",
-    `Camera: ${move}; cinematic, steady, handheld realism.`,
-    "Bright natural daylight, inviting and true-to-life, matching the reference interior.",
+    // FIDELITY FIRST: faithfully recreate the EXACT room in the reference image.
+    "Recreate the room shown in the reference image as accurately as possible:",
+    "the same layout, furniture, wall colors, flooring, windows, fixtures and finishes.",
+    "Do NOT invent, rearrange, or add furniture — keep the space true to the reference.",
+    `Inside that recreated room of ${place}, a friendly, well-dressed real-estate agent`,
+    "walks through and presents the space — looking around and gesturing naturally",
+    "toward its real features with genuine warmth and confidence.",
+    `Camera: ${move}; cinematic, steady, handheld realism, bright natural daylight.`,
     "Continuous lifelike human motion, full body visible, the same person throughout.",
-    `Shot ${index + 1} of ${total}.`,
+    `Room ${index + 1} of ${total}.`,
   ].join(" ");
 }
 
@@ -278,17 +283,18 @@ export async function submitCinematicVideo(videoId: string) {
   if (photos.length === 0) {
     return fail("Add listing photos to generate a cinematic walkthrough.");
   }
-  const accentPhotos = photos.slice(0, MAX_CINEMATIC_ACCENTS);
+  // One AI room per photo: the twin walks through a faithful recreation of each.
+  const roomPhotos = photos.slice(0, MAX_CINEMATIC_ROOMS);
 
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
     const jobs = await Promise.all(
-      accentPhotos.map((url, i) =>
+      roomPhotos.map((url, i) =>
         generateCinematicClip({
           avatarLookId: avatar.heygen_avatar_id!,
           referenceUrl: url,
-          prompt: cinematicPrompt(listing, i, accentPhotos.length),
+          prompt: cinematicPrompt(listing, i, roomPhotos.length),
           duration: 10,
         }),
       ),
@@ -351,16 +357,21 @@ export async function submitHypeReelVideo(videoId: string, trackId?: string) {
       generateVideo({ avatarId: avatar.heygen_avatar_id!, avatarKind, voiceId: avatar.voice_id ?? undefined, script: script.intro, photoUrls: [hero], title: video.title ?? undefined, webhookUrl }),
       generateVideo({ avatarId: avatar.heygen_avatar_id!, avatarKind, voiceId: avatar.voice_id ?? undefined, script: script.outro, photoUrls: [hero], title: video.title ?? undefined, webhookUrl }),
     ]);
-    // One AI accent (flair) from the hero photo.
-    const accent = await generateCinematicClip({
-      avatarLookId: avatar.heygen_avatar_id!,
-      referenceUrl: hero,
-      prompt: cinematicPrompt(listing, 0, 1),
-      duration: 8,
-    });
+    // AI room clips: the twin walking through a faithful recreation of each room.
+    const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
+    const roomJobs = await Promise.all(
+      roomPhotos.map((url, i) =>
+        generateCinematicClip({
+          avatarLookId: avatar.heygen_avatar_id!,
+          referenceUrl: url,
+          prompt: cinematicPrompt(listing, i, roomPhotos.length),
+          duration: 8,
+        }),
+      ),
+    );
 
     await supabase.from("videos").update({
-      heygen_video_id: encodeReelJobs(introJob.videoId, outroJob.videoId, [accent.jobId]),
+      heygen_video_id: encodeReelJobs(introJob.videoId, outroJob.videoId, roomJobs.map((j) => j.jobId)),
       status: "processing",
       thumbnail_url: hero,
       script_segments: { hypeReel: { featureCallouts: script.featureCallouts, trackId: trackId ?? "default" } } as unknown as Json,
