@@ -72,6 +72,18 @@ export function ListingForm({
     .split(/[\n,]/)
     .map((u) => u.trim())
     .filter(Boolean);
+  // The agent taps to choose which scraped photos go in the video. Tracking the
+  // EXCLUDED set means newly added photos default to selected automatically.
+  const [deselected, setDeselected] = useState<Set<string>>(new Set());
+  const selectedUrls = photoUrls.filter((u) => !deselected.has(u));
+  function togglePhoto(url: string) {
+    setDeselected((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
+      return next;
+    });
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -139,7 +151,15 @@ export function ListingForm({
       </div>
 
       <div className="grid gap-3">
-        <Label htmlFor="photos">Photos</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="photos-pool">Photos</Label>
+          {photoUrls.length > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              {selectedUrls.length} of {photoUrls.length} selected — tap a photo to
+              include / exclude it from the video
+            </span>
+          ) : null}
+        </div>
         <PhotoUploader
           onUploaded={(urls) =>
             setPhotosText((prev) =>
@@ -149,20 +169,35 @@ export function ListingForm({
         />
         {photoUrls.length > 0 ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {photoUrls.map((url) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={url}
-                src={url}
-                alt=""
-                className="aspect-square w-full rounded-lg border border-border object-cover"
-              />
-            ))}
+            {photoUrls.map((url) => {
+              const on = !deselected.has(url);
+              return (
+                <button
+                  type="button"
+                  key={url}
+                  onClick={() => togglePhoto(url)}
+                  className={`relative aspect-square w-full overflow-hidden rounded-lg border transition ${
+                    on
+                      ? "border-accent ring-2 ring-accent"
+                      : "border-border opacity-40 hover:opacity-70"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="size-full object-cover" />
+                  {on ? (
+                    <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         ) : null}
+        {/* Only the SELECTED photos are saved to the listing. */}
+        <input type="hidden" name="photos" value={selectedUrls.join("\n")} />
         <Textarea
-          id="photos"
-          name="photos"
+          id="photos-pool"
           rows={3}
           value={photosText}
           onChange={(e) => setPhotosText(e.target.value)}

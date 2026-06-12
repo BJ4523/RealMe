@@ -68,13 +68,26 @@ export async function scrapeListingViaFirecrawl(
       },
       body: JSON.stringify({
         url,
-        onlyMainContent: true,
+        // Include the WHOLE page (galleries live outside the "main" content), and
+        // wait + scroll so lazy-loaded photo galleries actually render before we
+        // extract — listing sites load most images only as you scroll.
+        onlyMainContent: false,
+        waitFor: 4000,
+        actions: [
+          { type: "wait", milliseconds: 1500 },
+          { type: "scroll", direction: "down" },
+          { type: "scroll", direction: "down" },
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1500 },
+        ],
         formats: [
           {
             type: "json",
             schema: LISTING_SCHEMA,
             prompt:
-              "Extract the real estate listing details from this property page.",
+              "Extract the real estate listing details. For photos, collect EVERY " +
+              "image URL in the property's photo gallery/carousel — all of them, in " +
+              "order, full-resolution, not just the first/hero image.",
           },
         ],
       }),
