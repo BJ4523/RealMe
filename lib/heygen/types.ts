@@ -19,6 +19,9 @@ export interface GenerateVideoInput {
   script: string;
   /** Listing photo URLs shown behind/around the avatar. */
   photoUrls?: string[];
+  /** Video URL played behind the avatar (e.g. an AI room clip) — makes the
+   * lip-synced twin appear inside the moving scene. Overrides photoUrls. */
+  backgroundVideoUrl?: string;
   /** Where HeyGen should POST the completion event. */
   webhookUrl?: string;
   title?: string;

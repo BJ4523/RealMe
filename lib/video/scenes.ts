@@ -81,7 +81,7 @@ async function renderScene(
       "-y", "-loop", "1", "-t", durSec, "-i", inPath,
       "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
       "-filter_complex", filter, "-map", "[v]", "-map", "1:a:0",
-      "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
       "-r", String(FPS), outPath,
     ]);
@@ -100,13 +100,15 @@ async function renderScene(
   if (scene.keepAudio) {
     // Keep the clip's own audio (e.g. host voice-over). Use amix with a silent
     // source so clips lacking an audio track still produce a stereo segment.
+    // normalize=0 is CRITICAL: amix's default normalization scales output by
+    // 1/inputs, which silently halved the host voice.
     await ff([
       "-y", "-i", inPath,
       "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
       "-t", durSec, "-vf", vf,
-      "-filter_complex", "[0:a:0]aformat=sample_rates=44100:channel_layouts=stereo[ha];[ha][1:a:0]amix=inputs=2:duration=first:dropout_transition=0[aout]",
+      "-filter_complex", "[0:a:0]aformat=sample_rates=44100:channel_layouts=stereo[ha];[ha][1:a:0]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]",
       "-map", "0:v:0", "-map", "[aout]",
-      "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "192k", "-ar", "44100", outPath,
     ]);
     return;
@@ -117,7 +119,7 @@ async function renderScene(
     "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
     "-t", durSec, "-vf", vf,
     "-map", "0:v:0", "-map", "1:a:0",
-    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "192k", "-ar", "44100", outPath,
   ]);
 }
@@ -176,7 +178,7 @@ export async function assembleMontage(opts: {
         "-y", "-i", concatV, "-i", narrPath,
         "-filter_complex", overlayFilter,
         "-map", "[vout]", "-map", "1:a:0",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out,
       ]);
     } else if (opts.audio.music) {
@@ -205,11 +207,14 @@ export async function assembleMontage(opts: {
 
       // `[vo]` is consumed twice (sidechain key + mix), so split it first — an
       // ffmpeg filter label can only be read once. Fade the final mix out at end.
+      // Voice FIRST: music starts low (0.5) and ducks hard under the voice; the
+      // voice is boosted (1.6) and the amix must NOT normalize (normalize=0 —
+      // the default rescaling by 1/inputs is what made the voice too quiet).
       const audioCore = opts.audio.duckUnderSceneAudio
-        ? `[1:a]aformat=sample_rates=44100:channel_layouts=stereo[mus];` +
-          `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[vokey][vomix];` +
-          `[mus][vokey]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[ducked];` +
-          `[ducked][vomix]amix=inputs=2:duration=first:dropout_transition=0[amix]`
+        ? `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.5[mus];` +
+          `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=1.6,asplit=2[vokey][vomix];` +
+          `[mus][vokey]sidechaincompress=threshold=0.02:ratio=12:attack=15:release=400[ducked];` +
+          `[ducked][vomix]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[amix]`
         : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.8[amix]`;
       const audioGraph = `${audioCore};[amix]afade=t=out:st=${aFadeStart}:d=1.2[aout]`;
 
@@ -217,7 +222,7 @@ export async function assembleMontage(opts: {
         "-y", "-i", concatV, "-stream_loop", "-1", "-i", musicPath,
         "-filter_complex", `${videoGraph};${audioGraph}`,
         "-map", "[vout]", "-map", "[aout]", "-t", Dsec,
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out,
       ]);
     } else {
@@ -228,7 +233,7 @@ export async function assembleMontage(opts: {
         "-y", "-i", concatV,
         "-filter_complex", overlayFilter,
         "-map", "[vout]", "-map", "0:a?",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out,
       ]);
     }

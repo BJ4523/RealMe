@@ -301,46 +301,38 @@ export async function submitCinematicVideo(
   // One AI room per photo (capped by the agent's chosen count): the twin walks
   // through a faithful recreation of each.
   const roomPhotos = photos.slice(0, rooms);
-  const hero = photos[0];
 
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
+    // Room clips first. The lip-synced bookends are generated LATER (by the
+    // assembler) so the twin can be placed over the COMPLETED AI room footage —
+    // in the scene, not a presenter cutout over a photo. Store the hook texts
+    // now so the assembler doesn't need to re-run the model.
     const hook = await generateHypeReelScript(listing as Tables<"listings">);
-    const webhookUrl = `${env.siteUrl}/api/webhooks/heygen?secret=${env.heygenWebhookSecret}`;
-    const hostInput = {
-      avatarId: avatar.heygen_avatar_id!,
-      avatarKind: "digital_twin" as const,
-      voiceId: avatar.voice_id ?? undefined,
-      photoUrls: [hero],
-      title: video.title ?? undefined,
-      webhookUrl,
-    };
-    // Lip-synced talking-head bookends (v2) + one Seedance room-walk clip per photo.
-    const [introJob, outroJob, roomJobs] = await Promise.all([
-      generateVideo({ ...hostInput, script: hook.intro }),
-      generateVideo({ ...hostInput, script: hook.outro }),
-      Promise.all(
-        roomPhotos.map((url, i) =>
-          generateCinematicClip({
-            avatarLookId: avatar.heygen_avatar_id!,
-            referenceUrl: url,
-            prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-            duration: 10,
-          }),
-        ),
+    const roomJobs = await Promise.all(
+      roomPhotos.map((url, i) =>
+        generateCinematicClip({
+          avatarLookId: avatar.heygen_avatar_id!,
+          referenceUrl: url,
+          prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
+          duration: 10,
+        }),
       ),
-    ]);
+    );
     await supabase
       .from("videos")
       .update({
         heygen_video_id: encodeCinematicJobs(
-          introJob.videoId,
-          outroJob.videoId,
+          "",
+          "",
           roomJobs.map((j) => j.jobId),
         ),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
+        script_segments: {
+          bookends: { intro: hook.intro, outro: hook.outro },
+        } as unknown as Json,
       })
       .eq("id", videoId)
       .eq("user_id", userId);
@@ -390,15 +382,10 @@ export async function submitHypeReelVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
+    // Room clips only at submit. The lip-synced bookends are generated LATER by
+    // the assembler, over the COMPLETED AI room footage (in the scene — never the
+    // presenter cutout over a photo). Hook texts are stored for that phase.
     const script = await generateHypeReelScript(listing as Tables<"listings">);
-    const avatarKind = "digital_twin" as const;
-    const webhookUrl = `${env.siteUrl}/api/webhooks/heygen?secret=${env.heygenWebhookSecret}`;
-    // Host bookends (v2 presenter, twin over the hero photo).
-    const [introJob, outroJob] = await Promise.all([
-      generateVideo({ avatarId: avatar.heygen_avatar_id!, avatarKind, voiceId: avatar.voice_id ?? undefined, script: script.intro, photoUrls: [hero], title: video.title ?? undefined, webhookUrl }),
-      generateVideo({ avatarId: avatar.heygen_avatar_id!, avatarKind, voiceId: avatar.voice_id ?? undefined, script: script.outro, photoUrls: [hero], title: video.title ?? undefined, webhookUrl }),
-    ]);
-    // AI room clips: the twin walking through a faithful recreation of each room.
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
     const roomJobs = await Promise.all(
       roomPhotos.map((url, i) =>
@@ -412,10 +399,16 @@ export async function submitHypeReelVideo(
     );
 
     await supabase.from("videos").update({
-      heygen_video_id: encodeReelJobs(introJob.videoId, outroJob.videoId, roomJobs.map((j) => j.jobId)),
+      heygen_video_id: encodeReelJobs("", "", roomJobs.map((j) => j.jobId)),
       status: "processing",
       thumbnail_url: hero,
-      script_segments: { hypeReel: { featureCallouts: script.featureCallouts, trackId: trackId ?? "default" } } as unknown as Json,
+      script_segments: {
+        hypeReel: {
+          featureCallouts: script.featureCallouts,
+          trackId: trackId ?? "default",
+        },
+        bookends: { intro: script.intro, outro: script.outro },
+      } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
   } catch (e) {
     await fail(e instanceof Error ? e.message : "Hype Reel generation failed.");

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
-import { getVideoStatus } from "@/lib/heygen/video";
+import { startInSceneBookends } from "@/lib/video/bookends";
 import {
   assembleMontage,
   HYPE_REEL_TARGET_MS,
@@ -67,22 +67,59 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
   if (!isHypeReel(reel.heygen_video_id)) return "processing";
   const { intro, outro, accents } = decodeReelJobs(reel.heygen_video_id!);
   try {
-    // Poll all sub-jobs: host bookends (v2) + accents (v3).
-    const [introS, outroS] = await Promise.all([
-      getVideoStatus(intro),
-      getVideoStatus(outro),
-    ]);
+    // Poll the AI room clips (v3) first.
     const accentS = await Promise.all(accents.map(getCinematicClipStatus));
-    const all = [introS, outroS, ...accentS];
-    if (all.some((s) => s.status === "failed")) {
+    if (accentS.some((s) => s.status === "failed")) {
       const reason =
-        ([introS, outroS].find((s) => s.status === "failed")?.error) ||
         accentS.find((s) => s.status === "failed")?.error ||
         "A Hype Reel shot failed to render.";
       await supabase.from("videos").update({ status: "failed", error: reason }).eq("id", reel.id);
       return "failed";
     }
-    if (all.some((s) => s.status !== "completed")) return "processing";
+    if (accentS.some((s) => s.status !== "completed")) return "processing";
+    const accentUrls = accentS.map((s) => s.videoUrl).filter(Boolean) as string[];
+    if (accentUrls.length !== accents.length) return "processing";
+
+    // PHASE 1 — rooms done, bookends not started: fire the lip-synced talking
+    // bookends over the COMPLETED room footage (in the scene, never a presenter
+    // cutout). Claim first so concurrent polls don't double-fire.
+    if (!intro || !outro) {
+      const { data: claimedP1 } = await supabase
+        .from("videos").update({ status: "submitting" })
+        .eq("id", reel.id).eq("status", "processing").select("id");
+      if (!claimedP1 || claimedP1.length === 0) return "processing";
+      const jobs = await startInSceneBookends(
+        supabase,
+        reel.id,
+        accentUrls[0],
+        accentUrls[accentUrls.length - 1],
+      );
+      if (!jobs) {
+        throw new Error("Could not start host bookends (no active twin found).");
+      }
+      await supabase
+        .from("videos")
+        .update({
+          heygen_video_id: encodeReelJobs(jobs.introId, jobs.outroId, accents),
+          status: "processing",
+        })
+        .eq("id", reel.id);
+      return "processing";
+    }
+
+    // PHASE 2 — poll the bookends (v3 photo-to-video jobs).
+    const [introS, outroS] = await Promise.all([
+      getCinematicClipStatus(intro),
+      getCinematicClipStatus(outro),
+    ]);
+    if ([introS, outroS].some((s) => s.status === "failed")) {
+      const reason =
+        [introS, outroS].find((s) => s.status === "failed")?.error ||
+        "A Hype Reel host shot failed to render.";
+      await supabase.from("videos").update({ status: "failed", error: reason }).eq("id", reel.id);
+      return "failed";
+    }
+    if ([introS, outroS].some((s) => s.status !== "completed")) return "processing";
 
     // Claim the row so only one assembler runs the heavy path.
     const { data: claimed } = await supabase
@@ -92,7 +129,6 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
 
     const introUrl = introS.videoUrl!;
     const outroUrl = outroS.videoUrl!;
-    const accentUrls = accentS.map((s) => s.videoUrl).filter(Boolean) as string[];
 
     const track = getTrack(reel.trackId);
     const durations = roomDurationsMs(track.bpm, BEATS_PER_SHOT, ROOM_PHOTO_SHOTS);

@@ -77,11 +77,28 @@ export async function generateVideo(
   type Scene = {
     character: ReturnType<typeof presenter>;
     voice: ReturnType<typeof voiceFor>;
-    background?: { type: "image"; url: string; fit: "cover" };
+    background?:
+      | { type: "image"; url: string; fit: "cover" }
+      | { type: "video"; url: string; play_style: "fit_to_scene" };
   };
 
   let scenes: Scene[];
-  if (usePhotos.length <= 1) {
+  if (input.backgroundVideoUrl) {
+    // One scene: the lip-synced twin over MOVING footage (an AI room clip) — the
+    // talking bookend appears inside the scene rather than over a still photo.
+    // Background type "video" verified live against /v2/video/generate.
+    scenes = [
+      {
+        character: presenter(),
+        voice: voiceFor(input.script),
+        background: {
+          type: "video" as const,
+          url: input.backgroundVideoUrl,
+          play_style: "fit_to_scene" as const,
+        },
+      },
+    ];
+  } else if (usePhotos.length <= 1) {
     scenes = [
       {
         character: presenter(),

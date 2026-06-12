@@ -4,8 +4,8 @@ import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
-import { getVideoStatus } from "@/lib/heygen/video";
 import { generateSpeech } from "@/lib/heygen/voice";
+import { startInSceneBookends } from "@/lib/video/bookends";
 import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
@@ -88,15 +88,11 @@ export async function assembleCinematicVideo(
   }
 
   try {
-    // Poll the Seedance room clips (v3) + the lip-synced host bookends (v2).
+    // Poll the Seedance room clips (v3) first.
     const roomS = await Promise.all(rooms.map(getCinematicClipStatus));
-    const introS = intro ? await getVideoStatus(intro) : null;
-    const outroS = outro ? await getVideoStatus(outro) : null;
-    const all = [roomS, introS, outroS].flat().filter(Boolean) as { status: string; error?: string }[];
-
-    if (all.some((s) => s.status === "failed")) {
+    if (roomS.some((s) => s.status === "failed")) {
       const reason =
-        all.find((s) => s.status === "failed")?.error ??
+        roomS.find((s) => s.status === "failed")?.error ??
         "A cinematic shot failed to render.";
       await supabase
         .from("videos")
@@ -104,10 +100,59 @@ export async function assembleCinematicVideo(
         .eq("id", video.id);
       return "failed";
     }
-    if (all.some((s) => s.status !== "completed")) return "processing";
+    if (roomS.some((s) => s.status !== "completed")) return "processing";
 
     const roomUrls = roomS.map((s) => s.videoUrl).filter(Boolean) as string[];
     if (roomUrls.length !== rooms.length) return "processing";
+
+    // PHASE 1 — rooms are done but the bookends haven't been started: fire the
+    // lip-synced talking bookends now, FULLY GENERATED from a frame of the
+    // completed room footage (photo-to-video) — the twin talking IN the scene,
+    // never a cutout over anything. Claim first so polls don't double-fire.
+    if (!intro || !outro) {
+      const { data: claimedP1 } = await supabase
+        .from("videos")
+        .update({ status: "submitting" })
+        .eq("id", video.id)
+        .eq("status", "processing")
+        .select("id");
+      if (!claimedP1 || claimedP1.length === 0) return "processing";
+
+      const jobs = await startInSceneBookends(
+        supabase,
+        video.id,
+        roomUrls[0],
+        roomUrls[roomUrls.length - 1],
+      );
+      if (!jobs) {
+        throw new Error("Could not start host bookends (no active twin found).");
+      }
+      await supabase
+        .from("videos")
+        .update({
+          heygen_video_id: encodeCinematicJobs(jobs.introId, jobs.outroId, rooms),
+          status: "processing",
+        })
+        .eq("id", video.id);
+      return "processing";
+    }
+
+    // PHASE 2 — poll the bookends (v3 photo-to-video jobs).
+    const [introS, outroS] = await Promise.all([
+      getCinematicClipStatus(intro),
+      getCinematicClipStatus(outro),
+    ]);
+    if ([introS, outroS].some((s) => s.status === "failed")) {
+      const reason =
+        [introS, outroS].find((s) => s.status === "failed")?.error ??
+        "A host bookend failed to render.";
+      await supabase
+        .from("videos")
+        .update({ status: "failed", error: reason })
+        .eq("id", video.id);
+      return "failed";
+    }
+    if ([introS, outroS].some((s) => s.status !== "completed")) return "processing";
 
     // Claim the row (processing -> submitting) so only one assembler runs the
     // heavy download/assemble/upload. If we didn't win the claim, another run
