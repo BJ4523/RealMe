@@ -39,8 +39,14 @@ export default async function VideoPage({
     avatar.heygen_asset_id &&
     avatar.heygen_asset_id !== avatar.heygen_avatar_id
   );
+  // Only consult HeyGen when the page actually shows generation buttons —
+  // processing/completed videos don't, so they render without the round-trip
+  // (this external call was the main TTFB cost of the page; also cached).
+  const needsGenerateButtons = ["pending_script", "script_ready", "failed"].includes(
+    videoRow.status,
+  );
   let cinematicReady = false;
-  if (isTwin && avatar?.heygen_asset_id) {
+  if (needsGenerateButtons && isTwin && avatar?.heygen_asset_id) {
     const consent = await getTwinConsentStatus(avatar.heygen_asset_id);
     cinematicReady = isConsentVerified(consent);
   }

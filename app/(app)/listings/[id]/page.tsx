@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clapperboard, Trash2, ArrowLeft } from "lucide-react";
@@ -45,13 +46,18 @@ export default async function ListingDetailPage({
       {photos.length > 0 ? (
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {photos.slice(0, 8).map((p, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <div
               key={i}
-              src={p.url}
-              alt={p.caption ?? listing.address}
-              className="aspect-square w-full rounded-2xl object-cover"
-            />
+              className="relative aspect-square w-full overflow-hidden rounded-2xl"
+            >
+              <Image
+                src={p.url}
+                alt={p.caption ?? listing.address}
+                fill
+                sizes="(max-width: 640px) 50vw, 25vw"
+                className="object-cover"
+              />
+            </div>
           ))}
         </div>
       ) : null}

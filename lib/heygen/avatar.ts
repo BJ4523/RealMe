@@ -216,14 +216,35 @@ export function isConsentVerified(status: string | null | undefined): boolean {
   return status === "accepted" || status === "validated" || status === "approved";
 }
 
-/** Read a twin group's consent_status. Returns "unknown" on lookup failure. */
-export async function getTwinConsentStatus(groupId: string): Promise<string> {
+// Consent flips exactly once (unverified -> verified) and never back, so a
+// verified result is cached for the life of the server instance; anything else
+// is cached briefly. This keeps the HeyGen round-trip out of hot page renders,
+// which was adding seconds of TTFB to /videos/[id].
+const consentCache = new Map<string, { status: string; at: number }>();
+const CONSENT_UNVERIFIED_TTL_MS = 60_000;
+
+/**
+ * Read a twin group's consent_status. Returns "unknown" on lookup failure.
+ * Cached (verified = forever per instance, otherwise 60s); pass `fresh: true`
+ * to force a live check (e.g. right after the user records consent).
+ */
+export async function getTwinConsentStatus(
+  groupId: string,
+  opts: { fresh?: boolean } = {},
+): Promise<string> {
   if (isMock) return "validated";
+  const hit = consentCache.get(groupId);
+  if (!opts.fresh && hit) {
+    if (isConsentVerified(hit.status)) return hit.status;
+    if (Date.now() - hit.at < CONSENT_UNVERIFIED_TTL_MS) return hit.status;
+  }
   try {
     const res = await heygenFetch<{ data?: { consent_status?: string } }>(
       ENDPOINTS.getAvatarV3(groupId),
     );
-    return res.data?.consent_status ?? "unknown";
+    const status = res.data?.consent_status ?? "unknown";
+    consentCache.set(groupId, { status, at: Date.now() });
+    return status;
   } catch {
     return "unknown";
   }

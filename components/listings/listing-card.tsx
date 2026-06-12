@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ImageOff } from "lucide-react";
 import type { Tables } from "@/lib/types/database";
@@ -12,13 +13,14 @@ export function ListingCard({ listing }: { listing: Tables<"listings"> }) {
       href={`/listings/${listing.id}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-lg"
     >
-      <div className="aspect-video overflow-hidden bg-muted">
+      <div className="relative aspect-video overflow-hidden bg-muted">
         {cover ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={cover}
             alt={listing.address}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="flex size-full items-center justify-center text-muted-foreground">

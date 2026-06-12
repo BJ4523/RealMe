@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createListing, type ListingFormState } from "@/app/(app)/listings/actions";
@@ -182,8 +183,13 @@ export function ListingForm({
                       : "border-border opacity-40 hover:opacity-70"
                   }`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="size-full object-cover" />
+                  <Image
+                    src={url}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 33vw, 25vw"
+                    className="object-cover"
+                  />
                   {on ? (
                     <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
                       ✓

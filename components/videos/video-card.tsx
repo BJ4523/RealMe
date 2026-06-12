@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Play, ImageOff } from "lucide-react";
 import type { Tables } from "@/lib/types/database";
@@ -11,11 +12,12 @@ export function VideoCard({ video }: { video: Tables<"videos"> }) {
     >
       <div className="relative aspect-[9/16] overflow-hidden bg-muted">
         {video.thumbnail_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={video.thumbnail_url}
             alt={video.title ?? "Video"}
-            className="size-full object-cover"
+            fill
+            sizes="(max-width: 640px) 50vw, 25vw"
+            className="object-cover"
           />
         ) : (
           <div className="flex size-full items-center justify-center text-muted-foreground">

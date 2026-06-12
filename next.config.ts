@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Listing photos come from arbitrary hosts (Zillow/Redfin CDNs, Supabase
+  // storage), so allow any https source; next/image then serves resized,
+  // cached thumbnails instead of multi-MB originals (major page-weight win).
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "**" }],
+  },
   // ffmpeg-static locates its binary via __dirname. If Next/Turbopack BUNDLES it,
   // __dirname is rewritten and the binary path becomes bogus (e.g. /ROOT/...) ->
   // "spawn ffmpeg ENOENT". Keep it external so __dirname resolves to real

@@ -41,7 +41,10 @@ export default async function AvatarSettingsPage() {
     current.heygen_asset_id !== current.heygen_avatar_id;
   let consentStatus: string | null = null;
   if (isTwin && current?.status === "ready" && current.heygen_asset_id) {
-    consentStatus = await getTwinConsentStatus(current.heygen_asset_id);
+    // fresh: users land here right after recording consent — never show stale.
+    consentStatus = await getTwinConsentStatus(current.heygen_asset_id, {
+      fresh: true,
+    });
   }
   const consentVerified = isConsentVerified(consentStatus);
   const consentPending =
