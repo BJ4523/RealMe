@@ -29,7 +29,10 @@ const LISTING_SCHEMA = {
     photos: {
       type: "array",
       items: { type: "string" },
-      description: "Full URLs of listing photos",
+      description:
+        "EVERY full-resolution photo URL from the listing's ENTIRE photo gallery — " +
+        "all of them, in order, not just the hero/main image. Include every interior " +
+        "and exterior shot you can find on the page (typically 15-50+ images).",
     },
   },
 } as const;

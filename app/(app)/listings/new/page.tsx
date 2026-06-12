@@ -12,24 +12,25 @@ export default async function NewListingPage() {
     <>
       <PageHeader
         title="Add a listing"
-        description="Paste a Zillow/Redfin/Realtor link to auto-import, or enter details and drag in photos."
+        description="Paste a Zillow/Redfin/Realtor link to auto-import all the photos — or switch to manual entry."
       />
       <Card className="rounded-3xl">
         <CardContent className="pt-6">
-          <Tabs defaultValue="manual">
+          {/* URL import is the default; manual entry is the fallback. */}
+          <Tabs defaultValue="url">
             <TabsList className="rounded-full">
-              <TabsTrigger value="manual" className="rounded-full">
-                Manual entry
-              </TabsTrigger>
               <TabsTrigger value="url" className="rounded-full">
                 Import from URL
               </TabsTrigger>
+              <TabsTrigger value="manual" className="rounded-full">
+                Manual entry
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="manual" className="mt-6">
-              <ListingForm source="manual" />
-            </TabsContent>
             <TabsContent value="url" className="mt-6">
               <UrlImport />
+            </TabsContent>
+            <TabsContent value="manual" className="mt-6">
+              <ListingForm source="manual" />
             </TabsContent>
           </Tabs>
         </CardContent>

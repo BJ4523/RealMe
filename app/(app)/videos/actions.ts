@@ -27,6 +27,10 @@ import type { Json, Tables } from "@/lib/types/database";
 /** AI room clips per cinematic walkthrough — one Seedance clip per listing photo
  * (the twin walking through a faithful recreation of each room). Caps cost/time. */
 const MAX_CINEMATIC_ROOMS = 5;
+/** Fixed wardrobe pinned into EVERY room-clip prompt so the agent's outfit stays
+ * consistent across independently-generated scenes (otherwise clothes change). */
+const AGENT_WARDROBE =
+  "wearing a tailored charcoal blazer over a white shirt with dark trousers";
 /** AI room clips in a Hype Reel's middle tour (between the host bookends). Must
  * match ROOM_PHOTO_SHOTS in lib/video/hypereel.ts (beat-synced durations). */
 const HYPE_REEL_ROOMS = 3;
@@ -231,11 +235,14 @@ function cinematicPrompt(
     "Recreate the room shown in the reference image as accurately as possible:",
     "the same layout, furniture, wall colors, flooring, windows, fixtures and finishes.",
     "Do NOT invent, rearrange, or add furniture — keep the space true to the reference.",
-    `Inside that recreated room of ${place}, a friendly, well-dressed real-estate agent`,
-    "walks through and presents the space — looking around and gesturing naturally",
-    "toward its real features with genuine warmth and confidence.",
-    `Camera: ${move}; cinematic, steady, handheld realism, bright natural daylight.`,
-    "Continuous lifelike human motion, full body visible, the same person throughout.",
+    // Consistent wardrobe across every shot (clothes must not change room to room).
+    `Inside that recreated room of ${place}, a real-estate agent ${AGENT_WARDROBE}`,
+    "walks calmly through the space, looking around and gesturing toward its features.",
+    // Do NOT animate talking — the lip-sync looks fake; voice is added as voice-over.
+    "IMPORTANT: the agent does NOT speak — keep the mouth closed and relaxed, with",
+    "no talking, no lip movement, no jaw motion. The voice-over is added separately.",
+    `Camera: ${move}; cinematic, steady, bright natural daylight.`,
+    `Continuous lifelike motion, full body visible — the SAME person wearing the SAME outfit (${AGENT_WARDROBE}) in every shot.`,
     `Room ${index + 1} of ${total}.`,
   ].join(" ");
 }
