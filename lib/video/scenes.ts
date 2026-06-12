@@ -35,6 +35,27 @@ function ff(args: string[]): Promise<void> {
 /** Fixed Hype Reel length (independent of the song). Tunable in one place. */
 export const HYPE_REEL_TARGET_MS = 15000;
 
+/**
+ * Whether the bundled ffmpeg has the `drawtext` filter. The Vercel (Linux)
+ * ffmpeg-static binary does NOT include it even though macOS does — so overlays
+ * must degrade gracefully (render the video without burned-in text) rather than
+ * crash the whole assembly. Cached after the first probe.
+ */
+let drawtextSupport: Promise<boolean> | null = null;
+function supportsDrawtext(): Promise<boolean> {
+  if (drawtextSupport) return drawtextSupport;
+  drawtextSupport = new Promise((resolve) => {
+    if (!ffmpegPath) return resolve(false);
+    execFile(
+      ffmpegPath as string,
+      ["-hide_banner", "-filters"],
+      { maxBuffer: 1 << 24 },
+      (e, stdout) => resolve(!e && /\bdrawtext\b/.test(stdout || "")),
+    );
+  });
+  return drawtextSupport;
+}
+
 /** Read a media file's duration (ms) by parsing ffmpeg's probe output. */
 function probeDurationMs(path: string): Promise<number> {
   if (!ffmpegPath) return Promise.resolve(0);
@@ -134,9 +155,18 @@ export async function assembleMontage(opts: {
       "-c", "copy", concatV,
     ]);
 
-    // 3) Final pass: overlays + audio.
+    // 3) Final pass: overlays + audio. Overlays need the `drawtext` filter, which
+    // the Vercel ffmpeg-static binary lacks — drop them there so the render still
+    // succeeds (video without burned-in text) instead of crashing.
     const out = join(dir, "out.mp4");
-    const overlayFilter = buildOverlayFilter("[0:v]", "[vout]", opts.overlays ?? [], FONT);
+    const wantOverlays = opts.overlays ?? [];
+    const overlays = wantOverlays.length && (await supportsDrawtext())
+      ? wantOverlays
+      : [];
+    if (wantOverlays.length && !overlays.length) {
+      console.warn("[montage] drawtext unavailable — rendering without text overlays");
+    }
+    const overlayFilter = buildOverlayFilter("[0:v]", "[vout]", overlays, FONT);
 
     if (opts.audio.narration) {
       // Cinematic: single narration track, trim video to narration (-shortest).
@@ -166,7 +196,7 @@ export async function assembleMontage(opts: {
       const aFadeStart = Math.max(0, targetMs / 1000 - 1.2).toFixed(3);
 
       // Overlays -> (hold last frame to target) -> 1s fade to black.
-      const ov = buildOverlayFilter("[0:v]", "[vov]", opts.overlays ?? [], FONT);
+      const ov = buildOverlayFilter("[0:v]", "[vov]", overlays, FONT);
       const vHold =
         padSec > 0.04
           ? `[vov]tpad=stop_mode=clone:stop_duration=${padSec.toFixed(3)}[vh];[vh]`
