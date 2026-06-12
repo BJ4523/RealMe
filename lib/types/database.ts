@@ -38,6 +38,7 @@ export type Database = {
         Row: {
           created_at: string
           error: string | null
+          looks: Json
           heygen_asset_id: string | null
           heygen_avatar_id: string | null
           id: string
@@ -52,6 +53,7 @@ export type Database = {
         Insert: {
           created_at?: string
           error?: string | null
+          looks?: Json
           heygen_asset_id?: string | null
           heygen_avatar_id?: string | null
           id?: string
@@ -65,6 +67,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          looks?: Json
           error?: string | null
           heygen_asset_id?: string | null
           heygen_avatar_id?: string | null

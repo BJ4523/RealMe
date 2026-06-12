@@ -23,6 +23,7 @@ import {
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import { wardrobePrompt } from "@/lib/video/wardrobe";
+import { parseLooks } from "@/lib/avatars/looks-state";
 import type { Json, Tables } from "@/lib/types/database";
 
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
@@ -220,11 +221,14 @@ function cinematicPrompt(
   total: number,
   wardrobe: string,
 ): string {
+  // Face-forward moves FIRST: the talking bookends are generated from frames of
+  // these clips and HeyGen's face detector must find the agent (a behind-the-
+  // agent opener gave it the back of a head — "No face detected").
   const moves = [
-    "the camera walks in behind the agent on a smooth gimbal, following them into the space",
+    "a slow cinematic dolly-in pushes toward the agent, who faces the camera as they gesture to the room",
     "a steady tracking shot glides alongside the agent as they move through the room",
-    "a slow cinematic dolly-in pushes toward the agent as they gesture to the room",
     "the camera slowly orbits the agent, revealing the room around them",
+    "the camera walks in behind the agent on a smooth gimbal, following them into the space",
   ];
   const move = moves[index % moves.length];
   const place = listing?.address ? `the home at ${listing.address}` : "this home";
@@ -252,12 +256,36 @@ function cinematicPrompt(
  * stitched + narrated by assembleCinematicVideo. Requires a consent-validated
  * digital twin. Stores the clip job ids in heygen_video_id (cine:<id,id,...>).
  */
+/**
+ * Resolve the chosen look key ("original" or a trained outfit look) to the
+ * Seedance avatar id + the canonical face-on image for the talking bookends.
+ */
+function resolveLook(
+  avatar: Tables<"avatars">,
+  key: string | undefined,
+): { lookId: string; lookImageUrl: string | null; wardrobe: string } {
+  if (key && key !== "original") {
+    const item = parseLooks(avatar.looks).items[key];
+    if (item?.status === "ready" && item.lookId) {
+      return {
+        lookId: item.lookId,
+        lookImageUrl: item.imageUrl ?? null,
+        wardrobe: wardrobePrompt(key),
+      };
+    }
+  }
+  return {
+    lookId: avatar.heygen_avatar_id!,
+    lookImageUrl: null,
+    wardrobe: "wearing the same professional outfit throughout",
+  };
+}
+
 export async function submitCinematicVideo(
   videoId: string,
   outfitId?: string,
   roomCount?: number,
 ) {
-  const wardrobe = wardrobePrompt(outfitId);
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
     MAX_CINEMATIC_ROOMS,
@@ -305,15 +333,16 @@ export async function submitCinematicVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // Room clips first. The lip-synced bookends are generated LATER (by the
-    // assembler) so the twin can be placed over the COMPLETED AI room footage —
-    // in the scene, not a presenter cutout over a photo. Store the hook texts
-    // now so the assembler doesn't need to re-run the model.
+    // Room clips first, driven by the chosen LOOK (one canonical image keeps
+    // face + outfit consistent everywhere). The lip-synced bookends are
+    // generated LATER by the assembler — from the look's face-on image when
+    // available, else from a room-clip frame. Hook texts stored for that phase.
+    const { lookId, lookImageUrl, wardrobe } = resolveLook(avatar, outfitId);
     const hook = await generateHypeReelScript(listing as Tables<"listings">);
     const roomJobs = await Promise.all(
       roomPhotos.map((url, i) =>
         generateCinematicClip({
-          avatarLookId: avatar.heygen_avatar_id!,
+          avatarLookId: lookId,
           referenceUrl: url,
           prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
           duration: 10,
@@ -331,7 +360,11 @@ export async function submitCinematicVideo(
         status: "processing",
         thumbnail_url: photos[0] ?? null,
         script_segments: {
-          bookends: { intro: hook.intro, outro: hook.outro },
+          bookends: {
+            intro: hook.intro,
+            outro: hook.outro,
+            imageUrl: lookImageUrl,
+          },
         } as unknown as Json,
       })
       .eq("id", videoId)
@@ -349,7 +382,6 @@ export async function submitHypeReelVideo(
   trackId?: string,
   outfitId?: string,
 ) {
-  const wardrobe = wardrobePrompt(outfitId);
   const { userId } = await requireUser();
   const supabase = await createClient();
   const { data: video } = await supabase
@@ -382,15 +414,16 @@ export async function submitHypeReelVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // Room clips only at submit. The lip-synced bookends are generated LATER by
-    // the assembler, over the COMPLETED AI room footage (in the scene — never the
-    // presenter cutout over a photo). Hook texts are stored for that phase.
+    // Room clips only at submit, driven by the chosen LOOK. The lip-synced
+    // bookends are generated LATER by the assembler — from the look's face-on
+    // image when available, else from a room-clip frame.
+    const { lookId, lookImageUrl, wardrobe } = resolveLook(avatar, outfitId);
     const script = await generateHypeReelScript(listing as Tables<"listings">);
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
     const roomJobs = await Promise.all(
       roomPhotos.map((url, i) =>
         generateCinematicClip({
-          avatarLookId: avatar.heygen_avatar_id!,
+          avatarLookId: lookId,
           referenceUrl: url,
           prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
           duration: 8,
@@ -407,7 +440,11 @@ export async function submitHypeReelVideo(
           featureCallouts: script.featureCallouts,
           trackId: trackId ?? "default",
         },
-        bookends: { intro: script.intro, outro: script.outro },
+        bookends: {
+          intro: script.intro,
+          outro: script.outro,
+          imageUrl: lookImageUrl,
+        },
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
   } catch (e) {

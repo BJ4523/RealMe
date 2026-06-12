@@ -75,11 +75,15 @@ export async function startInSceneBookends(
   if (!row) return null;
 
   const meta = (
-    row.script_segments as { bookends?: { intro?: string; outro?: string } } | null
+    row.script_segments as {
+      bookends?: { intro?: string; outro?: string; imageUrl?: string | null };
+    } | null
   )?.bookends;
   const introText =
     meta?.intro?.trim() || "Welcome in — let me show you around this home.";
   const outroText = meta?.outro?.trim() || "Want a private tour? Reach out today.";
+  // Canonical look image (trained outfit look) — face-on by construction.
+  const lookImageUrl = meta?.imageUrl || null;
 
   const { data: avatar } = await supabase
     .from("avatars")
@@ -88,17 +92,28 @@ export async function startInSceneBookends(
     .maybeSingle();
   const voiceId = avatar?.voice_id ?? DEFAULT_VOICE_ID;
 
-  // Frames from the first and last room clips — "the twin in the house".
+  // PREFERRED: the canonical look image (twin, chosen outfit, face-on) drives
+  // both bookends directly — no frame extraction, no face-detection risk.
+  if (lookImageUrl) {
+    try {
+      const [i, o] = await Promise.all([
+        generateImageTalkingVideo({ imageUrl: lookImageUrl, script: introText, voiceId }),
+        generateImageTalkingVideo({ imageUrl: lookImageUrl, script: outroText, voiceId }),
+      ]);
+      return { introId: i.jobId, outroId: o.jobId };
+    } catch (e) {
+      // Fall through to the frame ladder only on face-detection rejection.
+      if (!(e instanceof Error && /no face detected/i.test(e.message))) throw e;
+    }
+  }
+
+  // FALLBACK: frames from the first and last room clips — "the twin in the house".
   const [introClip, outroClip] = await Promise.all([
     fetchBuffer(introClipUrl),
     fetchBuffer(outroClipUrl),
   ]);
-  const [introFrame, outroFrame] = await Promise.all([
-    extractFrameJpeg(introClip, 1),
-    extractFrameJpeg(outroClip, 1),
-  ]);
 
-  // Host the frames somewhere HeyGen can fetch (signed URLs on video-cache).
+  // Host frames somewhere HeyGen can fetch (signed URLs on video-cache).
   const storage = adminConfigured ? createAdminClient() : supabase;
   const base = `${row.user_id}/${videoId}`;
   const frameUrl = async (name: string, buf: Buffer) => {
@@ -113,14 +128,57 @@ export async function startInSceneBookends(
     if (!signed?.signedUrl) throw new Error("frame sign failed");
     return signed.signedUrl;
   };
-  const [introImageUrl, outroImageUrl] = await Promise.all([
-    frameUrl("bookend-intro", introFrame),
-    frameUrl("bookend-outro", outroFrame),
-  ]);
 
-  const [i, o] = await Promise.all([
-    generateImageTalkingVideo({ imageUrl: introImageUrl, script: introText, voiceId }),
-    generateImageTalkingVideo({ imageUrl: outroImageUrl, script: outroText, voiceId }),
-  ]);
-  return { introId: i.jobId, outroId: o.jobId };
+  // The photo-to-video engine REQUIRES a detectable face, and Seedance shots
+  // often start behind/away from the agent — so a single fixed frame is a coin
+  // flip ("No face detected"). Try several timestamps across both clips until
+  // one is accepted; only face-detection rejections are retryable.
+  const FRAME_TIMES_SEC = [2, 4, 6, 1];
+  const clips: { tag: string; buf: Buffer }[] = [
+    { tag: "a", buf: introClip },
+    { tag: "b", buf: outroClip },
+  ];
+  const uploadedFrames = new Map<string, string>(); // "tag@t" -> signed URL
+  const candidateUrl = async (clip: { tag: string; buf: Buffer }, t: number) => {
+    const key = `${clip.tag}@${t}`;
+    const hit = uploadedFrames.get(key);
+    if (hit) return hit;
+    const frame = await extractFrameJpeg(clip.buf, t);
+    const url = await frameUrl(`bookend-${key.replace("@", "-")}`, frame);
+    uploadedFrames.set(key, url);
+    return url;
+  };
+  const isNoFace = (e: unknown) =>
+    e instanceof Error && /no face detected/i.test(e.message);
+
+  const makeTalking = async (
+    preferred: { tag: string; buf: Buffer },
+    fallback: { tag: string; buf: Buffer },
+    script: string,
+  ): Promise<string> => {
+    let lastErr: unknown;
+    for (const clip of [preferred, fallback]) {
+      for (const t of FRAME_TIMES_SEC) {
+        try {
+          const imageUrl = await candidateUrl(clip, t);
+          const { jobId } = await generateImageTalkingVideo({ imageUrl, script, voiceId });
+          return jobId;
+        } catch (e) {
+          if (!isNoFace(e)) throw e;
+          lastErr = e;
+        }
+      }
+    }
+    throw lastErr instanceof Error
+      ? new Error(
+          "No face visible in any room-clip frame — regenerate the video (the next room clips will open facing the agent).",
+        )
+      : new Error("Could not create the talking bookend.");
+  };
+
+  // Sequential (not parallel): the intro's successful frame warms the cache and
+  // each rejected attempt is a fast 400.
+  const introId = await makeTalking(clips[0], clips[1], introText);
+  const outroId = await makeTalking(clips[1], clips[0], outroText);
+  return { introId, outroId };
 }

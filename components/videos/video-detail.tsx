@@ -20,7 +20,6 @@ import {
   pollVideoStatus,
 } from "@/app/(app)/videos/actions";
 import type { Tables } from "@/lib/types/database";
-import { WARDROBES } from "@/lib/video/wardrobe";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "./status-badge";
@@ -32,6 +31,7 @@ export function VideoDetail({
   cinematicReady = false,
   hasTwin = false,
   tracks = [],
+  looks = [{ id: "original", label: "Original twin look" }],
 }: {
   initialVideo: Video;
   /** True when the active twin is consent-verified — unlocks cinematic mode. */
@@ -40,11 +40,13 @@ export function VideoDetail({
   hasTwin?: boolean;
   /** Hype Reel music tracks the agent can pick from. */
   tracks?: { id: string; title: string; previewUrl: string }[];
+  /** Trained looks of the twin ("original" + ready outfit looks). */
+  looks?: { id: string; label: string }[];
 }) {
   const [video, setVideo] = useState<Video>(initialVideo);
   const [script, setScript] = useState(initialVideo.script ?? "");
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
-  const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
+  const [outfitId, setOutfitId] = useState(looks[0]?.id ?? "original");
   const [roomCount, setRoomCount] = useState(5);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -200,31 +202,31 @@ export function VideoDetail({
           <div className="flex flex-wrap items-center justify-end gap-3">
             {cinematicReady ? (
               <>
-                {/* Outfit the agent wears in the generated room clips. */}
+                {/* Which trained LOOK of the twin stars in the video — set up
+                    more looks (outfits) under Avatar → Looks. */}
                 <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  Outfit
+                  Look
                   <select
                     value={outfitId}
                     onChange={(e) => setOutfitId(e.target.value)}
                     className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
-                    aria-label="Agent outfit"
+                    aria-label="Twin look"
                   >
-                    <optgroup label="Men's">
-                      {WARDROBES.filter((w) => w.gender === "men").map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Women's">
-                      {WARDROBES.filter((w) => w.gender === "women").map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.label}
-                        </option>
-                      ))}
-                    </optgroup>
+                    {looks.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
+                {looks.length <= 1 ? (
+                  <Link
+                    href="/settings/avatar"
+                    className="text-xs text-muted-foreground underline"
+                  >
+                    + Add outfit looks
+                  </Link>
+                ) : null}
                 {/* How many rooms the cinematic walkthrough covers (1 clip each). */}
                 <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   Rooms

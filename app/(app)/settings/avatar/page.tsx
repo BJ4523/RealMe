@@ -8,6 +8,7 @@ import { deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
 import { ConsentButton } from "@/components/avatar/consent-button";
+import { LooksManager } from "@/components/avatar/looks-manager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/videos/status-badge";
@@ -179,6 +180,14 @@ export default async function AvatarSettingsPage() {
                 </Button>
               </form>
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isTwin && current?.status === "ready" ? (
+        <Card className="mb-8 rounded-3xl">
+          <CardContent className="pt-6">
+            <LooksManager initialLooks={current.looks} />
           </CardContent>
         </Card>
       ) : null}

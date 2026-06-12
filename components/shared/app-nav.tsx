@@ -8,15 +8,20 @@ import {
   Clapperboard,
   Settings,
   LogOut,
+  UserCircle2,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { signOut } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
+// The product's mental model, in order: see everything (Dashboard), add the
+// property (Listings), make the video (Videos), manage your twin + looks
+// (Avatar), everything else (Settings).
 const NAV = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/listings", label: "Listings", icon: Home },
   { href: "/videos", label: "Videos", icon: Clapperboard },
+  { href: "/settings/avatar", label: "Avatar", icon: UserCircle2 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -50,7 +55,10 @@ function NavLink({
 export function AppNav({ email }: { email: string | null }) {
   const pathname = usePathname();
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+    // "/settings" must not light up for "/settings/avatar" (Avatar's own tab).
+    href === "/settings"
+      ? pathname === "/settings"
+      : pathname === href || pathname.startsWith(href + "/");
 
   return (
     <>

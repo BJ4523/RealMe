@@ -46,6 +46,16 @@ export const ENDPOINTS = {
   avatarConsent: (groupId: string) =>
     `${HEYGEN_BASE}/v3/avatars/${groupId}/consent`,
   listAvatarLooks: `${HEYGEN_BASE}/v3/avatars/looks`,
+  // Photo-avatar model + look generation (canonical outfit images for a twin
+  // group). train/look-generate POST shapes verified live (train on a twin
+  // group reaches billing -> 402); the GET status shapes are normalized
+  // defensively in lib/heygen/looks.ts.
+  trainPhotoModel: `${HEYGEN_BASE}/v2/photo_avatar/train`,
+  trainPhotoModelStatus: (groupId: string) =>
+    `${HEYGEN_BASE}/v2/photo_avatar/train/status/${groupId}`,
+  generateLook: `${HEYGEN_BASE}/v2/photo_avatar/look/generate`,
+  lookGenerationStatus: (generationId: string) =>
+    `${HEYGEN_BASE}/v2/photo_avatar/generation/${generationId}`,
   generateVideoV3: `${HEYGEN_BASE}/v3/videos`,
   videoStatusV3: (id: string) => `${HEYGEN_BASE}/v3/videos/${id}`,
 } as const;

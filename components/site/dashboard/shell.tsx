@@ -417,10 +417,21 @@ function DashTopBar({ mode, section }) {
           <Bell size={16} />
           <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "var(--coral)" }} />
         </button>
-        <a href="/settings/avatar" title="Your avatar & settings" className="btn btn-ghost btn-sm" style={{ padding: "8px 10px", display: "inline-flex", alignItems: "center" }}>
+        {/* Clear exits to the functional app — manage data + your twin. */}
+        {!isMobile && (
+          <a href="/listings" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>
+            Listings
+          </a>
+        )}
+        {!isMobile && (
+          <a href="/videos" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>
+            Videos
+          </a>
+        )}
+        <a href="/settings/avatar" title="Your avatar & looks" className="btn btn-ghost btn-sm" style={{ padding: "8px 10px", display: "inline-flex", alignItems: "center" }}>
           <UserRound size={16} />
         </a>
-        <button className="btn btn-primary btn-sm">+ New reel</button>
+        <a href="/listings" className="btn btn-primary btn-sm">+ New reel</a>
       </div>
     </header>
   );
