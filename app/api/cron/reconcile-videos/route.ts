@@ -107,9 +107,9 @@ export async function GET(request: NextRequest) {
         id: v.id,
         user_id: v.user_id,
         script: v.script,
-        roomNarration:
-          (v.script_segments as { roomNarration?: string } | null)
-            ?.roomNarration ?? null,
+        beats: (v.script_segments as { beats?: string[] } | null)?.beats ?? null,
+        lipsyncs:
+          (v.script_segments as { lipsyncs?: string[] } | null)?.lipsyncs ?? null,
         heygen_video_id: v.heygen_video_id,
         photos,
       },

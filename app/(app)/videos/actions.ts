@@ -214,11 +214,10 @@ export async function submitVideo(videoId: string) {
 }
 
 /**
- * Motion brief for ONE cinematic shot. This is what makes the agent appear to
- * be *inside* the room (walking/presenting), not composited in front of a photo.
- * It describes the subject's action + camera move + look; the reference photo
- * steers the room, and the narration is muxed separately (so this is voice-over,
- * not lip-sync). Varied camera moves per shot keep the walkthrough dynamic.
+ * Motion brief for ONE cinematic room shot. The agent moves through a faithful
+ * recreation of the room WHILE addressing the camera — the face must stay
+ * clearly visible because this clip is lip-synced to the cloned voice afterward
+ * (HeyGen Lipsync-Precision). The reference photo steers the room.
  */
 function cinematicPrompt(
   listing: Tables<"listings"> | null,
@@ -226,36 +225,30 @@ function cinematicPrompt(
   total: number,
   wardrobe: string,
 ): string {
-  // Face-forward moves FIRST: the talking bookends are generated from frames of
-  // these clips and HeyGen's face detector must find the agent (a behind-the-
-  // agent opener gave it the back of a head — "No face detected").
+  // Keep the FACE toward camera on every move (lip-sync needs a visible face).
   const moves = [
-    "a slow cinematic dolly-in pushes toward the agent, who faces the camera as they gesture to the room",
-    "a steady tracking shot glides alongside the agent as they move through the room",
-    "the camera slowly orbits the agent, revealing the room around them",
-    "the camera walks in behind the agent on a smooth gimbal, following them into the space",
+    "a slow cinematic dolly-in pushes toward the agent as they face the camera and gesture to the room",
+    "a steady tracking shot glides with the agent as they walk forward facing the camera, presenting the room",
+    "the camera slowly arcs to stay in front of the agent as they move through, keeping their face to camera",
+    "a smooth gimbal move leads the agent backward through the space as they address the camera",
   ];
   const move = moves[index % moves.length];
   const place = listing?.address ? `the home at ${listing.address}` : "this home";
   return [
-    "Photorealistic vertical 9:16 real-estate walkthrough.",
+    "Photorealistic vertical 9:16 cinematic real-estate walkthrough, premium",
+    "launch-film look — warm natural light, shallow depth of field, gentle grain.",
     // FIDELITY FIRST: faithfully recreate the EXACT room in the reference image.
-    "Recreate the room shown in the reference image as accurately as possible:",
-    "the same layout, furniture, wall colors, flooring, windows, fixtures and finishes.",
-    "Do NOT invent, rearrange, or add furniture — keep the space true to the reference.",
-    // Consistent wardrobe across every shot (clothes must not change room to room).
-    `Inside that recreated room of ${place}, a real-estate agent ${wardrobe}`,
-    "walks calmly through the space, looking around and gesturing toward its features.",
-    // EXACTLY ONE PERSON. Seedance otherwise hallucinates bystanders, and a
-    // two-person frame then gets grabbed for the talking bookend ("two people").
-    "CRITICAL: there is EXACTLY ONE person in the entire scene — the agent, completely alone.",
-    "No other people, no bystanders, no background figures, no second person, no crowd,",
-    "and no reflections, paintings or photos depicting other people. Only the single agent.",
-    // Do NOT animate talking — the lip-sync looks fake; voice is added as voice-over.
-    "IMPORTANT: the agent does NOT speak — keep the mouth closed and relaxed, with",
-    "no talking, no lip movement, no jaw motion. The voice-over is added separately.",
-    `Camera: ${move}; cinematic, steady, bright natural daylight.`,
-    `Continuous lifelike motion, full body visible — the SAME person wearing the SAME outfit (${wardrobe}) in every shot.`,
+    "Recreate the room in the reference image accurately: the same layout, furniture,",
+    "wall colors, flooring, windows, fixtures and finishes. Do NOT invent or rearrange.",
+    `Inside that recreated room of ${place}, a charismatic real-estate agent ${wardrobe}`,
+    "moves through the space presenting it, looking toward the camera and gesturing to its features.",
+    // Face visible for lip-sync.
+    "The agent FACES the camera with their face clearly visible throughout, engaged and warm.",
+    // Single subject.
+    "EXACTLY ONE person in the scene — the agent, completely alone. No other people,",
+    "bystanders, background figures, reflections or photos of other people.",
+    `Camera: ${move}; cinematic, steady, bright.`,
+    `Full body visible — the SAME person in the SAME outfit (${wardrobe}) in every shot.`,
     `Room ${index + 1} of ${total}.`,
   ].join(" ");
 }
@@ -290,6 +283,27 @@ function cinematicExteriorPrompt(
     "settling to a confident medium shot; steady, premium, magazine-quality.",
     `The SAME person in the SAME outfit (${wardrobe}) — consistent throughout.`,
   ].join(" ");
+}
+
+/**
+ * Derive exactly `count` short narration lines (one per room beat) from the
+ * walkthrough script. Uses its photo-mapped segment lines, then pads from the
+ * sentence stream so every room clip has something to lip-sync to.
+ */
+function beatLinesForRooms(
+  script: { narration: string; segments: { line: string }[] },
+  count: number,
+): string[] {
+  const fromSegments = script.segments.map((s) => s.line.trim()).filter(Boolean);
+  const sentences = (script.narration.match(/[^.!?]+[.!?]+/g) ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const pool = fromSegments.length >= count ? fromSegments : [...fromSegments, ...sentences];
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push(pool[i] ?? sentences[i % Math.max(1, sentences.length)] ?? "Take a look at this space.");
+  }
+  return out;
 }
 
 /**
@@ -368,15 +382,24 @@ export async function submitCinematicVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // 100% CINEMATIC AVATAR (Seedance — "keep your likeness, add cinematic
-    // range"): a premium EXTERIOR opener (the agent presenting in front of the
-    // house) + the room walk + an EXTERIOR closer — all the real twin, one look
-    // id (same outfit). The cloned voice (opening pitch + room narration) is
-    // muxed as VOICE-OVER across the whole montage. No Video Agent, no lip-sync
-    // engine — just the cinematic look from the launch demo.
+    // CINEMATIC AVATAR + LIPSYNC pipeline (one clean path):
+    //   per beat:  cinematic_avatar clip (silent, keeps likeness)
+    //   later:     cloned-voice TTS  ->  Lipsync-Precision onto the clip
+    // Result: the real twin walking/presenting through the home, TALKING in
+    // their own voice, lip-synced. Beats = exterior opener + each room +
+    // exterior closer. Here we just fire the (silent) clips and store the
+    // per-beat scripts; the assembler does TTS + lipsync + stitch.
     const { lookId, wardrobe } = resolveLook(avatar);
     const exterior = photos[0];
-    const roomScript = await generateWalkthroughScript(listing as Tables<"listings">);
+    const openingPitch =
+      video.script?.trim() || "Welcome — let me show you this beautiful home.";
+    const [hook, roomScript] = await Promise.all([
+      generateHypeReelScript(listing as Tables<"listings">),
+      generateWalkthroughScript(listing as Tables<"listings">),
+    ]);
+    const roomLines = beatLinesForRooms(roomScript, roomPhotos.length);
+    const cta = hook.outro?.trim() || "Reach out today to see it in person.";
+
     const [openerClip, roomJobs, closerClip] = await Promise.all([
       generateCinematicClip({
         avatarLookId: lookId,
@@ -401,20 +424,17 @@ export async function submitCinematicVideo(
         duration: 8,
       }),
     ]);
-    const allClips = [
-      openerClip.jobId,
-      ...roomJobs.map((j) => j.jobId),
-      closerClip.jobId,
-    ];
+    // Clips and their per-beat scripts share one order: [opener, ...rooms, closer].
+    const allClips = [openerClip.jobId, ...roomJobs.map((j) => j.jobId), closerClip.jobId];
+    const beats = [openingPitch, ...roomLines, cta];
+
     await supabase
       .from("videos")
       .update({
         heygen_video_id: encodeCinematicJobs("", "", allClips),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
-        script_segments: {
-          roomNarration: roomScript.narration,
-        } as unknown as Json,
+        script_segments: { beats } as unknown as Json,
       })
       .eq("id", videoId)
       .eq("user_id", userId);
@@ -590,9 +610,11 @@ export async function pollVideoStatus(
         id: video.id,
         user_id: video.user_id,
         script: video.script,
-        roomNarration:
-          (video.script_segments as { roomNarration?: string } | null)
-            ?.roomNarration ?? null,
+        beats:
+          (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
+        lipsyncs:
+          (video.script_segments as { lipsyncs?: string[] } | null)?.lipsyncs ??
+          null,
         heygen_video_id: video.heygen_video_id,
         photos,
       },
