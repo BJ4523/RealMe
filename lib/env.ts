@@ -17,7 +17,10 @@ export const env = {
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   heygenApiKey: process.env.HEYGEN_API_KEY ?? "",
   heygenWebhookSecret: process.env.HEYGEN_WEBHOOK_SECRET ?? "",
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  // Powers AI-written walkthrough scripts / descriptions. Primary var name is
+  // ANTHROPIC_KEY; ANTHROPIC_API_KEY is accepted as a fallback.
+  anthropicApiKey:
+    process.env.ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY ?? "",
   // Firecrawl: powers URL import past bot walls (Zillow/Realtor/Redfin).
   // When unset, URL import falls back to the dependency-free scraper.
   firecrawlApiKey: process.env.FIRECRAWL_API_KEY ?? "",
