@@ -186,7 +186,7 @@ export function VideoDetail({
           <div className="flex items-center justify-between">
             <h2 className="font-heading text-lg font-bold">Opening pitch</h2>
             <span className="text-xs text-muted-foreground">
-              Spoken in front of the house — edit before generating
+              Spoken in front of the house · auto-written for ~20s — edit before generating
             </span>
           </div>
           <Textarea
@@ -195,6 +195,19 @@ export function VideoDetail({
             rows={8}
             className="rounded-2xl"
           />
+          {(() => {
+            const words = script.trim() ? script.trim().split(/\s+/).length : 0;
+            const secs = Math.round((words / 2.5) * 10) / 10; // ~150 wpm
+            const onTarget = secs >= 16 && secs <= 22;
+            return (
+              <p
+                className={`text-xs ${onTarget ? "text-muted-foreground" : "text-amber-600"}`}
+              >
+                {words} words · ~{secs}s spoken
+                {onTarget ? " · on target" : " · aim for ~20s (≈50 words)"}
+              </p>
+            );
+          })()}
           <div className="flex flex-wrap items-center justify-end gap-3">
             {cinematicReady ? (
               <>

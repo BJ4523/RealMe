@@ -138,12 +138,39 @@ const OpeningPitchSchema = z.object({
 export type OpeningPitch = z.infer<typeof OpeningPitchSchema>;
 
 /**
+ * Target spoken length of the opening pitch. The opening is a fixed ~20s talking
+ * shot, and an Avatar render runs exactly as long as its script — so the script
+ * length IS the clip duration. We calibrate to ~150 wpm natural delivery
+ * (≈2.5 words/sec) and cap hard so the opening can never overshoot the duration.
+ */
+const OPENING_PITCH_SECONDS = 20;
+const WORDS_PER_SECOND = 2.5;
+const TARGET_WORDS = Math.round(OPENING_PITCH_SECONDS * WORDS_PER_SECOND); // ~50
+const MAX_WORDS = Math.round(TARGET_WORDS * 1.15); // ~57 hard ceiling
+
+/** Trim to a whole-sentence boundary at/under the word ceiling (never mid-thought). */
+function clampToBudget(text: string, maxWords = MAX_WORDS): string {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text.trim();
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  let out = "";
+  for (const s of sentences) {
+    const next = (out + " " + s).trim();
+    if (next.split(/\s+/).length > maxWords) break;
+    out = next;
+  }
+  return (out || words.slice(0, maxWords).join(" ")).trim();
+}
+
+/**
  * Generate the agent's ~20s on-camera OPENING PITCH (spoken lip-synced standing
- * in front of the house). This is the editable script the user controls — it
- * pre-fills the narration box. Uses Claude when keyed; templated fallback else.
+ * in front of the house), LENGTH-CALIBRATED to the opening duration. This is the
+ * editable script the user controls — it pre-fills the box. Uses Claude when
+ * keyed; templated fallback else. Always clamped to the word budget so it can't
+ * run past ~20s.
  */
 export async function generateOpeningPitch(listing: Listing): Promise<string> {
-  if (!env.anthropicApiKey) return templatedOpeningPitch(listing);
+  if (!env.anthropicApiKey) return clampToBudget(templatedOpeningPitch(listing));
   try {
     const client = new Anthropic({ apiKey: env.anthropicApiKey });
     const message = await client.messages.parse({
@@ -151,18 +178,22 @@ export async function generateOpeningPitch(listing: Listing): Promise<string> {
       max_tokens: 600,
       system:
         "You are a real-estate agent recording the OPENING of a listing reel, " +
-        "on camera, standing in front of the house. Write what you SAY out loud " +
-        "for about 20 seconds (45-60 words): a natural greeting, the property and " +
-        "its headline numbers (beds/baths/sqft/price), a tease of 2-3 real " +
-        "highlights, and a punchy call to action (e.g. 'DM me to see it this " +
-        "weekend'). Conversational, confident, first person. Use ONLY the facts " +
-        "provided — never invent rooms, finishes, or numbers.",
+        "on camera, standing in front of the house. Write ONLY what you SAY out " +
+        `loud — calibrated to EXACTLY ${OPENING_PITCH_SECONDS} seconds of natural ` +
+        `spoken delivery, which is about ${TARGET_WORDS} words and MUST NOT exceed ` +
+        `${MAX_WORDS} words (the spoken length IS the video length, so do not run ` +
+        "over). Include: a natural greeting, the property and its headline numbers " +
+        "(beds/baths/sqft/price), a tease of 2-3 real highlights, and a punchy " +
+        "call to action (e.g. 'DM me to see it this weekend'). Conversational, " +
+        "confident, first person. Use ONLY the facts provided — never invent " +
+        "rooms, finishes, or numbers. Count your words and stay within budget.",
       messages: [{ role: "user", content: JSON.stringify(listingForPrompt(listing)) }],
       output_config: { format: zodOutputFormat(OpeningPitchSchema) },
     });
-    return message.parsed_output?.pitch?.trim() || templatedOpeningPitch(listing);
+    const pitch = message.parsed_output?.pitch?.trim();
+    return pitch ? clampToBudget(pitch) : clampToBudget(templatedOpeningPitch(listing));
   } catch {
-    return templatedOpeningPitch(listing);
+    return clampToBudget(templatedOpeningPitch(listing));
   }
 }
 
