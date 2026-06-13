@@ -53,6 +53,11 @@ export const ENDPOINTS = {
     `${HEYGEN_BASE}/v3/avatars/looks/${lookId}`,
   generateVideoV3: `${HEYGEN_BASE}/v3/videos`,
   videoStatusV3: (id: string) => `${HEYGEN_BASE}/v3/videos/${id}`,
+  // Video Agent: prompt-driven, agentic talking-avatar composer (lip-synced).
+  // POST creates a session; GET returns status + a video_id once it starts
+  // rendering (then poll the video via videoStatusV3). Jobs take ~20-45 min.
+  videoAgents: `${HEYGEN_BASE}/v3/video-agents`,
+  videoAgentSession: (id: string) => `${HEYGEN_BASE}/v3/video-agents/${id}`,
 } as const;
 
 /**

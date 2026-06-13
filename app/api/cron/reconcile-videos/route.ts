@@ -110,6 +110,12 @@ export async function GET(request: NextRequest) {
         roomNarration:
           (v.script_segments as { roomNarration?: string } | null)
             ?.roomNarration ?? null,
+        openerSession:
+          (v.script_segments as { videoAgent?: { opener?: string } } | null)
+            ?.videoAgent?.opener ?? null,
+        closerSession:
+          (v.script_segments as { videoAgent?: { closer?: string } } | null)
+            ?.videoAgent?.closer ?? null,
         heygen_video_id: v.heygen_video_id,
         photos,
       },

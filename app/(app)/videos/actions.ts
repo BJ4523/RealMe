@@ -18,13 +18,14 @@ import {
 } from "@/lib/video/hypereel";
 import { generateVideo, getVideoStatus } from "@/lib/heygen/video";
 import { generateCinematicClip } from "@/lib/heygen/cinematic";
+import { createVideoAgentSession } from "@/lib/heygen/videoagent";
 import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import {
   assembleCinematicVideo,
   encodeCinematicJobs,
   isCinematic,
 } from "@/lib/video/cinematic";
-import { isMock } from "@/lib/heygen/client";
+import { isMock, DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import type { Json, Tables } from "@/lib/types/database";
 
@@ -289,6 +290,29 @@ function cinematicExteriorPrompt(
   ].join(" ");
 }
 
+/** Video Agent prompt for the lip-synced OPENER (twin in front of the house). */
+function videoAgentOpenerPrompt(pitch: string): string {
+  return [
+    "Create a vertical 9:16 portrait real-estate video opener.",
+    "The presenter (the provided avatar) stands outdoors directly in front of the",
+    "home shown in the attached photo, premium cinematic daylight, looking at the",
+    "camera. They speak warmly and confidently, lip-synced, saying EXACTLY this",
+    `and nothing else: "${pitch}".`,
+    "Single presenter only, no other people. Keep it to about 20 seconds.",
+  ].join(" ");
+}
+
+/** Video Agent prompt for the lip-synced CLOSER / CTA (twin in front of house). */
+function videoAgentCloserPrompt(cta: string): string {
+  return [
+    "Create a vertical 9:16 portrait real-estate closing shot.",
+    "The presenter (the provided avatar) stands in front of the home shown in the",
+    "attached photo, warm and inviting, looking at the camera, lip-synced, saying",
+    `EXACTLY this and nothing else: "${cta}".`,
+    "Single presenter only, no other people. Keep it to about 8 seconds.",
+  ].join(" ");
+}
+
 /**
  * Cinematic alternative to submitVideo: generate one Seedance "Avatar Shots"
  * clip per listing photo (the verified twin moving through the scene), to be
@@ -365,19 +389,33 @@ export async function submitCinematicVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // ALL Seedance (no lip-synced avatar): an EXTERIOR opener in front of the
-    // house, the room walk, then an EXTERIOR closer — one cinematic piece, real
-    // twin, trained outfit throughout. The cloned voice (opening pitch + room
-    // narration) is muxed as VOICE-OVER over the whole montage by the assembler.
+    // HYBRID: a lip-synced VIDEO AGENT opener + closer (the twin talking in front
+    // of the house, cloned voice) bracket the SEEDANCE room walk (the cinematic
+    // middle). The walk is silent Seedance + cloned voice-over (room narration);
+    // the opener/closer carry their own lip-synced audio (pitch / CTA).
     const { lookId, wardrobe } = resolveLook(avatar);
+    const voiceId = avatar.voice_id ?? DEFAULT_VOICE_ID;
     const exterior = photos[0];
-    const roomScript = await generateWalkthroughScript(listing as Tables<"listings">);
-    const [introClip, roomJobs, closerClip] = await Promise.all([
-      generateCinematicClip({
-        avatarLookId: lookId,
-        referenceUrl: exterior,
-        prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
-        duration: 8,
+    const openingPitch =
+      video.script?.trim() || "Welcome — let me show you this beautiful home.";
+    const [hook, roomScript] = await Promise.all([
+      generateHypeReelScript(listing as Tables<"listings">),
+      generateWalkthroughScript(listing as Tables<"listings">),
+    ]);
+    const [openerVA, closerVA, roomJobs] = await Promise.all([
+      createVideoAgentSession({
+        prompt: videoAgentOpenerPrompt(openingPitch),
+        avatarId: lookId,
+        voiceId,
+        fileUrls: [exterior],
+        orientation: "portrait",
+      }),
+      createVideoAgentSession({
+        prompt: videoAgentCloserPrompt(hook.outro),
+        avatarId: lookId,
+        voiceId,
+        fileUrls: [exterior],
+        orientation: "portrait",
       }),
       Promise.all(
         roomPhotos.map((url, i) =>
@@ -389,30 +427,21 @@ export async function submitCinematicVideo(
           }),
         ),
       ),
-      generateCinematicClip({
-        avatarLookId: lookId,
-        referenceUrl: exterior,
-        prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
-        duration: 8,
-      }),
     ]);
-    // Every clip in playback order goes in the clip list (intro/outro slots stay
-    // empty — there are no avatar bookends anymore).
-    const allClips = [
-      introClip.jobId,
-      ...roomJobs.map((j) => j.jobId),
-      closerClip.jobId,
-    ];
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs("", "", allClips),
+        // Seedance WALK clips in the encoding; the VA opener/closer sessions live
+        // in script_segments (they resolve session -> video -> url on each poll).
+        heygen_video_id: encodeCinematicJobs("", "", roomJobs.map((j) => j.jobId)),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
-        // script = the editable opening pitch (voice-over the opener); the room
-        // narration plays over the walk. Combined by the assembler.
         script_segments: {
           roomNarration: roomScript.narration,
+          videoAgent: {
+            opener: openerVA.sessionId,
+            closer: closerVA.sessionId,
+          },
         } as unknown as Json,
       })
       .eq("id", videoId)
@@ -592,6 +621,12 @@ export async function pollVideoStatus(
         roomNarration:
           (video.script_segments as { roomNarration?: string } | null)
             ?.roomNarration ?? null,
+        openerSession:
+          (video.script_segments as { videoAgent?: { opener?: string } } | null)
+            ?.videoAgent?.opener ?? null,
+        closerSession:
+          (video.script_segments as { videoAgent?: { closer?: string } } | null)
+            ?.videoAgent?.closer ?? null,
         heygen_video_id: video.heygen_video_id,
         photos,
       },
