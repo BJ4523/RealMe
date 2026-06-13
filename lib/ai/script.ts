@@ -124,6 +124,72 @@ function templatedScript(listing: Listing): WalkthroughScript {
   return { narration: lines.join(" "), segments };
 }
 
+const OpeningPitchSchema = z.object({
+  pitch: z
+    .string()
+    .describe(
+      "The agent's on-camera opening pitch, delivered standing in front of the " +
+        "house — about 20 seconds spoken (45-60 words). Conversational and " +
+        "confident: greet, name the property and headline stats, tease 2-3 real " +
+        "highlights, and end with a clear call to action. Use ONLY provided facts.",
+    ),
+});
+
+export type OpeningPitch = z.infer<typeof OpeningPitchSchema>;
+
+/**
+ * Generate the agent's ~20s on-camera OPENING PITCH (spoken lip-synced standing
+ * in front of the house). This is the editable script the user controls — it
+ * pre-fills the narration box. Uses Claude when keyed; templated fallback else.
+ */
+export async function generateOpeningPitch(listing: Listing): Promise<string> {
+  if (!env.anthropicApiKey) return templatedOpeningPitch(listing);
+  try {
+    const client = new Anthropic({ apiKey: env.anthropicApiKey });
+    const message = await client.messages.parse({
+      model: "claude-opus-4-8",
+      max_tokens: 600,
+      system:
+        "You are a real-estate agent recording the OPENING of a listing reel, " +
+        "on camera, standing in front of the house. Write what you SAY out loud " +
+        "for about 20 seconds (45-60 words): a natural greeting, the property and " +
+        "its headline numbers (beds/baths/sqft/price), a tease of 2-3 real " +
+        "highlights, and a punchy call to action (e.g. 'DM me to see it this " +
+        "weekend'). Conversational, confident, first person. Use ONLY the facts " +
+        "provided — never invent rooms, finishes, or numbers.",
+      messages: [{ role: "user", content: JSON.stringify(listingForPrompt(listing)) }],
+      output_config: { format: zodOutputFormat(OpeningPitchSchema) },
+    });
+    return message.parsed_output?.pitch?.trim() || templatedOpeningPitch(listing);
+  } catch {
+    return templatedOpeningPitch(listing);
+  }
+}
+
+function templatedOpeningPitch(listing: Listing): string {
+  const place = [listing.address, listing.city].filter(Boolean).join(", ");
+  const price = listing.price
+    ? `$${Math.round(Number(listing.price)).toLocaleString("en-US")}`
+    : null;
+  const specs = [
+    listing.beds ? `${listing.beds} beds` : null,
+    listing.baths ? `${listing.baths} baths` : null,
+    listing.sqft ? `${listing.sqft.toLocaleString("en-US")} square feet` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return [
+    `Let me show you ${place || "this home"}.`,
+    specs ? `${specs}.` : "",
+    (listing.features ?? []).slice(0, 2).join(", ") +
+      ((listing.features ?? []).length ? "." : ""),
+    price ? `Asking ${price}.` : "",
+    "DM me to come see it this weekend.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 const HypeReelSchema = z.object({
   intro: z
     .string()

@@ -184,9 +184,9 @@ export function VideoDetail({
         video.status === "pending_script") && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-heading text-lg font-bold">Narration script</h2>
+            <h2 className="font-heading text-lg font-bold">Opening pitch</h2>
             <span className="text-xs text-muted-foreground">
-              Edit before generating
+              Spoken in front of the house — edit before generating
             </span>
           </div>
           <Textarea

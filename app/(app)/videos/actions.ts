@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { generateWalkthroughScript, generateHypeReelScript } from "@/lib/ai/script";
+import {
+  generateWalkthroughScript,
+  generateHypeReelScript,
+  generateOpeningPitch,
+} from "@/lib/ai/script";
 import {
   encodeReelJobs,
   isHypeReel,
@@ -71,14 +75,17 @@ export async function createDraftForListing(
     .single();
   if (error || !video) return { error: error?.message ?? "Could not start video." };
 
+  // The editable box is the agent's OPENING PITCH (spoken lip-synced in front of
+  // the house). AI-generated via Claude; the user edits it. The room-walk
+  // voiceover is generated separately at submit (script_segments.roomNarration).
   const seeded = scriptText?.trim();
-  const narration = seeded
+  const pitch = seeded
     ? seeded
-    : (await generateWalkthroughScript(listing as Tables<"listings">)).narration;
+    : await generateOpeningPitch(listing as Tables<"listings">);
 
   await supabase
     .from("videos")
-    .update({ script: narration, status: "script_ready" })
+    .update({ script: pitch, status: "script_ready" })
     .eq("id", video.id);
 
   return { videoId: video.id };
@@ -330,15 +337,16 @@ export async function submitCinematicVideo(
 
   try {
     // Room clips first — the real twin in its trained outfit (consistent
-    // everywhere). The lip-synced bookends are generated LATER by the assembler
-    // (v3 twin avatar over the front-of-house photo). Hook texts stored now.
+    // everywhere). The OPENING bookend speaks the editable box (video.script =
+    // the agent's pitch); the rooms get their OWN auto voiceover; a short CTA
+    // closes. The bookends are generated LATER by the assembler.
     const { lookId, wardrobe } = resolveLook(avatar);
-    const hook = await generateHypeReelScript(listing as Tables<"listings">);
-    // The OPENING is a ~20s talking shot, so give it a fuller intro: the hook
-    // plus a couple of property highlights (avatar length is script-driven).
-    const longIntro = [hook.intro, ...(hook.featureCallouts ?? []).slice(0, 2)]
-      .filter(Boolean)
-      .join(" ");
+    const openingPitch =
+      video.script?.trim() || "Let me show you this incredible home.";
+    const [hook, roomScript] = await Promise.all([
+      generateHypeReelScript(listing as Tables<"listings">),
+      generateWalkthroughScript(listing as Tables<"listings">),
+    ]);
     const roomJobs = await Promise.all(
       roomPhotos.map((url, i) =>
         generateCinematicClip({
@@ -360,7 +368,9 @@ export async function submitCinematicVideo(
         status: "processing",
         thumbnail_url: photos[0] ?? null,
         script_segments: {
-          bookends: { intro: longIntro, outro: hook.outro },
+          // Opening speaks the editable pitch; rooms narrate their own script.
+          bookends: { intro: openingPitch, outro: hook.outro },
+          roomNarration: roomScript.narration,
         } as unknown as Json,
       })
       .eq("id", videoId)
@@ -521,6 +531,9 @@ export async function pollVideoStatus(
         id: video.id,
         user_id: video.user_id,
         script: video.script,
+        roomNarration:
+          (video.script_segments as { roomNarration?: string } | null)
+            ?.roomNarration ?? null,
         heygen_video_id: video.heygen_video_id,
         photos,
       },

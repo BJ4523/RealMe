@@ -59,6 +59,8 @@ interface AssemblableVideo {
   id: string;
   user_id: string;
   script: string | null;
+  /** Voiceover for the ROOM walk (separate from the opening pitch in `script`). */
+  roomNarration?: string | null;
   heygen_video_id: string | null;
   /** Real listing photo URLs — the faithful backbone of the montage. */
   photos: string[];
@@ -166,8 +168,12 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
+    // The room walk narrates its OWN script (the opening pitch in `script` is
+    // spoken by the front-of-house bookend, so don't repeat it here).
     const narration = await generateSpeech(
-      video.script?.trim() || "Welcome to this beautiful home.",
+      video.roomNarration?.trim() ||
+        video.script?.trim() ||
+        "Welcome to this beautiful home.",
       voiceId ?? DEFAULT_VOICE_ID,
     );
 

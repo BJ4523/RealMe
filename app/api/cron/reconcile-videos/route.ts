@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
   // back to `processing` so it can be re-claimed and completed here.
   const { data: cineVideos } = await supabase
     .from("videos")
-    .select("id, user_id, script, heygen_video_id, status, avatar_id, listing_id")
+    .select("id, user_id, script, script_segments, heygen_video_id, status, avatar_id, listing_id")
     .in("status", ["processing", "submitting"])
     .like("heygen_video_id", "cine:%")
     .limit(20);
@@ -107,6 +107,9 @@ export async function GET(request: NextRequest) {
         id: v.id,
         user_id: v.user_id,
         script: v.script,
+        roomNarration:
+          (v.script_segments as { roomNarration?: string } | null)
+            ?.roomNarration ?? null,
         heygen_video_id: v.heygen_video_id,
         photos,
       },
