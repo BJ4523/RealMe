@@ -60,8 +60,21 @@ export function TopNav({ onOpenApp, onOpenLive, authed = false }) {
             </button>
           )}
           {/* Signed-in users already have the "Open dashboard" CTA — a "Sign in"
-              button next to it reads as "you're signed out" and confuses. */}
-          {!isMobile && !authed && <button className="btn btn-ghost btn-sm" onClick={onOpenApp}>Sign in</button>}
+              button next to it reads as "you're signed out" and confuses.
+              Explicit colors (outline) so it can never inherit a matching tone. */}
+          {!isMobile && !authed && (
+            <button
+              className="btn btn-sm"
+              onClick={onOpenApp}
+              style={{
+                background: "transparent",
+                color: "var(--ink)",
+                border: "1px solid var(--ink)",
+              }}
+            >
+              Sign in
+            </button>
+          )}
           <button className="btn btn-primary btn-sm" onClick={onOpenApp}>
             {isMobile ? "Dashboard →" : "Open dashboard →"}
           </button>
