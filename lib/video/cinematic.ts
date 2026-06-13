@@ -106,9 +106,10 @@ export async function assembleCinematicVideo(
     if (roomUrls.length !== rooms.length) return "processing";
 
     // PHASE 1 — rooms are done but the bookends haven't been started: fire the
-    // lip-synced talking bookends now, FULLY GENERATED from a frame of the
-    // completed room footage (photo-to-video) — the twin talking IN the scene,
-    // never a cutout over anything. Claim first so polls don't double-fire.
+    // identity-locked talking bookends now (v3 twin avatar over a blurred room
+    // photo). Backgrounds are LISTING PHOTOS (empty rooms) — not the room clips,
+    // which already contain the twin (would double-twin). Claim first so polls
+    // don't double-fire.
     if (!intro || !outro) {
       const { data: claimedP1 } = await supabase
         .from("videos")
@@ -121,8 +122,8 @@ export async function assembleCinematicVideo(
       const jobs = await startInSceneBookends(
         supabase,
         video.id,
-        roomUrls[0],
-        roomUrls[roomUrls.length - 1],
+        video.photos[0],
+        video.photos[video.photos.length - 1] ?? video.photos[0],
       );
       if (!jobs) {
         throw new Error("Could not start host bookends (no active twin found).");
@@ -137,7 +138,7 @@ export async function assembleCinematicVideo(
       return "processing";
     }
 
-    // PHASE 2 — poll the bookends (v3 photo-to-video jobs).
+    // PHASE 2 — poll the bookends (v3 twin-avatar talking-head jobs).
     const [introS, outroS] = await Promise.all([
       getCinematicClipStatus(intro),
       getCinematicClipStatus(outro),

@@ -80,9 +80,9 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
     const accentUrls = accentS.map((s) => s.videoUrl).filter(Boolean) as string[];
     if (accentUrls.length !== accents.length) return "processing";
 
-    // PHASE 1 — rooms done, bookends not started: fire the lip-synced talking
-    // bookends over the COMPLETED room footage (in the scene, never a presenter
-    // cutout). Claim first so concurrent polls don't double-fire.
+    // PHASE 1 — rooms done, bookends not started: fire the identity-locked
+    // talking bookends (v3 twin avatar over a blurred LISTING photo — empty
+    // rooms, so no double-twin). Claim first so concurrent polls don't double-fire.
     if (!intro || !outro) {
       const { data: claimedP1 } = await supabase
         .from("videos").update({ status: "submitting" })
@@ -91,8 +91,8 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       const jobs = await startInSceneBookends(
         supabase,
         reel.id,
-        accentUrls[0],
-        accentUrls[accentUrls.length - 1],
+        reel.photos[0],
+        reel.photos[reel.photos.length - 1] ?? reel.photos[0],
       );
       if (!jobs) {
         throw new Error("Could not start host bookends (no active twin found).");
@@ -107,7 +107,7 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       return "processing";
     }
 
-    // PHASE 2 — poll the bookends (v3 photo-to-video jobs).
+    // PHASE 2 — poll the bookends (v3 twin-avatar talking-head jobs).
     const [introS, outroS] = await Promise.all([
       getCinematicClipStatus(intro),
       getCinematicClipStatus(outro),

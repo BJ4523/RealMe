@@ -83,22 +83,7 @@ export async function generateVideo(
   };
 
   let scenes: Scene[];
-  if (input.backgroundVideoUrl) {
-    // One scene: the lip-synced twin over MOVING footage (an AI room clip) — the
-    // talking bookend appears inside the scene rather than over a still photo.
-    // Background type "video" verified live against /v2/video/generate.
-    scenes = [
-      {
-        character: presenter(),
-        voice: voiceFor(input.script),
-        background: {
-          type: "video" as const,
-          url: input.backgroundVideoUrl,
-          play_style: "fit_to_scene" as const,
-        },
-      },
-    ];
-  } else if (usePhotos.length <= 1) {
+  if (usePhotos.length <= 1) {
     scenes = [
       {
         character: presenter(),

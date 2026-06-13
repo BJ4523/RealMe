@@ -240,6 +240,11 @@ function cinematicPrompt(
     // Consistent wardrobe across every shot (clothes must not change room to room).
     `Inside that recreated room of ${place}, a real-estate agent ${wardrobe}`,
     "walks calmly through the space, looking around and gesturing toward its features.",
+    // EXACTLY ONE PERSON. Seedance otherwise hallucinates bystanders, and a
+    // two-person frame then gets grabbed for the talking bookend ("two people").
+    "CRITICAL: there is EXACTLY ONE person in the entire scene — the agent, completely alone.",
+    "No other people, no bystanders, no background figures, no second person, no crowd,",
+    "and no reflections, paintings or photos depicting other people. Only the single agent.",
     // Do NOT animate talking — the lip-sync looks fake; voice is added as voice-over.
     "IMPORTANT: the agent does NOT speak — keep the mouth closed and relaxed, with",
     "no talking, no lip movement, no jaw motion. The voice-over is added separately.",

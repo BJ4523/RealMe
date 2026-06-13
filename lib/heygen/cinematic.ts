@@ -44,33 +44,40 @@ export async function generateCinematicClip(input: {
 }
 
 /**
- * HeyGen v3 photo-to-video (`type:"image"`): animates an ENTIRE still frame into
- * a talking video — the person and the scene are one generated shot (no cutout
- * compositing). We feed it a frame from a finished Seedance room clip (the twin
- * standing in the AI room, selected outfit) + the cloned voice, producing the
- * lip-synced "talking in the house" bookends. Shape verified live:
- * { type:"image", image:{type:"url"|"asset_id"|"base64"}, script, voice_id,
- *   resolution, aspect_ratio }. Poll with getCinematicClipStatus (any v3 video).
+ * HeyGen v3 avatar talking-head (`type:"avatar"`): the IDENTITY-LOCKED twin
+ * (avatar_id = the real twin look — the same identity the Seedance room walk
+ * uses, so it actually looks like the user) lip-syncs the cloned voice over a
+ * still IMAGE background. We pass a heavily-BLURRED listing-room photo as that
+ * background → a portrait/shallow-focus "twin in the room, focused on the face"
+ * talking bookend, with no double-twin (the blurred photo has no person).
+ *
+ * Shape verified live: { type:"avatar", avatar_id, script, voice_id,
+ * background:{type:"image"|"color", url}, resolution, aspect_ratio }. v3 avatar
+ * backgrounds support color/image only (NOT video). Poll via
+ * getCinematicClipStatus (any v3 video).
  */
-export async function generateImageTalkingVideo(input: {
-  /** Public/signed URL of the frame to animate (the twin in the AI room). */
-  imageUrl: string;
+export async function generateAvatarTalkingVideo(input: {
+  /** The real twin look id (identity-locked). */
+  avatarId: string;
   script: string;
   voiceId: string;
+  /** Public/signed URL of the (blurred) room image shown behind the twin. */
+  backgroundImageUrl: string;
 }): Promise<{ jobId: string }> {
   if (isMock) {
     const seed = Math.abs(hash(input.script)).toString(36);
-    return { jobId: `mock_imgtalk_${seed}` };
+    return { jobId: `mock_avtalk_${seed}` };
   }
   const res = await heygenFetch<{ data: { video_id: string } }>(
     ENDPOINTS.generateVideoV3,
     {
       method: "POST",
       json: {
-        type: "image",
-        image: { type: "url", url: input.imageUrl },
+        type: "avatar",
+        avatar_id: input.avatarId,
         script: input.script,
         voice_id: input.voiceId,
+        background: { type: "image", url: input.backgroundImageUrl },
         resolution: "720p",
         aspect_ratio: "9:16",
       },
