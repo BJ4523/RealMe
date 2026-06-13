@@ -23,7 +23,6 @@ import {
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import { wardrobePrompt } from "@/lib/video/wardrobe";
-import { parseLooks } from "@/lib/avatars/looks-state";
 import type { Json, Tables } from "@/lib/types/database";
 
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
@@ -259,25 +258,19 @@ function cinematicPrompt(
 /**
  * Resolve the chosen look key ("original" or a trained outfit look) to the
  * Seedance avatar id + the canonical face-on image for the talking bookends.
+ * ALWAYS the real digital twin (its likeness is guaranteed). The outfit is a
+ * best-effort prompt hint; the bookends pull a face-on frame from the real-twin
+ * room footage (lookImageUrl stays null). We do NOT use AI-generated "looks" —
+ * type:prompt invents a different person, which is never acceptable here.
  */
 function resolveLook(
   avatar: Tables<"avatars">,
-  key: string | undefined,
+  outfitId: string | undefined,
 ): { lookId: string; lookImageUrl: string | null; wardrobe: string } {
-  if (key && key !== "original") {
-    const item = parseLooks(avatar.looks).items[key];
-    if (item?.status === "ready" && item.lookId) {
-      return {
-        lookId: item.lookId,
-        lookImageUrl: item.imageUrl ?? null,
-        wardrobe: wardrobePrompt(key),
-      };
-    }
-  }
   return {
     lookId: avatar.heygen_avatar_id!,
     lookImageUrl: null,
-    wardrobe: "wearing the same professional outfit throughout",
+    wardrobe: wardrobePrompt(outfitId),
   };
 }
 

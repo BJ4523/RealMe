@@ -7,8 +7,6 @@ import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 import { TRACKS } from "@/lib/video/music/tracks";
-import { parseLooks, readyLooks } from "@/lib/avatars/looks-state";
-import { WARDROBES } from "@/lib/video/wardrobe";
 
 export default async function VideoPage({
   params,
@@ -32,7 +30,7 @@ export default async function VideoPage({
   // Cinematic mode needs a consent-verified digital twin — check the active one.
   const { data: avatar } = await supabase
     .from("avatars")
-    .select("heygen_avatar_id, heygen_asset_id, status, looks")
+    .select("heygen_avatar_id, heygen_asset_id, status")
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
@@ -74,16 +72,6 @@ export default async function VideoPage({
           title: t.title,
           previewUrl: t.previewUrl,
         }))}
-        looks={[
-          // The twin's original trained look is always available; generated
-          // outfit looks (Settings → Avatar → Looks) appear once READY.
-          { id: "original", label: "Original twin look" },
-          ...readyLooks(parseLooks(avatar?.looks)).map((l) => ({
-            id: l.outfitId,
-            label:
-              WARDROBES.find((w) => w.id === l.outfitId)?.label ?? l.outfitId,
-          })),
-        ]}
       />
     </>
   );
