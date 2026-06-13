@@ -81,6 +81,9 @@ export async function generateAvatarTalkingVideo(input: {
         // the (front-of-house) photo — "the agent standing in front of the
         // house." Requires the twin to be trained with matting.
         remove_background: true,
+        // 'contain' fits the whole subject in frame (pulled back, tripod-style)
+        // instead of 'cover' which crops in tight ("too up close").
+        fit: "contain",
         background: { type: "image", url: input.backgroundImageUrl },
         resolution: "720p",
         aspect_ratio: "9:16",
