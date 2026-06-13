@@ -4,9 +4,8 @@ import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
-import { resolveVideoAgent } from "@/lib/heygen/videoagent";
 import { generateSpeech } from "@/lib/heygen/voice";
-import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
+import { assembleMontage } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
 
@@ -15,8 +14,6 @@ export const CINEMATIC_PREFIX = "cine:";
 
 /** Floor per scene so each room shot is long enough to read. */
 const MIN_SCENE_MS = 2500;
-/** "Play full natural length" sentinel for keepAudio bookend/tour scenes. */
-const FULL_MS = 600000;
 
 export function isCinematic(heygenVideoId: string | null | undefined): boolean {
   return !!heygenVideoId && heygenVideoId.startsWith(CINEMATIC_PREFIX);
@@ -61,9 +58,6 @@ interface AssemblableVideo {
   script: string | null;
   /** Voiceover for the ROOM walk (separate from the opening pitch in `script`). */
   roomNarration?: string | null;
-  /** Video Agent session ids for the lip-synced opener/closer bookends. */
-  openerSession?: string | null;
-  closerSession?: string | null;
   heygen_video_id: string | null;
   /** Real listing photo URLs — the faithful backbone of the montage. */
   photos: string[];
@@ -93,7 +87,10 @@ export async function assembleCinematicVideo(
   }
 
   try {
-    // The SEEDANCE room walk (silent cinematic middle) lives in `rooms`.
+    // ALL cinematic_avatar clips (exterior opener + room walk + exterior closer)
+    // live in `rooms`, in playback order. The cloned voice is muxed over the
+    // whole montage as VOICEOVER (opening pitch over the opener, room narration
+    // over the walk).
     const clipS = await Promise.all(rooms.map(getCinematicClipStatus));
     if (clipS.some((s) => s.status === "failed")) {
       const reason =
@@ -109,27 +106,6 @@ export async function assembleCinematicVideo(
     const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
     if (clipUrls.length !== rooms.length) return "processing";
 
-    // The lip-synced VIDEO AGENT opener + closer (their own pitch/CTA audio).
-    // These render slowly (~20-45 min) — resolve session -> video -> url each
-    // poll; stay "processing" until both are ready.
-    const [openerR, closerR] = await Promise.all([
-      video.openerSession ? resolveVideoAgent(video.openerSession) : null,
-      video.closerSession ? resolveVideoAgent(video.closerSession) : null,
-    ]);
-    if (openerR?.status === "failed" || closerR?.status === "failed") {
-      await supabase
-        .from("videos")
-        .update({
-          status: "failed",
-          error:
-            openerR?.error ?? closerR?.error ?? "The opener/closer failed to render.",
-        })
-        .eq("id", video.id);
-      return "failed";
-    }
-    if (openerR && openerR.status !== "completed") return "processing";
-    if (closerR && closerR.status !== "completed") return "processing";
-
     // Claim the row (processing -> submitting) so only one assembler runs the
     // heavy download/assemble/upload.
     const { data: claimed } = await supabase
@@ -140,21 +116,20 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    // Step 1: the room walk — Seedance clips with the cloned-voice ROOM
-    // narration muxed over them (the pitch/CTA are spoken by the VA bookends).
-    const narration = await generateSpeech(
-      video.roomNarration?.trim() ||
-        video.script?.trim() ||
-        "Welcome to this beautiful home.",
-      voiceId ?? DEFAULT_VOICE_ID,
-    );
+    // Voiceover = opening pitch (over the opener) + room narration (over the walk).
+    const voScript =
+      [video.script?.trim(), video.roomNarration?.trim()]
+        .filter(Boolean)
+        .join(" ") || "Welcome to this beautiful home.";
+    const narration = await generateSpeech(voScript, voiceId ?? DEFAULT_VOICE_ID);
+
     const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
     const perSceneMs = Math.max(
       MIN_SCENE_MS,
       Math.round(((narration.duration || 30) * 1000) / clipBufs.length),
     );
     const narrationBuf = await fetchBuffer(narration.audioUrl);
-    const roomTour = await assembleMontage({
+    const assembled = await assembleMontage({
       scenes: clipBufs.map((buf) => ({
         kind: "video",
         videoBuf: buf,
@@ -162,23 +137,6 @@ export async function assembleCinematicVideo(
       })),
       audio: { narration: narrationBuf },
     });
-
-    // Step 2: stitch [opener][room tour][closer] — each keeps its own audio
-    // (lip-synced pitch → room voice-over → lip-synced CTA).
-    let assembled = roomTour;
-    const [openerBuf, closerBuf] = await Promise.all([
-      openerR?.videoUrl ? fetchBuffer(openerR.videoUrl) : Promise.resolve(null),
-      closerR?.videoUrl ? fetchBuffer(closerR.videoUrl) : Promise.resolve(null),
-    ]);
-    if (openerBuf || closerBuf) {
-      const scenes: MontageScene[] = [];
-      if (openerBuf)
-        scenes.push({ kind: "video", videoBuf: openerBuf, durationMs: FULL_MS, keepAudio: true });
-      scenes.push({ kind: "video", videoBuf: roomTour, durationMs: FULL_MS, keepAudio: true });
-      if (closerBuf)
-        scenes.push({ kind: "video", videoBuf: closerBuf, durationMs: FULL_MS, keepAudio: true });
-      assembled = await assembleMontage({ scenes, audio: {} });
-    }
 
     // Upload via the service-role client: the video-cache bucket's RLS only
     // permits trusted writes, and assembly may run with the user client (from the

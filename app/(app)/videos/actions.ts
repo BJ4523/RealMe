@@ -18,14 +18,13 @@ import {
 } from "@/lib/video/hypereel";
 import { generateVideo, getVideoStatus } from "@/lib/heygen/video";
 import { generateCinematicClip } from "@/lib/heygen/cinematic";
-import { createVideoAgentSession } from "@/lib/heygen/videoagent";
 import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import {
   assembleCinematicVideo,
   encodeCinematicJobs,
   isCinematic,
 } from "@/lib/video/cinematic";
-import { isMock, DEFAULT_VOICE_ID } from "@/lib/heygen/client";
+import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import type { Json, Tables } from "@/lib/types/database";
 
@@ -274,42 +273,22 @@ function cinematicExteriorPrompt(
 ): string {
   const place = listing?.address ? `the home at ${listing.address}` : "this home";
   return [
-    "Photorealistic vertical 9:16 real-estate establishing shot.",
-    "Recreate the house EXTERIOR shown in the reference image as accurately as",
-    "possible: the same architecture, materials, landscaping and driveway.",
-    `In front of ${place}, a real-estate agent ${wardrobe} stands confidently,`,
+    "Premium cinematic vertical 9:16 real-estate hero shot, the look of a polished",
+    "luxury listing launch film — warm golden-hour light, shallow depth of field,",
+    "rich filmic color, gentle film grain.",
+    // Faithful exterior from the reference.
+    "Recreate the house EXTERIOR in the reference image accurately: the same",
+    "architecture, materials, landscaping and driveway.",
+    `In front of ${place}, a confident, charismatic real-estate agent ${wardrobe}`,
     kind === "intro"
-      ? "presenting to camera with an open-hand gesture toward the home, welcoming energy."
-      : "giving a warm final gesture toward the home, inviting energy.",
-    "CRITICAL: there is EXACTLY ONE person in the entire scene — the agent, completely alone.",
-    "No other people, no bystanders, no background figures, no second person, no crowd.",
-    "IMPORTANT: the agent does NOT speak — keep the mouth closed and relaxed, with",
-    "no talking, no lip movement. The voice-over is added separately.",
-    "A slow cinematic push-in; steady, premium, bright natural daylight.",
-    `Full body visible, wearing ${wardrobe}.`,
-  ].join(" ");
-}
-
-/** Video Agent prompt for the lip-synced OPENER (twin in front of the house). */
-function videoAgentOpenerPrompt(pitch: string): string {
-  return [
-    "Create a vertical 9:16 portrait real-estate video opener.",
-    "The presenter (the provided avatar) stands outdoors directly in front of the",
-    "home shown in the attached photo, premium cinematic daylight, looking at the",
-    "camera. They speak warmly and confidently, lip-synced, saying EXACTLY this",
-    `and nothing else: "${pitch}".`,
-    "Single presenter only, no other people. Keep it to about 20 seconds.",
-  ].join(" ");
-}
-
-/** Video Agent prompt for the lip-synced CLOSER / CTA (twin in front of house). */
-function videoAgentCloserPrompt(cta: string): string {
-  return [
-    "Create a vertical 9:16 portrait real-estate closing shot.",
-    "The presenter (the provided avatar) stands in front of the home shown in the",
-    "attached photo, warm and inviting, looking at the camera, lip-synced, saying",
-    `EXACTLY this and nothing else: "${cta}".`,
-    "Single presenter only, no other people. Keep it to about 8 seconds.",
+      ? "addresses the camera directly with warm, engaging presenter energy — a natural welcoming gesture toward the home, as if greeting a buyer."
+      : "gives a warm, inviting close to the camera with an open gesture toward the home.",
+    // Single subject, cinematic camera.
+    "EXACTLY ONE person in frame — the agent, alone. No other people, bystanders,",
+    "background figures or crowds.",
+    "Camera: a slow, smooth cinematic push-in on a gimbal, the agent full-body then",
+    "settling to a confident medium shot; steady, premium, magazine-quality.",
+    `The SAME person in the SAME outfit (${wardrobe}) — consistent throughout.`,
   ].join(" ");
 }
 
@@ -389,33 +368,21 @@ export async function submitCinematicVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // HYBRID: a lip-synced VIDEO AGENT opener + closer (the twin talking in front
-    // of the house, cloned voice) bracket the SEEDANCE room walk (the cinematic
-    // middle). The walk is silent Seedance + cloned voice-over (room narration);
-    // the opener/closer carry their own lip-synced audio (pitch / CTA).
+    // 100% CINEMATIC AVATAR (Seedance — "keep your likeness, add cinematic
+    // range"): a premium EXTERIOR opener (the agent presenting in front of the
+    // house) + the room walk + an EXTERIOR closer — all the real twin, one look
+    // id (same outfit). The cloned voice (opening pitch + room narration) is
+    // muxed as VOICE-OVER across the whole montage. No Video Agent, no lip-sync
+    // engine — just the cinematic look from the launch demo.
     const { lookId, wardrobe } = resolveLook(avatar);
-    const voiceId = avatar.voice_id ?? DEFAULT_VOICE_ID;
     const exterior = photos[0];
-    const openingPitch =
-      video.script?.trim() || "Welcome — let me show you this beautiful home.";
-    const [hook, roomScript] = await Promise.all([
-      generateHypeReelScript(listing as Tables<"listings">),
-      generateWalkthroughScript(listing as Tables<"listings">),
-    ]);
-    const [openerVA, closerVA, roomJobs] = await Promise.all([
-      createVideoAgentSession({
-        prompt: videoAgentOpenerPrompt(openingPitch),
-        avatarId: lookId,
-        voiceId,
-        fileUrls: [exterior],
-        orientation: "portrait",
-      }),
-      createVideoAgentSession({
-        prompt: videoAgentCloserPrompt(hook.outro),
-        avatarId: lookId,
-        voiceId,
-        fileUrls: [exterior],
-        orientation: "portrait",
+    const roomScript = await generateWalkthroughScript(listing as Tables<"listings">);
+    const [openerClip, roomJobs, closerClip] = await Promise.all([
+      generateCinematicClip({
+        avatarLookId: lookId,
+        referenceUrl: exterior,
+        prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
+        duration: 10,
       }),
       Promise.all(
         roomPhotos.map((url, i) =>
@@ -427,21 +394,26 @@ export async function submitCinematicVideo(
           }),
         ),
       ),
+      generateCinematicClip({
+        avatarLookId: lookId,
+        referenceUrl: exterior,
+        prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
+        duration: 8,
+      }),
     ]);
+    const allClips = [
+      openerClip.jobId,
+      ...roomJobs.map((j) => j.jobId),
+      closerClip.jobId,
+    ];
     await supabase
       .from("videos")
       .update({
-        // Seedance WALK clips in the encoding; the VA opener/closer sessions live
-        // in script_segments (they resolve session -> video -> url on each poll).
-        heygen_video_id: encodeCinematicJobs("", "", roomJobs.map((j) => j.jobId)),
+        heygen_video_id: encodeCinematicJobs("", "", allClips),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
         script_segments: {
           roomNarration: roomScript.narration,
-          videoAgent: {
-            opener: openerVA.sessionId,
-            closer: closerVA.sessionId,
-          },
         } as unknown as Json,
       })
       .eq("id", videoId)
@@ -621,12 +593,6 @@ export async function pollVideoStatus(
         roomNarration:
           (video.script_segments as { roomNarration?: string } | null)
             ?.roomNarration ?? null,
-        openerSession:
-          (video.script_segments as { videoAgent?: { opener?: string } } | null)
-            ?.videoAgent?.opener ?? null,
-        closerSession:
-          (video.script_segments as { videoAgent?: { closer?: string } } | null)
-            ?.videoAgent?.closer ?? null,
         heygen_video_id: video.heygen_video_id,
         photos,
       },
