@@ -261,6 +261,35 @@ function cinematicPrompt(
 }
 
 /**
+ * Motion brief for the EXTERIOR opener/closer Seedance shot: the agent standing
+ * confidently in front of the house (recreated from the exterior photo),
+ * presenter energy. Same engine as the room walk so the shots cut together; the
+ * pitch/CTA is muxed as voice-over (so mouth stays relaxed — no fake lip-sync).
+ */
+function cinematicExteriorPrompt(
+  listing: Tables<"listings"> | null,
+  kind: "intro" | "closer",
+  wardrobe: string,
+): string {
+  const place = listing?.address ? `the home at ${listing.address}` : "this home";
+  return [
+    "Photorealistic vertical 9:16 real-estate establishing shot.",
+    "Recreate the house EXTERIOR shown in the reference image as accurately as",
+    "possible: the same architecture, materials, landscaping and driveway.",
+    `In front of ${place}, a real-estate agent ${wardrobe} stands confidently,`,
+    kind === "intro"
+      ? "presenting to camera with an open-hand gesture toward the home, welcoming energy."
+      : "giving a warm final gesture toward the home, inviting energy.",
+    "CRITICAL: there is EXACTLY ONE person in the entire scene — the agent, completely alone.",
+    "No other people, no bystanders, no background figures, no second person, no crowd.",
+    "IMPORTANT: the agent does NOT speak — keep the mouth closed and relaxed, with",
+    "no talking, no lip movement. The voice-over is added separately.",
+    "A slow cinematic push-in; steady, premium, bright natural daylight.",
+    `Full body visible, wearing ${wardrobe}.`,
+  ].join(" ");
+}
+
+/**
  * Cinematic alternative to submitVideo: generate one Seedance "Avatar Shots"
  * clip per listing photo (the verified twin moving through the scene), to be
  * stitched + narrated by assembleCinematicVideo. Requires a consent-validated
@@ -336,40 +365,53 @@ export async function submitCinematicVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // Room clips first — the real twin in its trained outfit (consistent
-    // everywhere). The OPENING bookend speaks the editable box (video.script =
-    // the agent's pitch); the rooms get their OWN auto voiceover; a short CTA
-    // closes. The bookends are generated LATER by the assembler.
+    // ALL Seedance (no lip-synced avatar): an EXTERIOR opener in front of the
+    // house, the room walk, then an EXTERIOR closer — one cinematic piece, real
+    // twin, trained outfit throughout. The cloned voice (opening pitch + room
+    // narration) is muxed as VOICE-OVER over the whole montage by the assembler.
     const { lookId, wardrobe } = resolveLook(avatar);
-    const openingPitch =
-      video.script?.trim() || "Let me show you this incredible home.";
-    const [hook, roomScript] = await Promise.all([
-      generateHypeReelScript(listing as Tables<"listings">),
-      generateWalkthroughScript(listing as Tables<"listings">),
-    ]);
-    const roomJobs = await Promise.all(
-      roomPhotos.map((url, i) =>
-        generateCinematicClip({
-          avatarLookId: lookId,
-          referenceUrl: url,
-          prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-          duration: 10,
-        }),
+    const exterior = photos[0];
+    const roomScript = await generateWalkthroughScript(listing as Tables<"listings">);
+    const [introClip, roomJobs, closerClip] = await Promise.all([
+      generateCinematicClip({
+        avatarLookId: lookId,
+        referenceUrl: exterior,
+        prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
+        duration: 8,
+      }),
+      Promise.all(
+        roomPhotos.map((url, i) =>
+          generateCinematicClip({
+            avatarLookId: lookId,
+            referenceUrl: url,
+            prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
+            duration: 10,
+          }),
+        ),
       ),
-    );
+      generateCinematicClip({
+        avatarLookId: lookId,
+        referenceUrl: exterior,
+        prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
+        duration: 8,
+      }),
+    ]);
+    // Every clip in playback order goes in the clip list (intro/outro slots stay
+    // empty — there are no avatar bookends anymore).
+    const allClips = [
+      introClip.jobId,
+      ...roomJobs.map((j) => j.jobId),
+      closerClip.jobId,
+    ];
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs(
-          "",
-          "",
-          roomJobs.map((j) => j.jobId),
-        ),
+        heygen_video_id: encodeCinematicJobs("", "", allClips),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
+        // script = the editable opening pitch (voice-over the opener); the room
+        // narration plays over the walk. Combined by the assembler.
         script_segments: {
-          // Opening speaks the editable pitch; rooms narrate their own script.
-          bookends: { intro: openingPitch, outro: hook.outro },
           roomNarration: roomScript.narration,
         } as unknown as Json,
       })
@@ -420,34 +462,50 @@ export async function submitHypeReelVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // Room clips only at submit — real twin, trained outfit (consistent). The
-    // lip-synced bookends are generated LATER by the assembler.
+    // ALL Seedance (no lip-synced avatar): exterior opener in front of the house
+    // + beat-cut room shots + exterior closer, all the real twin in its trained
+    // outfit, set to music. No talking — it's a music-video hype reel.
     const { lookId, wardrobe } = resolveLook(avatar);
     const script = await generateHypeReelScript(listing as Tables<"listings">);
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
-    const roomJobs = await Promise.all(
-      roomPhotos.map((url, i) =>
-        generateCinematicClip({
-          avatarLookId: lookId,
-          referenceUrl: url,
-          prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-          duration: 8,
-        }),
+    const [introClip, roomJobs, closerClip] = await Promise.all([
+      generateCinematicClip({
+        avatarLookId: lookId,
+        referenceUrl: hero,
+        prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
+        duration: 6,
+      }),
+      Promise.all(
+        roomPhotos.map((url, i) =>
+          generateCinematicClip({
+            avatarLookId: lookId,
+            referenceUrl: url,
+            prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
+            duration: 8,
+          }),
+        ),
       ),
-    );
+      generateCinematicClip({
+        avatarLookId: lookId,
+        referenceUrl: hero,
+        prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
+        duration: 6,
+      }),
+    ]);
+    const allClips = [
+      introClip.jobId,
+      ...roomJobs.map((j) => j.jobId),
+      closerClip.jobId,
+    ];
 
     await supabase.from("videos").update({
-      heygen_video_id: encodeReelJobs("", "", roomJobs.map((j) => j.jobId)),
+      heygen_video_id: encodeReelJobs("", "", allClips),
       status: "processing",
       thumbnail_url: hero,
       script_segments: {
         hypeReel: {
           featureCallouts: script.featureCallouts,
           trackId: trackId ?? "default",
-        },
-        bookends: {
-          intro: script.intro,
-          outro: script.outro,
         },
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);

@@ -5,8 +5,7 @@ import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { generateSpeech } from "@/lib/heygen/voice";
-import { startInSceneBookends } from "@/lib/video/bookends";
-import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
+import { assembleMontage } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
 
@@ -15,8 +14,6 @@ export const CINEMATIC_PREFIX = "cine:";
 
 /** Floor per scene so each room shot is long enough to read. */
 const MIN_SCENE_MS = 2500;
-/** "Play full natural length" sentinel for bookend/tour scenes (not trimmed). */
-const FULL_MS = 600000;
 
 export function isCinematic(heygenVideoId: string | null | undefined): boolean {
   return !!heygenVideoId && heygenVideoId.startsWith(CINEMATIC_PREFIX);
@@ -80,7 +77,7 @@ export async function assembleCinematicVideo(
   voiceId: string | null,
 ): Promise<"processing" | "completed" | "failed"> {
   if (!isCinematic(video.heygen_video_id)) return "processing";
-  const { intro, outro, rooms } = decodeCinematicJobs(video.heygen_video_id!);
+  const { rooms } = decodeCinematicJobs(video.heygen_video_id!);
   if (rooms.length === 0) {
     await supabase
       .from("videos")
@@ -90,11 +87,14 @@ export async function assembleCinematicVideo(
   }
 
   try {
-    // Poll the Seedance room clips (v3) first.
-    const roomS = await Promise.all(rooms.map(getCinematicClipStatus));
-    if (roomS.some((s) => s.status === "failed")) {
+    // ALL shots are Seedance (the front-of-house opener, the room walk, the
+    // closer) — one continuous cinematic piece, no lip-synced avatar anywhere.
+    // `rooms` holds every clip in playback order. The cloned voice is muxed over
+    // the whole montage as VOICEOVER.
+    const clipS = await Promise.all(rooms.map(getCinematicClipStatus));
+    if (clipS.some((s) => s.status === "failed")) {
       const reason =
-        roomS.find((s) => s.status === "failed")?.error ??
+        clipS.find((s) => s.status === "failed")?.error ??
         "A cinematic shot failed to render.";
       await supabase
         .from("videos")
@@ -102,60 +102,10 @@ export async function assembleCinematicVideo(
         .eq("id", video.id);
       return "failed";
     }
-    if (roomS.some((s) => s.status !== "completed")) return "processing";
+    if (clipS.some((s) => s.status !== "completed")) return "processing";
 
-    const roomUrls = roomS.map((s) => s.videoUrl).filter(Boolean) as string[];
-    if (roomUrls.length !== rooms.length) return "processing";
-
-    // PHASE 1 — rooms are done but the bookends haven't been started: fire the
-    // identity-locked talking bookends now (v3 twin avatar over a blurred room
-    // photo). Backgrounds are LISTING PHOTOS (empty rooms) — not the room clips,
-    // which already contain the twin (would double-twin). Claim first so polls
-    // don't double-fire.
-    if (!intro || !outro) {
-      const { data: claimedP1 } = await supabase
-        .from("videos")
-        .update({ status: "submitting" })
-        .eq("id", video.id)
-        .eq("status", "processing")
-        .select("id");
-      if (!claimedP1 || claimedP1.length === 0) return "processing";
-
-      const jobs = await startInSceneBookends(
-        supabase,
-        video.id,
-        video.photos[0],
-        video.photos[video.photos.length - 1] ?? video.photos[0],
-      );
-      if (!jobs) {
-        throw new Error("Could not start host bookends (no active twin found).");
-      }
-      await supabase
-        .from("videos")
-        .update({
-          heygen_video_id: encodeCinematicJobs(jobs.introId, jobs.outroId, rooms),
-          status: "processing",
-        })
-        .eq("id", video.id);
-      return "processing";
-    }
-
-    // PHASE 2 — poll the bookends (v3 twin-avatar talking-head jobs).
-    const [introS, outroS] = await Promise.all([
-      getCinematicClipStatus(intro),
-      getCinematicClipStatus(outro),
-    ]);
-    if ([introS, outroS].some((s) => s.status === "failed")) {
-      const reason =
-        [introS, outroS].find((s) => s.status === "failed")?.error ??
-        "A host bookend failed to render.";
-      await supabase
-        .from("videos")
-        .update({ status: "failed", error: reason })
-        .eq("id", video.id);
-      return "failed";
-    }
-    if ([introS, outroS].some((s) => s.status !== "completed")) return "processing";
+    const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
+    if (clipUrls.length !== rooms.length) return "processing";
 
     // Claim the row (processing -> submitting) so only one assembler runs the
     // heavy download/assemble/upload. If we didn't win the claim, another run
@@ -168,47 +118,28 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    // The room walk narrates its OWN script (the opening pitch in `script` is
-    // spoken by the front-of-house bookend, so don't repeat it here).
-    const narration = await generateSpeech(
-      video.roomNarration?.trim() ||
-        video.script?.trim() ||
-        "Welcome to this beautiful home.",
-      voiceId ?? DEFAULT_VOICE_ID,
-    );
+    // Voiceover = the opening pitch (over the front-of-house shot) + the room
+    // narration (over the walk), read in the cloned voice across the montage.
+    const voScript =
+      [video.script?.trim(), video.roomNarration?.trim()]
+        .filter(Boolean)
+        .join(" ") || "Welcome to this beautiful home.";
+    const narration = await generateSpeech(voScript, voiceId ?? DEFAULT_VOICE_ID);
 
-    // Step 1: the room tour — Seedance clips (twin walking each recreated room)
-    // with the cloned-voice narration muxed over them.
-    const roomBufs = await Promise.all(roomUrls.map(fetchBuffer));
+    const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
     const perSceneMs = Math.max(
       MIN_SCENE_MS,
-      Math.round(((narration.duration || 30) * 1000) / roomBufs.length),
+      Math.round(((narration.duration || 30) * 1000) / clipBufs.length),
     );
     const narrationBuf = await fetchBuffer(narration.audioUrl);
-    const roomTour = await assembleMontage({
-      scenes: roomBufs.map((buf) => ({
+    const assembled = await assembleMontage({
+      scenes: clipBufs.map((buf) => ({
         kind: "video",
         videoBuf: buf,
         durationMs: perSceneMs,
       })),
       audio: { narration: narrationBuf },
     });
-
-    // Step 2: if we have lip-synced host bookends, stitch [intro][room tour][outro]
-    // — each piece keeps its own baked audio (hook → narration → CTA).
-    let assembled = roomTour;
-    if (introS?.videoUrl && outroS?.videoUrl) {
-      const [introBuf, outroBuf] = await Promise.all([
-        fetchBuffer(introS.videoUrl),
-        fetchBuffer(outroS.videoUrl),
-      ]);
-      const bookended: MontageScene[] = [
-        { kind: "video", videoBuf: introBuf, durationMs: FULL_MS, keepAudio: true },
-        { kind: "video", videoBuf: roomTour, durationMs: FULL_MS, keepAudio: true },
-        { kind: "video", videoBuf: outroBuf, durationMs: FULL_MS, keepAudio: true },
-      ];
-      assembled = await assembleMontage({ scenes: bookended, audio: {} });
-    }
 
     // Upload via the service-role client: the video-cache bucket's RLS only
     // permits trusted writes, and assembly may run with the user client (from the

@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
-import { startInSceneBookends } from "@/lib/video/bookends";
 import {
   assembleMontage,
   HYPE_REEL_TARGET_MS,
@@ -57,7 +56,6 @@ export interface AssemblableReel {
   trackId: string | null;
 }
 
-const ROOM_PHOTO_SHOTS = 3;
 const BEATS_PER_SHOT = 4;
 const OVERLAY_SHOW_MS = 1600;
 
@@ -65,61 +63,22 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
   "processing" | "completed" | "failed"
 > {
   if (!isHypeReel(reel.heygen_video_id)) return "processing";
-  const { intro, outro, accents } = decodeReelJobs(reel.heygen_video_id!);
+  // ALL clips (exterior opener + room shots + exterior closer) live in `accents`,
+  // all Seedance — no lip-synced avatar. The reel is a music video: beat-cut
+  // cinematic shots of the agent + property under the track, with overlays.
+  const { accents } = decodeReelJobs(reel.heygen_video_id!);
   try {
-    // Poll the AI room clips (v3) first.
-    const accentS = await Promise.all(accents.map(getCinematicClipStatus));
-    if (accentS.some((s) => s.status === "failed")) {
+    const clipS = await Promise.all(accents.map(getCinematicClipStatus));
+    if (clipS.some((s) => s.status === "failed")) {
       const reason =
-        accentS.find((s) => s.status === "failed")?.error ||
+        clipS.find((s) => s.status === "failed")?.error ||
         "A Hype Reel shot failed to render.";
       await supabase.from("videos").update({ status: "failed", error: reason }).eq("id", reel.id);
       return "failed";
     }
-    if (accentS.some((s) => s.status !== "completed")) return "processing";
-    const accentUrls = accentS.map((s) => s.videoUrl).filter(Boolean) as string[];
-    if (accentUrls.length !== accents.length) return "processing";
-
-    // PHASE 1 — rooms done, bookends not started: fire the identity-locked
-    // talking bookends (v3 twin avatar over a blurred LISTING photo — empty
-    // rooms, so no double-twin). Claim first so concurrent polls don't double-fire.
-    if (!intro || !outro) {
-      const { data: claimedP1 } = await supabase
-        .from("videos").update({ status: "submitting" })
-        .eq("id", reel.id).eq("status", "processing").select("id");
-      if (!claimedP1 || claimedP1.length === 0) return "processing";
-      const jobs = await startInSceneBookends(
-        supabase,
-        reel.id,
-        reel.photos[0],
-        reel.photos[reel.photos.length - 1] ?? reel.photos[0],
-      );
-      if (!jobs) {
-        throw new Error("Could not start host bookends (no active twin found).");
-      }
-      await supabase
-        .from("videos")
-        .update({
-          heygen_video_id: encodeReelJobs(jobs.introId, jobs.outroId, accents),
-          status: "processing",
-        })
-        .eq("id", reel.id);
-      return "processing";
-    }
-
-    // PHASE 2 — poll the bookends (v3 twin-avatar talking-head jobs).
-    const [introS, outroS] = await Promise.all([
-      getCinematicClipStatus(intro),
-      getCinematicClipStatus(outro),
-    ]);
-    if ([introS, outroS].some((s) => s.status === "failed")) {
-      const reason =
-        [introS, outroS].find((s) => s.status === "failed")?.error ||
-        "A Hype Reel host shot failed to render.";
-      await supabase.from("videos").update({ status: "failed", error: reason }).eq("id", reel.id);
-      return "failed";
-    }
-    if ([introS, outroS].some((s) => s.status !== "completed")) return "processing";
+    if (clipS.some((s) => s.status !== "completed")) return "processing";
+    const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
+    if (clipUrls.length !== accents.length) return "processing";
 
     // Claim the row so only one assembler runs the heavy path.
     const { data: claimed } = await supabase
@@ -127,38 +86,24 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       .eq("id", reel.id).eq("status", "processing").select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    const introUrl = introS.videoUrl!;
-    const outroUrl = outroS.videoUrl!;
-
     const track = getTrack(reel.trackId);
-    const durations = roomDurationsMs(track.bpm, BEATS_PER_SHOT, ROOM_PHOTO_SHOTS);
+    const durations = roomDurationsMs(track.bpm, BEATS_PER_SHOT, clipUrls.length);
 
-    const [introBuf, outroBuf, roomBufs, musicBuf] = await Promise.all([
-      fetchBuffer(introUrl),
-      fetchBuffer(outroUrl),
-      Promise.all(accentUrls.map(fetchBuffer)),
+    const [clipBufs, musicBuf] = await Promise.all([
+      Promise.all(clipUrls.map(fetchBuffer)),
       readFile(resolve(track.file)),
     ]);
 
-    // Scenes: host intro -> [AI room clip, AI room clip, ...] -> host outro. Each
-    // room clip is the twin walking through a faithful recreation of that room,
-    // beat-synced via the per-shot durations.
-    const room: MontageScene[] = roomBufs.map((buf, i) => ({
+    // Every shot is a silent Seedance clip, beat-synced; music plays over all.
+    const scenes: MontageScene[] = clipBufs.map((buf, i) => ({
       kind: "video",
       videoBuf: buf,
       durationMs: durations[Math.min(i, durations.length - 1)],
     }));
 
-    const scenes: MontageScene[] = [
-      { kind: "video", videoBuf: introBuf, durationMs: 6000, keepAudio: true },
-      ...room,
-      { kind: "video", videoBuf: outroBuf, durationMs: 6000, keepAudio: true },
-    ];
-
-    // Overlays land on beats within the montage (after the intro).
-    const introMs = 6000;
-    const montageMs = room.reduce((a, s) => a + s.durationMs, 0);
-    const grid = beatTimesMs(track.bpm, track.beatOffsetMs, montageMs).map((t) => t + introMs);
+    // Overlays land on beats across the whole montage.
+    const montageMs = scenes.reduce((a, s) => a + s.durationMs, 0);
+    const grid = beatTimesMs(track.bpm, track.beatOffsetMs, montageMs);
     const overlays = overlaysFromListing({
       ...reel.facts,
       featureCallouts: reel.featureCallouts,
@@ -168,7 +113,7 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
 
     const assembled = await assembleMontage({
       scenes,
-      audio: { music: musicBuf, duckUnderSceneAudio: true },
+      audio: { music: musicBuf },
       overlays,
     });
 
