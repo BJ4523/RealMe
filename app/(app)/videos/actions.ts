@@ -483,11 +483,14 @@ export async function submitHypeReelVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // ALL Seedance (no lip-synced avatar): exterior opener in front of the house
-    // + beat-cut room shots + exterior closer, all the real twin in its trained
-    // outfit, set to music. No talking — it's a music-video hype reel.
+    // SAME pipeline as the cinematic walkthrough (cinematic_avatar + Lipsync-
+    // Precision → the twin TALKING in their own voice), just with MUSIC built in.
+    // Punchy short script so it lands ~15s.
     const { lookId, wardrobe } = resolveLook(avatar);
     const script = await generateHypeReelScript(listing as Tables<"listings">);
+    const beats = [script.intro, ...script.featureCallouts.slice(0, 2), script.outro]
+      .map((s) => s?.trim())
+      .filter(Boolean) as string[];
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
     const [introClip, roomJobs, closerClip] = await Promise.all([
       generateCinematicClip({
@@ -528,6 +531,7 @@ export async function submitHypeReelVideo(
           featureCallouts: script.featureCallouts,
           trackId: trackId ?? "default",
         },
+        beats,
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
   } catch (e) {
@@ -573,11 +577,17 @@ export async function pollVideoStatus(
   // Hype Reel: host bookends (v2) + accents (v3) → montage with music + overlays.
   // Intercept before the generic v2 branch (a "reel:" id is not a real HeyGen id).
   if (isHypeReel(video.heygen_video_id) && video.status === "processing") {
-    const meta = (
-      video.script_segments as {
-        hypeReel?: { featureCallouts?: string[]; trackId?: string };
-      } | null
-    )?.hypeReel;
+    const seg = video.script_segments as {
+      hypeReel?: { featureCallouts?: string[]; trackId?: string };
+      beats?: string[];
+      lipsync?: string;
+    } | null;
+    const meta = seg?.hypeReel;
+    const { data: avReel } = await supabase
+      .from("avatars")
+      .select("voice_id")
+      .eq("id", video.avatar_id ?? "")
+      .maybeSingle();
     await assembleHypeReel(supabase, {
       id: video.id,
       user_id: video.user_id,
@@ -586,6 +596,9 @@ export async function pollVideoStatus(
       facts: reelFacts(pollListing),
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
+      beats: seg?.beats ?? null,
+      lipsync: seg?.lipsync ?? null,
+      voiceId: avReel?.voice_id ?? null,
     });
     const { data: latest } = await supabase
       .from("videos")
@@ -612,9 +625,8 @@ export async function pollVideoStatus(
         script: video.script,
         beats:
           (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipsyncs:
-          (video.script_segments as { lipsyncs?: string[] } | null)?.lipsyncs ??
-          null,
+        lipsync:
+          (video.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
         heygen_video_id: video.heygen_video_id,
         photos,
       },

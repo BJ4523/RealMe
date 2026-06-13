@@ -57,10 +57,10 @@ interface AssemblableVideo {
   id: string;
   user_id: string;
   script: string | null;
-  /** One narration line per clip (opener, each room, closer) — lip-synced. */
+  /** Narration lines per beat (opener, each room, closer) — joined for one TTS. */
   beats?: string[] | null;
-  /** Lipsync job ids (one per clip), set once the lipsync stage has fired. */
-  lipsyncs?: string[] | null;
+  /** The single lipsync job id (whole montage), set once the lipsync has fired. */
+  lipsync?: string | null;
   heygen_video_id: string | null;
   /** Real listing photo URLs — the faithful backbone of the montage. */
   photos: string[];
@@ -91,7 +91,11 @@ export async function assembleCinematicVideo(
 
   try {
     const vId = voiceId ?? DEFAULT_VOICE_ID;
-    const beats = video.beats ?? [];
+    const fullScript =
+      (video.beats ?? []).map((b) => b?.trim()).filter(Boolean).join(" ") ||
+      video.script?.trim() ||
+      "Welcome to this beautiful home.";
+    const storage = adminConfigured ? createAdminClient() : supabase;
 
     // STAGE A — the silent cinematic_avatar clips (opener, rooms, closer).
     const clipS = await Promise.all(rooms.map(getCinematicClipStatus));
@@ -109,10 +113,11 @@ export async function assembleCinematicVideo(
     const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
     if (clipUrls.length !== rooms.length) return "processing";
 
-    // STAGE B — clips are ready but lipsync hasn't fired: TTS each beat in the
-    // cloned voice and Lipsync-Precision it onto its clip. Claim first so polls
-    // don't double-fire, then release back to `processing` to poll the lipsyncs.
-    if (!video.lipsyncs?.length) {
+    // STAGE B — clips ready, lipsync not fired: stitch the silent clips into ONE
+    // long-form video, host it, TTS the full script, and Lipsync-Precision the
+    // whole thing in a SINGLE pass (lipsync is built for long-form cinematic).
+    // Claim first so polls don't double-fire, then release to poll the lipsync.
+    if (!video.lipsync) {
       const { data: claimedB } = await supabase
         .from("videos")
         .update({ status: "submitting" })
@@ -121,42 +126,53 @@ export async function assembleCinematicVideo(
         .select("id");
       if (!claimedB || claimedB.length === 0) return "processing";
 
-      const lipsyncIds: string[] = [];
-      for (let i = 0; i < clipUrls.length; i++) {
-        const line = beats[i]?.trim() || "Take a look at this beautiful space.";
-        const audio = await generateSpeech(line, vId);
-        const { lipsyncId } = await createLipsync({
-          videoUrl: clipUrls[i],
-          audioUrl: audio.audioUrl,
-        });
-        lipsyncIds.push(lipsyncId);
-      }
+      const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
+      const silent = await assembleMontage({
+        scenes: clipBufs.map((buf) => ({
+          kind: "video",
+          videoBuf: buf,
+          durationMs: FULL_MS,
+        })),
+        audio: {},
+      });
+      // Host the silent montage so HeyGen lipsync can fetch it (signed URL).
+      const silentPath = `${video.user_id}/${video.id}-silent.mp4`;
+      const upS = await storage.storage
+        .from("video-cache")
+        .upload(silentPath, silent, { contentType: "video/mp4", upsert: true });
+      if (upS.error) throw new Error(`silent upload failed: ${upS.error.message}`);
+      const { data: silentSigned } = await storage.storage
+        .from("video-cache")
+        .createSignedUrl(silentPath, 60 * 60 * 24);
+      if (!silentSigned?.signedUrl) throw new Error("silent sign failed");
+
+      const audio = await generateSpeech(fullScript, vId);
+      const { lipsyncId } = await createLipsync({
+        videoUrl: silentSigned.signedUrl,
+        audioUrl: audio.audioUrl,
+      });
       await supabase
         .from("videos")
         .update({
           status: "processing",
-          script_segments: { beats, lipsyncs: lipsyncIds } as unknown as never,
+          script_segments: { beats: video.beats ?? [], lipsync: lipsyncId } as unknown as never,
         })
         .eq("id", video.id);
       return "processing";
     }
 
-    // STAGE C — poll the lipsync jobs (each = a clip lip-synced to its line).
-    const lsS = await Promise.all(video.lipsyncs.map(getLipsyncStatus));
-    if (lsS.some((s) => s.status === "failed")) {
-      const reason =
-        lsS.find((s) => s.status === "failed")?.error ?? "A lipsync job failed.";
+    // STAGE C — poll the single lipsync job (the whole montage, lip-synced).
+    const ls = await getLipsyncStatus(video.lipsync);
+    if (ls.status === "failed") {
       await supabase
         .from("videos")
-        .update({ status: "failed", error: reason })
+        .update({ status: "failed", error: ls.error ?? "Lipsync failed." })
         .eq("id", video.id);
       return "failed";
     }
-    if (lsS.some((s) => s.status !== "completed")) return "processing";
-    const lsUrls = lsS.map((s) => s.videoUrl).filter(Boolean) as string[];
-    if (lsUrls.length !== video.lipsyncs.length) return "processing";
+    if (ls.status !== "completed" || !ls.videoUrl) return "processing";
 
-    // Claim the heavy stitch/upload.
+    // Claim the final upload.
     const { data: claimed } = await supabase
       .from("videos")
       .update({ status: "submitting" })
@@ -165,21 +181,9 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    // Stitch the lip-synced clips in order — each keeps its OWN baked audio
-    // (the cloned voice, lip-synced). No separate voice-over track.
-    const lsBufs = await Promise.all(lsUrls.map(fetchBuffer));
-    const scenes: MontageScene[] = lsBufs.map((buf) => ({
-      kind: "video",
-      videoBuf: buf,
-      durationMs: FULL_MS,
-      keepAudio: true,
-    }));
-    const assembled = await assembleMontage({ scenes, audio: {} });
-
-    // Upload via the service-role client: the video-cache bucket's RLS only
-    // permits trusted writes, and assembly may run with the user client (from the
-    // poll path), which would hit "violates row-level security policy".
-    const storage = adminConfigured ? createAdminClient() : supabase;
+    // The lipsync output IS the finished video (the realtor walking + talking in
+    // their own voice). Re-host it in our bucket as the final.
+    const assembled = await fetchBuffer(ls.videoUrl);
     const path = `${video.user_id}/${video.id}.mp4`;
     const up = await storage.storage
       .from("video-cache")

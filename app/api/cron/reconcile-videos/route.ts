@@ -108,8 +108,8 @@ export async function GET(request: NextRequest) {
         user_id: v.user_id,
         script: v.script,
         beats: (v.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipsyncs:
-          (v.script_segments as { lipsyncs?: string[] } | null)?.lipsyncs ?? null,
+        lipsync:
+          (v.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
         heygen_video_id: v.heygen_video_id,
         photos,
       },
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
   // stale-lock reset as the cinematic pass.
   const { data: reelVideos } = await supabase
     .from("videos")
-    .select("id, user_id, heygen_video_id, status, listing_id, script_segments")
+    .select("id, user_id, heygen_video_id, status, listing_id, script_segments, avatar_id")
     .in("status", ["processing", "submitting"])
     .like("heygen_video_id", "reel:%")
     .limit(20);
@@ -143,11 +143,17 @@ export async function GET(request: NextRequest) {
       .eq("id", v.listing_id ?? "")
       .maybeSingle();
     const photos = lst ? listingPhotos(lst.photos).map((p) => p.url) : [];
-    const meta = (
-      v.script_segments as {
-        hypeReel?: { featureCallouts?: string[]; trackId?: string };
-      } | null
-    )?.hypeReel;
+    const seg = v.script_segments as {
+      hypeReel?: { featureCallouts?: string[]; trackId?: string };
+      beats?: string[];
+      lipsync?: string;
+    } | null;
+    const meta = seg?.hypeReel;
+    const { data: avReel } = await supabase
+      .from("avatars")
+      .select("voice_id")
+      .eq("id", v.avatar_id ?? "")
+      .maybeSingle();
     const result = await assembleHypeReel(supabase, {
       id: v.id,
       user_id: v.user_id,
@@ -164,6 +170,9 @@ export async function GET(request: NextRequest) {
       },
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
+      beats: seg?.beats ?? null,
+      lipsync: seg?.lipsync ?? null,
+      voiceId: avReel?.voice_id ?? null,
     });
     if (result === "completed") reelsAssembled++;
   }
