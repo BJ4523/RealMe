@@ -77,6 +77,10 @@ export async function generateAvatarTalkingVideo(input: {
         avatar_id: input.avatarId,
         script: input.script,
         voice_id: input.voiceId,
+        // Matte the twin out of its training background and composite it OVER
+        // the (front-of-house) photo — "the agent standing in front of the
+        // house." Requires the twin to be trained with matting.
+        remove_background: true,
         background: { type: "image", url: input.backgroundImageUrl },
         resolution: "720p",
         aspect_ratio: "9:16",

@@ -20,7 +20,6 @@ import {
   pollVideoStatus,
 } from "@/app/(app)/videos/actions";
 import type { Tables } from "@/lib/types/database";
-import { WARDROBES } from "@/lib/video/wardrobe";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "./status-badge";
@@ -44,7 +43,6 @@ export function VideoDetail({
   const [video, setVideo] = useState<Video>(initialVideo);
   const [script, setScript] = useState(initialVideo.script ?? "");
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
-  const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
   const [roomCount, setRoomCount] = useState(5);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -92,7 +90,7 @@ export function VideoDetail({
     startTransition(async () => {
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
-      await submitCinematicVideo(video.id, outfitId, roomCount);
+      await submitCinematicVideo(video.id, undefined, roomCount);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -102,7 +100,7 @@ export function VideoDetail({
     startTransition(async () => {
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
-      await submitHypeReelVideo(video.id, trackId, outfitId);
+      await submitHypeReelVideo(video.id, trackId);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -200,32 +198,6 @@ export function VideoDetail({
           <div className="flex flex-wrap items-center justify-end gap-3">
             {cinematicReady ? (
               <>
-                {/* Outfit hint for the generated scenes — best-effort; the agent
-                    is always your real digital twin. */}
-                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  Outfit
-                  <select
-                    value={outfitId}
-                    onChange={(e) => setOutfitId(e.target.value)}
-                    className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
-                    aria-label="Agent outfit"
-                  >
-                    <optgroup label="Men's">
-                      {WARDROBES.filter((w) => w.gender === "men").map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Women's">
-                      {WARDROBES.filter((w) => w.gender === "women").map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </label>
                 {/* How many rooms the cinematic walkthrough covers (1 clip each). */}
                 <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   Rooms

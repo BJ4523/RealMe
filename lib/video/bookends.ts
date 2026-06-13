@@ -24,9 +24,9 @@ async function fetchBuffer(url: string): Promise<Buffer> {
 }
 
 /**
- * Heavily blur a room photo into a 9:16 shallow-focus background. The blur both
- * gives the "focused on the face, room softly behind" look AND dissolves any
- * detail, so the sharp talking twin reads as the only subject.
+ * Prepare a room/exterior photo into a 9:16 background with a LIGHT depth blur:
+ * the house stays clearly recognizable (an establishing "standing in front of
+ * the house" shot) while a subtle blur separates the sharp matted twin from it.
  */
 async function blurTo916(photoBuf: Buffer): Promise<Buffer> {
   if (!ffmpegPath) throw new Error("ffmpeg binary unavailable");
@@ -40,9 +40,10 @@ async function blurTo916(photoBuf: Buffer): Promise<Buffer> {
         ffmpegPath as string,
         [
           "-y", "-i", inPath,
-          // Fill a 720x1280 frame, then strong gaussian blur for bokeh depth.
+          // Fill a 720x1280 frame, then a LIGHT gaussian blur (house stays
+          // clearly visible — subtle depth separation only).
           "-vf",
-          "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,gblur=sigma=32",
+          "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,gblur=sigma=6",
           "-frames:v", "1", "-q:v", "3", outPath,
         ],
         { maxBuffer: 1 << 24 },

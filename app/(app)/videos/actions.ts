@@ -22,7 +22,6 @@ import {
 } from "@/lib/video/cinematic";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
-import { wardrobePrompt } from "@/lib/video/wardrobe";
 import type { Json, Tables } from "@/lib/types/database";
 
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
@@ -261,27 +260,26 @@ function cinematicPrompt(
  * digital twin. Stores the clip job ids in heygen_video_id (cine:<id,id,...>).
  */
 /**
- * Resolve the chosen look key ("original" or a trained outfit look) to the
- * Seedance avatar id + the canonical face-on image for the talking bookends.
- * ALWAYS the real digital twin (its likeness is guaranteed). The outfit is a
- * best-effort prompt hint; the bookends pull a face-on frame from the real-twin
- * room footage (lookImageUrl stays null). We do NOT use AI-generated "looks" —
- * type:prompt invents a different person, which is never acceptable here.
+ * Always the real digital twin in its OWN trained outfit — never a picked
+ * outfit. The lip-synced opening bookend (v3 avatar) can only wear the trained
+ * outfit (v3 has no clothing control), so for the opening to MATCH the cinematic
+ * the rooms must use the trained outfit too. The Seedance wardrobe clause
+ * therefore pins "the same clothing the agent already wears, identical in every
+ * shot" rather than imposing a new garment.
  */
 function resolveLook(
   avatar: Tables<"avatars">,
-  outfitId: string | undefined,
-): { lookId: string; lookImageUrl: string | null; wardrobe: string } {
+): { lookId: string; wardrobe: string } {
   return {
     lookId: avatar.heygen_avatar_id!,
-    lookImageUrl: null,
-    wardrobe: wardrobePrompt(outfitId),
+    wardrobe:
+      "wearing their own natural clothing — the EXACT SAME outfit in every single shot, never changing",
   };
 }
 
 export async function submitCinematicVideo(
   videoId: string,
-  outfitId?: string,
+  _outfitId?: string,
   roomCount?: number,
 ) {
   const rooms = Math.min(
@@ -331,12 +329,16 @@ export async function submitCinematicVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // Room clips first, driven by the chosen LOOK (one canonical image keeps
-    // face + outfit consistent everywhere). The lip-synced bookends are
-    // generated LATER by the assembler — from the look's face-on image when
-    // available, else from a room-clip frame. Hook texts stored for that phase.
-    const { lookId, lookImageUrl, wardrobe } = resolveLook(avatar, outfitId);
+    // Room clips first — the real twin in its trained outfit (consistent
+    // everywhere). The lip-synced bookends are generated LATER by the assembler
+    // (v3 twin avatar over the front-of-house photo). Hook texts stored now.
+    const { lookId, wardrobe } = resolveLook(avatar);
     const hook = await generateHypeReelScript(listing as Tables<"listings">);
+    // The OPENING is a ~20s talking shot, so give it a fuller intro: the hook
+    // plus a couple of property highlights (avatar length is script-driven).
+    const longIntro = [hook.intro, ...(hook.featureCallouts ?? []).slice(0, 2)]
+      .filter(Boolean)
+      .join(" ");
     const roomJobs = await Promise.all(
       roomPhotos.map((url, i) =>
         generateCinematicClip({
@@ -358,11 +360,7 @@ export async function submitCinematicVideo(
         status: "processing",
         thumbnail_url: photos[0] ?? null,
         script_segments: {
-          bookends: {
-            intro: hook.intro,
-            outro: hook.outro,
-            imageUrl: lookImageUrl,
-          },
+          bookends: { intro: longIntro, outro: hook.outro },
         } as unknown as Json,
       })
       .eq("id", videoId)
@@ -378,7 +376,7 @@ export async function submitCinematicVideo(
 export async function submitHypeReelVideo(
   videoId: string,
   trackId?: string,
-  outfitId?: string,
+  _outfitId?: string,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -412,10 +410,9 @@ export async function submitHypeReelVideo(
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
   try {
-    // Room clips only at submit, driven by the chosen LOOK. The lip-synced
-    // bookends are generated LATER by the assembler — from the look's face-on
-    // image when available, else from a room-clip frame.
-    const { lookId, lookImageUrl, wardrobe } = resolveLook(avatar, outfitId);
+    // Room clips only at submit — real twin, trained outfit (consistent). The
+    // lip-synced bookends are generated LATER by the assembler.
+    const { lookId, wardrobe } = resolveLook(avatar);
     const script = await generateHypeReelScript(listing as Tables<"listings">);
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
     const roomJobs = await Promise.all(
@@ -441,7 +438,6 @@ export async function submitHypeReelVideo(
         bookends: {
           intro: script.intro,
           outro: script.outro,
-          imageUrl: lookImageUrl,
         },
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
