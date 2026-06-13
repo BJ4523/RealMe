@@ -75,8 +75,18 @@ export async function generateAvatarTalkingVideo(input: {
       json: {
         type: "avatar",
         avatar_id: input.avatarId,
+        // Avatar V engine: same look id as the Seedance walk → same outfit, and
+        // unlike the default Avatar IV it accepts motion_prompt (presenter pose
+        // direction). Our twin look lists avatar_v in supported_api_engines.
+        engine: { type: "avatar_v" },
         script: input.script,
         voice_id: input.voiceId,
+        // Direct a grounded, premium presenter standing in front of the house.
+        motion_prompt:
+          "Standing confidently in front of the home, calm premium presenter " +
+          "energy: subtle weight shift, an occasional open-hand gesture toward " +
+          "the property, steady eye contact with the camera. Minimal, grounded " +
+          "movement.",
         // Matte the twin out of its training background and composite it OVER
         // the (front-of-house) photo — "the agent standing in front of the
         // house." Requires the twin to be trained with matting.
