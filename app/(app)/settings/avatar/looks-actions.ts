@@ -4,10 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import {
-  trainPhotoModel,
-  getPhotoModelStatus,
   generateLook,
-  getLookGeneration,
+  getLookStatus,
+  getTwinReferenceImage,
 } from "@/lib/heygen/looks";
 import { parseLooks, type LooksState } from "@/lib/avatars/looks-state";
 import { WARDROBES } from "@/lib/video/wardrobe";
@@ -40,52 +39,27 @@ async function saveLooks(
     .eq("id", avatarId);
 }
 
-/** One-time: start training the twin group's photo model (unlocks looks). */
-export async function startModelTraining(): Promise<ActionResult> {
-  const { userId } = await requireUser();
-  const { supabase, avatar, isTwin } = await activeTwin(userId);
-  if (!avatar || !isTwin || avatar.status !== "ready") {
-    return { error: "A ready digital twin is required first." };
-  }
-  const state = parseLooks(avatar.looks);
-  if (state.model === "ready" || state.model === "training") return { state };
-  try {
-    await trainPhotoModel(avatar.heygen_asset_id!);
-    state.model = "training";
-    await saveLooks(supabase, avatar.id, state);
-    revalidatePath("/settings/avatar");
-    return { state };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Training failed to start.";
-    // Already trained → unblock immediately.
-    if (/already.*train/i.test(msg)) {
-      state.model = "ready";
-      await saveLooks(supabase, avatar.id, state);
-      return { state };
-    }
-    return { error: msg };
-  }
-}
-
-/** Generate the canonical look image for one outfit (model must be ready). */
+/** Generate the canonical look image for one outfit (v3 prompt-avatar). */
 export async function startLookGeneration(
   outfitId: string,
 ): Promise<ActionResult> {
   const { userId } = await requireUser();
   const { supabase, avatar, isTwin } = await activeTwin(userId);
-  if (!avatar || !isTwin) return { error: "Digital twin required." };
+  if (!avatar || !isTwin || avatar.status !== "ready") {
+    return { error: "A ready digital twin is required first." };
+  }
   const outfit = WARDROBES.find((w) => w.id === outfitId);
   if (!outfit) return { error: "Unknown outfit." };
   const state = parseLooks(avatar.looks);
-  if (state.model !== "ready") {
-    return { error: "Train the photo model first (one-time, a few minutes)." };
-  }
   try {
-    const { generationId } = await generateLook({
+    const referenceImageUrl = await getTwinReferenceImage(avatar.heygen_asset_id!);
+    const { lookId } = await generateLook({
       groupId: avatar.heygen_asset_id!,
+      name: outfit.label,
       prompt: `Standing in a bright, beautifully staged modern home interior, ${outfit.prompt}`,
+      referenceImageUrl,
     });
-    state.items[outfitId] = { status: "generating", generationId };
+    state.items[outfitId] = { status: "generating", lookId };
     await saveLooks(supabase, avatar.id, state);
     revalidatePath("/settings/avatar");
     return { state };
@@ -94,7 +68,7 @@ export async function startLookGeneration(
   }
 }
 
-/** Poll training + all in-flight look generations; persist any progress. */
+/** Poll all in-flight look generations; persist any progress. */
 export async function refreshLooks(): Promise<ActionResult> {
   const { userId } = await requireUser();
   const { supabase, avatar, isTwin } = await activeTwin(userId);
@@ -102,30 +76,21 @@ export async function refreshLooks(): Promise<ActionResult> {
   const state = parseLooks(avatar.looks);
   let dirty = false;
 
-  if (state.model === "training") {
-    const s = await getPhotoModelStatus(avatar.heygen_asset_id!);
-    if (s === "ready" || s === "failed") {
-      state.model = s === "ready" ? "ready" : "failed";
-      dirty = true;
-    }
-  }
-
   for (const [outfitId, item] of Object.entries(state.items)) {
-    if (item.status !== "generating" || !item.generationId) continue;
-    const g = await getLookGeneration(item.generationId);
-    if (g.status === "ready" && g.lookId && g.imageUrl) {
+    if (item.status !== "generating" || !item.lookId) continue;
+    const g = await getLookStatus(item.lookId);
+    if (g.status === "ready" && g.imageUrl) {
       state.items[outfitId] = {
         status: "ready",
-        lookId: g.lookId,
+        lookId: item.lookId,
         imageUrl: g.imageUrl,
-        generationId: item.generationId,
       };
       dirty = true;
     } else if (g.status === "failed") {
       state.items[outfitId] = {
         status: "failed",
+        lookId: item.lookId,
         error: g.error,
-        generationId: item.generationId,
       };
       dirty = true;
     }

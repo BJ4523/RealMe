@@ -2,9 +2,8 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import {
-  startModelTraining,
   startLookGeneration,
   refreshLooks,
 } from "@/app/(app)/settings/avatar/looks-actions";
@@ -14,8 +13,8 @@ import { Button } from "@/components/ui/button";
 
 /**
  * "Looks" — canonical outfit images of the twin that drive video generation
- * (Seedance scenes + talking bookends derive from one image, so the outfit and
- * face stay consistent). One-time model training, then generate per outfit;
+ * (the chosen look's id powers the Seedance scenes; its image powers the
+ * talking bookends, so the outfit + face stay consistent). Generate per outfit;
  * only READY looks appear in the video-generation step.
  */
 export function LooksManager({ initialLooks }: { initialLooks: unknown }) {
@@ -24,9 +23,9 @@ export function LooksManager({ initialLooks }: { initialLooks: unknown }) {
   const [pending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const inFlight =
-    state.model === "training" ||
-    Object.values(state.items).some((i) => i.status === "generating");
+  const inFlight = Object.values(state.items).some(
+    (i) => i.status === "generating",
+  );
 
   useEffect(() => {
     if (!inFlight) return;
@@ -50,32 +49,13 @@ export function LooksManager({ initialLooks }: { initialLooks: unknown }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-heading text-lg font-bold">Looks</h2>
-          <p className="text-sm text-muted-foreground">
-            Generate outfit looks of your twin — videos are built from the look
-            you pick, so the outfit stays consistent in every scene.
-          </p>
-        </div>
-        {state.model === "untrained" || state.model === "failed" ? (
-          <Button
-            onClick={() => run(startModelTraining)}
-            disabled={pending}
-            className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-          >
-            <Sparkles className="size-4" />
-            {state.model === "failed" ? "Retry model training" : "Enable looks"}
-          </Button>
-        ) : state.model === "training" ? (
-          <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Training model…
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            <CheckCircle2 className="size-4" /> Model ready
-          </span>
-        )}
+      <div>
+        <h2 className="font-heading text-lg font-bold">Looks</h2>
+        <p className="text-sm text-muted-foreground">
+          Generate outfit looks of your twin — videos are built from the look you
+          pick, so the outfit and face stay consistent in every scene. Each look
+          takes a few minutes to generate.
+        </p>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -109,23 +89,19 @@ export function LooksManager({ initialLooks }: { initialLooks: unknown }) {
               </div>
               <p className="truncate text-xs font-medium">{w.label}</p>
               {item?.status === "failed" ? (
-                <p className="truncate text-xs text-destructive" title={item.error}>
+                <p
+                  className="truncate text-xs text-destructive"
+                  title={item.error}
+                >
                   {item.error ?? "Failed"}
                 </p>
               ) : null}
               <Button
                 size="sm"
                 variant={item?.status === "ready" ? "outline" : "default"}
-                disabled={
-                  pending || state.model !== "ready" || item?.status === "generating"
-                }
+                disabled={pending || item?.status === "generating"}
                 onClick={() => run(() => startLookGeneration(w.id))}
                 className="rounded-full"
-                title={
-                  state.model !== "ready"
-                    ? "Enable looks first (one-time model training)"
-                    : undefined
-                }
               >
                 {item?.status === "ready" ? (
                   <>
