@@ -599,12 +599,37 @@ export async function pollVideoStatus(
 ): Promise<Tables<"videos"> | null> {
   await requireUser();
   const supabase = await createClient();
-  const { data: video } = await supabase
+  let { data: video } = await supabase
     .from("videos")
     .select("*, listings(*)")
     .eq("id", videoId)
     .single();
   if (!video) return null;
+
+  // Self-heal a stale `submitting` lock. An assembly run claims the job
+  // (processing → submitting) before the heavy stitch/lipsync step; if that run
+  // dies (page closed mid-stitch, or the function is killed), the row stays
+  // `submitting` forever — the assemblers only re-claim `processing` rows, so it
+  // sits stuck. The updated_at trigger stamps the claim time; if it's been
+  // submitting longer than any real assembly step, reset it to `processing` so
+  // this poll can re-drive it to completion.
+  if (
+    video.status === "submitting" &&
+    (isHypeReel(video.heygen_video_id) || isCinematic(video.heygen_video_id))
+  ) {
+    const claimedMs = video.updated_at ? Date.parse(video.updated_at) : 0;
+    const STALE_SUBMIT_MS = 4 * 60 * 1000; // > any real stitch, < the 5-min fn limit
+    if (Date.now() - claimedMs > STALE_SUBMIT_MS) {
+      const { data: reset } = await supabase
+        .from("videos")
+        .update({ status: "processing" })
+        .eq("id", videoId)
+        .eq("status", "submitting")
+        .select("*, listings(*)")
+        .single();
+      if (reset) video = reset;
+    }
+  }
 
   const pollListing = video.listings as Tables<"listings"> | null;
   const photos = pollListing ? listingPhotos(pollListing.photos).map((p) => p.url) : [];
