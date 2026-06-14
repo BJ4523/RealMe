@@ -149,6 +149,34 @@ export async function updateScript(videoId: string, script: string) {
   revalidatePath(`/videos/${videoId}`);
 }
 
+/**
+ * Regenerate the ~20s opening pitch with Claude (to spec, length-calibrated) and
+ * save it. Returns the new pitch so the client can update the editor in place.
+ */
+export async function rewriteOpeningPitch(
+  videoId: string,
+): Promise<{ pitch?: string; error?: string }> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("videos")
+    .select("listing_id")
+    .eq("id", videoId)
+    .maybeSingle();
+  if (!video?.listing_id) return { error: "No listing for this video." };
+  const { data: listing } = await supabase
+    .from("listings")
+    .select("*")
+    .eq("id", video.listing_id)
+    .maybeSingle();
+  if (!listing) return { error: "Listing not found." };
+
+  const pitch = await generateOpeningPitch(listing as Tables<"listings">);
+  await supabase.from("videos").update({ script: pitch }).eq("id", videoId);
+  revalidatePath(`/videos/${videoId}`);
+  return { pitch };
+}
+
 
 /**
  * Step 2 — submit the (possibly edited) script to HeyGen.

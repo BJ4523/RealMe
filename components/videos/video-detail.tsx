@@ -19,6 +19,7 @@ import {
   submitHypeReelVideo,
   updateScript,
   pollVideoStatus,
+  rewriteOpeningPitch,
 } from "@/app/(app)/videos/actions";
 import type { Tables } from "@/lib/types/database";
 import { WARDROBES } from "@/lib/video/wardrobe";
@@ -50,6 +51,7 @@ export function VideoDetail({
   const [captions, setCaptions] = useState(true);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [rewriting, startRewrite] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentTrack = tracks.find((t) => t.id === trackId) ?? tracks[0];
@@ -89,6 +91,20 @@ export function VideoDetail({
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [isWorking, video.id]);
+
+  function handleRewrite() {
+    startRewrite(async () => {
+      const { pitch, error } = await rewriteOpeningPitch(video.id);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      if (pitch) {
+        setScript(pitch);
+        toast.success("Pitch rewritten");
+      }
+    });
+  }
 
   function handleCinematic() {
     startTransition(async () => {
@@ -187,17 +203,31 @@ export function VideoDetail({
       {(video.status === "script_ready" ||
         video.status === "pending_script") && (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="font-heading text-lg font-bold">Opening pitch</h2>
-            <span className="text-xs text-muted-foreground">
-              Spoken in front of the house · auto-written for ~20s — edit before generating
-            </span>
+            <Button
+              type="button"
+              onClick={handleRewrite}
+              disabled={rewriting}
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              title="Regenerate the ~20s pitch with AI"
+            >
+              <Sparkles className={`size-4 ${rewriting ? "animate-pulse" : ""}`} />
+              {rewriting ? "Rewriting…" : "Rewrite with AI"}
+            </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Spoken in front of the house · AI-written for ~20s — edit, or hit
+            Rewrite for a fresh take.
+          </p>
           <Textarea
             value={script}
             onChange={(e) => setScript(e.target.value)}
             rows={8}
             className="rounded-2xl"
+            disabled={rewriting}
           />
           {(() => {
             const words = script.trim() ? script.trim().split(/\s+/).length : 0;
