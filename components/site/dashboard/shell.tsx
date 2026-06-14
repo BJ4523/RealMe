@@ -50,7 +50,11 @@ import {
 
 function Logo({ size = 22 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <a
+      href="/app"
+      aria-label="RealMe dashboard home"
+      style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}
+    >
       <div style={{
         width: size, height: size, borderRadius: 6,
         background: "var(--ink)", color: "var(--lime)",
@@ -62,7 +66,7 @@ function Logo({ size = 22 }) {
         fontFamily: "var(--font-display)", fontWeight: 800, fontSize: size * 0.85,
         letterSpacing: "-0.03em", color: "var(--ink)",
       }}>RealMe</span>
-    </div>
+    </a>
   );
 }
 
