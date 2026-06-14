@@ -49,6 +49,8 @@ export async function getLipsyncStatus(lipsyncId: string): Promise<LipsyncStatus
       data?: {
         status?: string;
         video_url?: string;
+        // HeyGen surfaces the real reason in `failure_message` (not `error`).
+        failure_message?: string | null;
         error?: string | { message?: string } | null;
       };
     }>(ENDPOINTS.lipsyncStatus(lipsyncId));
@@ -61,7 +63,8 @@ export async function getLipsyncStatus(lipsyncId: string): Promise<LipsyncStatus
           ? "failed"
           : "processing";
     const error =
-      typeof d.error === "string" ? d.error : (d.error?.message ?? undefined);
+      d.failure_message ??
+      (typeof d.error === "string" ? d.error : (d.error?.message ?? undefined));
     return { status, videoUrl: d.video_url, error };
   } catch (e) {
     return { status: "processing", error: e instanceof Error ? e.message : undefined };
