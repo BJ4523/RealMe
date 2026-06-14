@@ -3,13 +3,15 @@ import Link from "next/link";
 import { Play, ImageOff } from "lucide-react";
 import type { Tables } from "@/lib/types/database";
 import { StatusBadge } from "./status-badge";
+import { DeleteVideoButton } from "./delete-video-button";
 
 export function VideoCard({ video }: { video: Tables<"videos"> }) {
   return (
     <Link
       href={`/videos/${video.id}`}
-      className="group flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-lg"
+      className="group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-lg"
     >
+      <DeleteVideoButton videoId={video.id} />
       <div className="relative aspect-[9/16] overflow-hidden bg-muted">
         {video.thumbnail_url ? (
           <Image

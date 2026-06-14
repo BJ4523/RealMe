@@ -1,7 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
-import { advanceLipsync, fetchBuffer, FULL_MS } from "@/lib/video/assemble";
+import {
+  advanceLipsync,
+  fetchBuffer,
+  uploadThumbnailFromVideo,
+  FULL_MS,
+} from "@/lib/video/assemble";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { assembleMontage, HYPE_REEL_TARGET_MS } from "@/lib/video/scenes";
 import { beatTimesMs } from "@/lib/video/music/beats";
@@ -120,9 +125,17 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
     const { data: signed } = await storage.storage.from("video-cache")
       .createSignedUrl(path, 60 * 60 * 24 * 7);
 
+    const thumb = await uploadThumbnailFromVideo(
+      storage,
+      assembled,
+      reel.user_id,
+      reel.id,
+    );
+
     await supabase.from("videos").update({
       status: "completed",
       video_url: signed?.signedUrl ?? null,
+      ...(thumb ? { thumbnail_url: thumb } : {}),
       duration: Math.round(HYPE_REEL_TARGET_MS / 1000),
     }).eq("id", reel.id);
     return "completed";

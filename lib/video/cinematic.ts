@@ -2,7 +2,11 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
-import { advanceLipsync, fetchBuffer } from "@/lib/video/assemble";
+import {
+  advanceLipsync,
+  fetchBuffer,
+  uploadThumbnailFromVideo,
+} from "@/lib/video/assemble";
 
 type Db = SupabaseClient<Database>;
 
@@ -123,11 +127,21 @@ export async function assembleCinematicVideo(
       .from("video-cache")
       .createSignedUrl(path, 60 * 60 * 24 * 7);
 
+    // Poster frame from the finished reel (clean still of the agent, not a
+    // low-res listing photo).
+    const thumb = await uploadThumbnailFromVideo(
+      storage,
+      assembled,
+      video.user_id,
+      video.id,
+    );
+
     await supabase
       .from("videos")
       .update({
         status: "completed",
         video_url: signed?.signedUrl ?? null,
+        ...(thumb ? { thumbnail_url: thumb } : {}),
         duration: null,
       })
       .eq("id", video.id);

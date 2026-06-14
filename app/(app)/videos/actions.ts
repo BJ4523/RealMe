@@ -149,6 +149,7 @@ export async function updateScript(videoId: string, script: string) {
   revalidatePath(`/videos/${videoId}`);
 }
 
+
 /**
  * Step 2 — submit the (possibly edited) script to HeyGen.
  * Moves the job to `processing`; completion arrives via webhook (real) or is
@@ -680,11 +681,11 @@ export async function pollVideoStatus(
   return video;
 }
 
-export async function deleteVideo(formData: FormData) {
+/** Delete a video (RLS scopes it to the owner). Used to clean up test/junk reels.
+ * The client handles navigation/refresh (no redirect here). */
+export async function deleteVideo(videoId: string) {
   await requireUser();
-  const id = formData.get("id") as string;
   const supabase = await createClient();
-  await supabase.from("videos").delete().eq("id", id);
+  await supabase.from("videos").delete().eq("id", videoId);
   revalidatePath("/videos");
-  redirect("/videos");
 }

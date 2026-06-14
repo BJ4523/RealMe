@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
+import { DeleteVideoButton } from "@/components/videos/delete-video-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 import { TRACKS } from "@/lib/video/music/tracks";
@@ -53,12 +54,15 @@ export default async function VideoPage({
 
   return (
     <>
-      <Link
-        href="/videos"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> All videos
-      </Link>
+      <div className="mb-6 flex items-center justify-between">
+        <Link
+          href="/videos"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> All videos
+        </Link>
+        <DeleteVideoButton videoId={videoRow.id} variant="full" redirectTo="/videos" />
+      </div>
       <PageHeader
         title={video.title ?? "Walkthrough video"}
         description={listing?.address}

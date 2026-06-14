@@ -1,4 +1,9 @@
 import "server-only";
+import { execFile } from "node:child_process";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import ffmpegPath from "ffmpeg-static";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
@@ -9,6 +14,7 @@ import { generateSpeech } from "@/lib/heygen/voice";
 import { assembleMontage } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
+type Storage = Db | ReturnType<typeof createAdminClient>;
 
 /** "Play full natural length" sentinel for keepAudio (lip-synced) scenes. */
 export const FULL_MS = 600000;
@@ -17,6 +23,49 @@ export async function fetchBuffer(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${res.status} for ${url.slice(0, 80)}`);
   return Buffer.from(await res.arrayBuffer());
+}
+
+/**
+ * Extract a poster frame from the FINISHED reel and store it as the thumbnail —
+ * a clean still of the agent in the actual video, instead of a low-res listing
+ * photo. Best-effort: returns the signed thumbnail URL, or null on any failure
+ * (the caller keeps whatever thumbnail it had). Grabs ~1.5s in (past any fade-in).
+ */
+export async function uploadThumbnailFromVideo(
+  storage: Storage,
+  videoBuf: Buffer,
+  userId: string,
+  videoId: string,
+): Promise<string | null> {
+  if (!ffmpegPath) return null;
+  const dir = await mkdtemp(join(tmpdir(), "thumb-"));
+  try {
+    const inPath = join(dir, "in.mp4");
+    const outPath = join(dir, "thumb.jpg");
+    await writeFile(inPath, videoBuf);
+    await new Promise<void>((res, rej) =>
+      execFile(
+        ffmpegPath as string,
+        ["-y", "-ss", "1.5", "-i", inPath, "-frames:v", "1", "-q:v", "3", outPath],
+        { maxBuffer: 1 << 24 },
+        (e) => (e ? rej(e) : res()),
+      ),
+    );
+    const thumb = await readFile(outPath);
+    const path = `${userId}/${videoId}-thumb.jpg`;
+    const up = await storage.storage
+      .from("video-cache")
+      .upload(path, thumb, { contentType: "image/jpeg", upsert: true });
+    if (up.error) return null;
+    const { data: signed } = await storage.storage
+      .from("video-cache")
+      .createSignedUrl(path, 60 * 60 * 24 * 7);
+    return signed?.signedUrl ?? null;
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 export type LipsyncResult =
