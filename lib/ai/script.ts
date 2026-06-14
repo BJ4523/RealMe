@@ -180,13 +180,15 @@ export async function generateOpeningPitch(listing: Listing): Promise<string> {
         "You are a real-estate agent recording the OPENING of a listing reel, " +
         "on camera, standing in front of the house. Write ONLY what you SAY out " +
         `loud — calibrated to EXACTLY ${OPENING_PITCH_SECONDS} seconds of natural ` +
-        `spoken delivery, which is about ${TARGET_WORDS} words and MUST NOT exceed ` +
-        `${MAX_WORDS} words (the spoken length IS the video length, so do not run ` +
-        "over). Include: a natural greeting, the property and its headline numbers " +
-        "(beds/baths/sqft/price), a tease of 2-3 real highlights, and a punchy " +
-        "call to action (e.g. 'DM me to see it this weekend'). Conversational, " +
-        "confident, first person. Use ONLY the facts provided — never invent " +
-        "rooms, finishes, or numbers. Count your words and stay within budget.",
+        `spoken delivery, which is about ${TARGET_WORDS} words. Use the FULL time: ` +
+        `aim for ${TARGET_WORDS} words, at LEAST ${TARGET_WORDS - 5} and never more ` +
+        `than ${MAX_WORDS} (the spoken length IS the video length — do not run over, ` +
+        "but do NOT come in short and choppy either). Include: a warm greeting, the " +
+        "property and its headline numbers (beds/baths/sqft/price), a tease of 2-3 " +
+        "real highlights or a sentence on the feel of the home, and a punchy call to " +
+        "action (e.g. 'DM me to see it this weekend'). Conversational, confident, " +
+        "first person, full flowing sentences. Use ONLY the facts provided — never " +
+        "invent rooms, finishes, or numbers. Count your words and fill the budget.",
       messages: [{ role: "user", content: JSON.stringify(listingForPrompt(listing)) }],
       output_config: { format: zodOutputFormat(OpeningPitchSchema) },
     });
@@ -199,6 +201,7 @@ export async function generateOpeningPitch(listing: Listing): Promise<string> {
 
 function templatedOpeningPitch(listing: Listing): string {
   const place = [listing.address, listing.city].filter(Boolean).join(", ");
+  const city = listing.city?.trim();
   const price = listing.price
     ? `$${Math.round(Number(listing.price)).toLocaleString("en-US")}`
     : null;
@@ -209,13 +212,19 @@ function templatedOpeningPitch(listing: Listing): string {
   ]
     .filter(Boolean)
     .join(", ");
+  const feature = (listing.features ?? [])[0]?.trim();
+  // Built to land at the full ~20s (~50 words) even when a listing has no
+  // features — evergreen, always-true lines fill the budget without inventing
+  // specifics. clampToBudget keeps it under the hard ceiling.
   return [
-    `Let me show you ${place || "this home"}.`,
-    specs ? `${specs}.` : "",
-    (listing.features ?? []).slice(0, 2).join(", ") +
-      ((listing.features ?? []).length ? "." : ""),
-    price ? `Asking ${price}.` : "",
-    "DM me to come see it this weekend.",
+    `Hi, I'm so excited to show you ${place || "this home"}.`,
+    `This home${city ? ` in ${city}` : ""} feels special the moment you step inside.`,
+    feature
+      ? `You'll love the ${feature.toLowerCase()}.`
+      : "It's warm, bright, and full of character.",
+    specs ? `You're looking at ${specs}.` : "It's a comfortable, easy-to-love layout.",
+    price ? `It's offered at ${price}.` : "",
+    "Message me and let's set up a private tour this weekend.",
   ]
     .filter(Boolean)
     .join(" ");
