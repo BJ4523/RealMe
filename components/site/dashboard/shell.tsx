@@ -68,14 +68,10 @@ function Logo({ size = 22 }) {
 
 export function DashboardShell({ onBackToSite, onOpenLive }) {
   const isMobile = useIsMobile();
-  const initialMode = (typeof window !== "undefined" && (window.location.hash === "#rent" || window.location.hash === "#app/rent")) ? "rent" : "sale";
-  const [mode, setMode] = useState(initialMode);
+  // MVP: sales-only. The Rentals mode + its mock sections are retired from the
+  // UI (code kept for later).
+  const [mode] = useState("sale");
   const [section, setSection] = useState("today");
-
-  function switchMode(m) {
-    setMode(m);
-    setSection("today");
-  }
 
   // Sections valid for the current mode
   const validSections = mode === "sale"
@@ -86,7 +82,7 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
   return (
     <div data-screen-label={mode === "sale" ? "02 Dashboard — Sales" : "03 Dashboard — Rentals"} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: "var(--bg)", maxWidth: "100%", overflowX: "hidden" }}>
       <style>{`.rm-nav-scroll::-webkit-scrollbar{display:none}`}</style>
-      <Sidebar mode={mode} setMode={switchMode} section={currentSection} setSection={setSection} onBackToSite={onBackToSite} onOpenLive={onOpenLive} />
+      <Sidebar mode={mode} section={currentSection} setSection={setSection} onBackToSite={onBackToSite} />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <DashTopBar mode={mode} section={currentSection} />
         <main style={{ flex: 1, padding: isMobile ? "18px 16px 96px" : "28px 32px 80px", overflowY: "auto" }}>
@@ -108,45 +104,52 @@ export function DashboardShell({ onBackToSite, onOpenLive }) {
         </main>
       </div>
       {isMobile && (
-        <BottomTabBar mode={mode} section={currentSection} setSection={setSection} onOpenLive={onOpenLive} />
+        <BottomTabBar section={currentSection} setSection={setSection} />
       )}
     </div>
   );
 }
 
-function getNav(mode) {
-  const navSale = [
-    { id: "today", label: "Today", icon: Sun },
-    { id: "listings", label: "Listings", icon: LayoutGrid, count: LISTINGS.filter(l => l.status === "new").length, countLabel: "new" },
-    { id: "studio", label: "Video Studio", short: "Studio", icon: Clapperboard, hot: true },
-    { id: "calendar", label: "Calendar", icon: CalendarDays, count: 7, countLabel: "queued" },
-    { id: "email", label: "Email", icon: Mail },
-    { id: "leads", label: "Leads", icon: Users, count: LEADS.filter(l => l.stage === "new").length, countLabel: "new" },
+// Consolidated to the working core: a Dashboard overview (internal "today"
+// section) + direct links to the real functional pages. The mock sections
+// (Calendar/Email/Leads/Studio + the whole Rentals mode) are kept in the repo
+// but no longer linked. `href` items navigate out; the rest set the section.
+function getNav() {
+  return [
+    { id: "today", label: "Dashboard", icon: Sun },
+    { id: "listings", label: "Listings", icon: LayoutGrid, href: "/listings" },
+    { id: "videos", label: "Videos", icon: Clapperboard, href: "/videos" },
+    { id: "avatar", label: "Avatar", icon: UserRound, href: "/settings/avatar" },
   ];
-  const navRent = [
-    { id: "today", label: "Today", icon: Sun },
-    { id: "portfolio", label: "Portfolio", icon: Building2, count: RENTAL_MANAGER.vacant, countLabel: "vacant" },
-    { id: "studio", label: "Video Studio", short: "Studio", icon: Clapperboard, hot: true },
-    { id: "calendar", label: "Calendar", icon: CalendarDays, count: 7, countLabel: "queued" },
-    { id: "email", label: "Email", icon: Mail },
-    { id: "pipeline", label: "Lease Pipeline", short: "Pipeline", icon: Users, count: RENTAL_LEADS.filter(l => l.stage === "inquiry").length, countLabel: "new" },
-    { id: "syndication", label: "Syndication", short: "Synd.", icon: Share2, coral: true },
-    { id: "concessions", label: "Concessions", short: "Conc.", icon: Zap },
-  ];
-  return mode === "sale" ? navSale : navRent;
 }
 
-// Native-style fixed bottom tab bar (mobile only).
-function BottomTabBar({ mode, section, setSection, onOpenLive }) {
-  const items = [
-    ...getNav(mode),
-    ...(mode === "rent" && onOpenLive
-      ? [{ id: "__live", label: "Live", icon: ArrowUpRight, live: true }]
-      : []),
-  ];
+// Native-style fixed bottom tab bar (mobile only). Four core items, evenly
+// spaced (no scrolling): the Dashboard overview section + links to the real
+// Listings / Videos / Avatar pages.
+function BottomTabBar({ section, setSection }) {
+  const items = getNav();
+  const tabStyle = (active) => ({
+    flex: "1 1 0", minWidth: 0,
+    display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+    padding: "5px 4px", background: "transparent", textDecoration: "none",
+    color: active ? "var(--ink)" : "var(--ink-soft)",
+  });
+  const inner = (item, active) => {
+    const Icon = item.icon;
+    return (
+      <>
+        {active && (
+          <span style={{ position: "absolute", top: -6, width: 22, height: 3, borderRadius: 99, background: "var(--lime)" }} />
+        )}
+        <Icon size={21} strokeWidth={active ? 2.4 : 1.9} />
+        <span style={{ fontSize: 9.5, fontWeight: active ? 700 : 500, letterSpacing: "-0.01em" }}>
+          {item.label}
+        </span>
+      </>
+    );
+  };
   return (
     <nav
-      className="rm-nav-scroll"
       style={{
         position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
         display: "flex", background: "var(--bg-warm)",
@@ -154,58 +157,29 @@ function BottomTabBar({ mode, section, setSection, onOpenLive }) {
         boxShadow: "0 -4px 20px rgba(0,0,0,0.05)",
         padding: "6px 2px",
         paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
-        overflowX: "auto", scrollbarWidth: "none",
       }}>
-      {items.map(item => {
-        const active = !item.live && section === item.id;
-        const Icon = item.icon;
-        return (
+      {items.map(item =>
+        item.href ? (
+          <a key={item.id} href={item.href} style={{ position: "relative", ...tabStyle(false) }}>
+            {inner(item, false)}
+          </a>
+        ) : (
           <button
             key={item.id}
-            onClick={item.live ? onOpenLive : () => setSection(item.id)}
-            style={{
-              position: "relative", flex: "1 0 auto", minWidth: 56,
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-              padding: "5px 4px", background: "transparent",
-              color: active ? "var(--ink)" : "var(--ink-soft)",
-            }}>
-            {active && (
-              <span style={{ position: "absolute", top: -6, width: 22, height: 3, borderRadius: 99, background: "var(--lime)" }} />
-            )}
-            <span style={{ position: "relative", display: "inline-flex" }}>
-              <Icon size={21} strokeWidth={active ? 2.4 : 1.9} />
-              {item.count != null && item.count > 0 && (
-                <span style={{
-                  position: "absolute", top: -5, right: -9, minWidth: 14, height: 14,
-                  padding: "0 3px", borderRadius: 999, background: "var(--coral)", color: "#fff",
-                  fontSize: 8, fontWeight: 700, fontFamily: "var(--font-mono)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>{item.count}</span>
-              )}
-            </span>
-            <span style={{ fontSize: 9.5, fontWeight: active ? 700 : 500, letterSpacing: "-0.01em", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {item.short || item.label}
-            </span>
+            onClick={() => setSection(item.id)}
+            style={{ position: "relative", ...tabStyle(section === item.id) }}
+          >
+            {inner(item, section === item.id)}
           </button>
-        );
-      })}
-      <a
-        href="/settings/avatar"
-        style={{
-          flex: "1 0 auto", minWidth: 56,
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-          padding: "5px 4px", textDecoration: "none", color: "var(--ink-soft)",
-        }}>
-        <UserRound size={21} strokeWidth={1.9} />
-        <span style={{ fontSize: 9.5, fontWeight: 500, letterSpacing: "-0.01em" }}>Profile</span>
-      </a>
+        ),
+      )}
     </nav>
   );
 }
 
-function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive }) {
+function Sidebar({ mode, section, setSection, onBackToSite }) {
   const isMobile = useIsMobile();
-  const nav = getNav(mode);
+  const nav = getNav();
   const profile = mode === "sale" ? AGENT : RENTAL_MANAGER;
   const profileSub = mode === "sale" ? AGENT.brokerage : RENTAL_MANAGER.company;
   return (
@@ -226,27 +200,6 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
             <ChevronLeft size={13} /> site
           </button>
         )}
-      </div>
-
-      {/* Mode toggle */}
-      <div style={isMobile ? { padding: "0 8px", flexShrink: 0, display: "flex", alignItems: "center" } : { padding: "0 12px 8px" }}>
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4,
-          padding: 4, background: "var(--bg)", borderRadius: 12,
-          border: "1px solid var(--rule)",
-        }}>
-          {[{ id: "sale", l: "Sales", sub: AGENT.listings + " listings" }, { id: "rent", l: "Rentals", sub: RENTAL_MANAGER.units + " units" }].map(m => (
-            <button key={m.id} onClick={() => setMode(m.id)} style={{
-              padding: "8px 10px", borderRadius: 8, textAlign: "left",
-              background: mode === m.id ? (m.id === "rent" ? "var(--coral)" : "var(--ink)") : "transparent",
-              color: mode === m.id ? (m.id === "rent" ? "#fff" : "var(--bg-warm)") : "var(--ink)",
-              transition: "background 0.18s ease",
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "-0.01em" }}>{m.l}</div>
-              <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", opacity: 0.75, marginTop: 1 }}>{m.sub}</div>
-            </button>
-          ))}
-        </div>
       </div>
 
       {!isMobile && (
@@ -271,67 +224,31 @@ function Sidebar({ mode, setMode, section, setSection, onBackToSite, onOpenLive 
       {!isMobile && (
       <nav style={{ padding: "8px", flex: 1 }}>
         {nav.map(item => {
-          const active = section === item.id;
+          const active = !item.href && section === item.id;
           const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setSection(item.id)}
-              style={isMobile ? {
-                display: "inline-flex", alignItems: "center", gap: 7,
-                padding: "9px 14px", borderRadius: 999,
-                background: active ? "var(--ink)" : "var(--bg-card)",
-                color: active ? "var(--bg-warm)" : "var(--ink)",
-                border: active ? "1px solid var(--ink)" : "1px solid var(--rule)",
-                fontWeight: 600, fontSize: 13, flexShrink: 0, whiteSpace: "nowrap",
-                scrollSnapAlign: "start", transition: "all 0.16s ease",
-              } : {
-                display: "flex", alignItems: "center", gap: 12,
-                width: "100%", padding: "10px 12px", borderRadius: 10,
-                background: active ? "var(--ink)" : "transparent",
-                color: active ? "var(--bg-warm)" : "var(--ink)",
-                fontWeight: 500, fontSize: 14, textAlign: "left",
-                marginBottom: 2, flexShrink: 0, whiteSpace: "nowrap",
-                transition: "background 0.16s ease",
-              }}>
-              <Icon size={isMobile ? 15 : 16} style={{ flexShrink: 0, opacity: active ? 1 : 0.78 }} />
-              <span style={isMobile ? undefined : { flex: 1 }}>{item.label}</span>
-              {item.count != null && (
-                <span style={{
-                  fontSize: 10, fontFamily: "var(--font-mono)",
-                  padding: "2px 7px", borderRadius: 999, lineHeight: 1.4,
-                  background: active ? "var(--lime)" : "var(--bg)",
-                  color: active ? "var(--ink)" : "var(--ink-soft)",
-                }}>
-                  {item.count}
-                </span>
-              )}
-              {(item.hot || item.coral) && (
-                <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 700,
-                  color: active ? "var(--lime)" : item.coral ? "var(--coral)" : "var(--lime)",
-                }}>NEW</span>
-              )}
+          const style = {
+            display: "flex", alignItems: "center", gap: 12,
+            width: "100%", padding: "10px 12px", borderRadius: 10,
+            background: active ? "var(--ink)" : "transparent",
+            color: active ? "var(--bg-warm)" : "var(--ink)",
+            fontWeight: 500, fontSize: 14, textAlign: "left",
+            marginBottom: 2, flexShrink: 0, whiteSpace: "nowrap",
+            textDecoration: "none", transition: "background 0.16s ease",
+          };
+          const body = (
+            <>
+              <Icon size={16} style={{ flexShrink: 0, opacity: active ? 1 : 0.78 }} />
+              <span style={{ flex: 1 }}>{item.label}</span>
+            </>
+          );
+          return item.href ? (
+            <a key={item.id} href={item.href} style={style}>{body}</a>
+          ) : (
+            <button key={item.id} onClick={() => setSection(item.id)} style={style}>
+              {body}
             </button>
           );
         })}
-        {mode === "rent" && onOpenLive && (
-          <button onClick={onOpenLive} style={isMobile ? {
-            display: "inline-flex", alignItems: "center", gap: 7,
-            padding: "9px 14px", borderRadius: 999,
-            background: "var(--bg-card)", color: "var(--ink)", border: "1px solid var(--rule)",
-            fontWeight: 600, fontSize: 13, flexShrink: 0, whiteSpace: "nowrap", scrollSnapAlign: "start",
-          } : {
-            display: "flex", alignItems: "center", gap: 12,
-            width: "100%", padding: "10px 12px", borderRadius: 10,
-            background: "transparent", color: "var(--ink)",
-            fontWeight: 500, fontSize: 14, textAlign: "left",
-            marginTop: 8, borderTop: "1px dashed var(--rule)", paddingTop: 14,
-          }}>
-            <ArrowUpRight size={isMobile ? 15 : 16} style={{ flexShrink: 0 }} />
-            <span style={isMobile ? undefined : { flex: 1 }}>RealMe Live</span>
-            <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "2px 6px", borderRadius: 4, background: "var(--coral)", color: "#fff", fontWeight: 700 }}>PUBLIC</span>
-          </button>
-        )}
       </nav>
       )}
 

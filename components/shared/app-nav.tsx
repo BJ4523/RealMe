@@ -15,14 +15,13 @@ import { signOut } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 
 // The product's mental model, in order: see everything (Dashboard), add the
-// property (Listings), make the video (Videos), manage your twin + looks
-// (Avatar), everything else (Settings).
+// property (Listings), make the video (Videos), manage your twin (Avatar).
+// Settings is secondary — tucked into the footer / mobile top bar, not a tab.
 const NAV = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/listings", label: "Listings", icon: Home },
   { href: "/videos", label: "Videos", icon: Clapperboard },
   { href: "/settings/avatar", label: "Avatar", icon: UserCircle2 },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 function NavLink({
@@ -70,12 +69,20 @@ export function AppNav({ email }: { email: string | null }) {
             <NavLink key={item.href} {...item} active={isActive(item.href)} />
           ))}
         </nav>
-        <div className="mt-auto flex flex-col gap-2">
-          {email ? (
-            <p className="truncate px-4 font-mono text-xs text-muted-foreground">
-              {email}
-            </p>
-          ) : null}
+        <div className="mt-auto flex flex-col gap-1">
+          {/* Settings lives here (secondary), not in the primary tab set. */}
+          <Link
+            href="/settings"
+            className={cn(
+              "flex items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors",
+              isActive("/settings")
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-card hover:text-foreground",
+            )}
+          >
+            <Settings className="size-4" />
+            <span>Settings</span>
+          </Link>
           <form action={signOut}>
             <button
               type="submit"
@@ -85,17 +92,31 @@ export function AppNav({ email }: { email: string | null }) {
               Sign out
             </button>
           </form>
+          {email ? (
+            <p className="truncate px-4 pt-1 font-mono text-xs text-muted-foreground">
+              {email}
+            </p>
+          ) : null}
         </div>
       </aside>
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border/60 bg-background/80 px-5 py-3 backdrop-blur md:hidden">
         <Logo />
-        <form action={signOut}>
-          <button type="submit" className="text-muted-foreground">
-            <LogOut className="size-5" />
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Settings className="size-5" />
+          </Link>
+          <form action={signOut}>
+            <button type="submit" aria-label="Sign out" className="text-muted-foreground">
+              <LogOut className="size-5" />
+            </button>
+          </form>
+        </div>
       </header>
 
       {/* Mobile bottom tab bar */}

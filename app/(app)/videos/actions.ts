@@ -380,6 +380,7 @@ export async function submitCinematicVideo(
   videoId: string,
   outfitId?: string,
   roomCount?: number,
+  captions: boolean = true,
 ) {
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
@@ -456,7 +457,7 @@ export async function submitCinematicVideo(
         heygen_video_id: encodeCinematicJobs("", "", allClips),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
-        script_segments: { beats } as unknown as Json,
+        script_segments: { beats, captions } as unknown as Json,
       })
       .eq("id", videoId)
       .eq("user_id", userId);
@@ -472,6 +473,7 @@ export async function submitHypeReelVideo(
   videoId: string,
   trackId?: string,
   outfitId?: string,
+  captions: boolean = true,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -536,6 +538,7 @@ export async function submitHypeReelVideo(
           trackId: trackId ?? "default",
         },
         beats,
+        captions,
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
   } catch (e) {
@@ -585,6 +588,7 @@ export async function pollVideoStatus(
       hypeReel?: { featureCallouts?: string[]; trackId?: string };
       beats?: string[];
       lipsync?: string;
+      captions?: boolean;
     } | null;
     const meta = seg?.hypeReel;
     const { data: avReel } = await supabase
@@ -602,6 +606,7 @@ export async function pollVideoStatus(
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
       lipsync: seg?.lipsync ?? null,
+      captions: seg?.captions ?? true,
       voiceId: avReel?.voice_id ?? null,
     });
     const { data: latest } = await supabase
@@ -631,6 +636,9 @@ export async function pollVideoStatus(
           (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
         lipsync:
           (video.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
+        captions:
+          (video.script_segments as { captions?: boolean } | null)?.captions ??
+          true,
         heygen_video_id: video.heygen_video_id,
         photos,
       },

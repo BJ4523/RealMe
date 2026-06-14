@@ -98,6 +98,8 @@ export async function advanceLipsync(
     voiceId: string | null;
     /** Current lipsync id from script_segments (null until stage B fires it). */
     lipsync: string | null;
+    /** Burn captions onto the output (default true). */
+    captions?: boolean;
   },
 ): Promise<LipsyncResult> {
   const { videoId, userId, clipIds, voiceId } = opts;
@@ -151,6 +153,7 @@ export async function advanceLipsync(
     const { lipsyncId } = await createLipsync({
       videoUrl: silentSigned.signedUrl,
       audioUrl: audio.audioUrl,
+      enableCaption: opts.captions ?? true,
     });
 
     // Merge the lipsync id into script_segments (preserve beats/hypeReel/etc).

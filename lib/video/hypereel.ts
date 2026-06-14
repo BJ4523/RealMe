@@ -55,6 +55,8 @@ export interface AssemblableReel {
   voiceId?: string | null;
   /** The single lipsync job id, set once the lipsync has fired. */
   lipsync?: string | null;
+  /** Burn captions onto the reel (default true). */
+  captions?: boolean | null;
 }
 
 const OVERLAY_SHOW_MS = 1600;
@@ -84,6 +86,7 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       fullScript,
       voiceId: reel.voiceId ?? null,
       lipsync: reel.lipsync ?? null,
+      captions: reel.captions ?? true,
     });
     if (res.status === "processing") return "processing";
     if (res.status === "failed") {

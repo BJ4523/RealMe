@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { VideoCard } from "@/components/videos/video-card";
+import { VideosFilter } from "@/components/videos/videos-filter";
 import { Button } from "@/components/ui/button";
 
 export default async function VideosPage() {
@@ -23,11 +23,7 @@ export default async function VideosPage() {
       />
 
       {videos && videos.length > 0 ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {videos.map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
+        <VideosFilter videos={videos} />
       ) : (
         <EmptyState
           icon={<Clapperboard className="size-6" />}

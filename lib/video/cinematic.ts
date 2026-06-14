@@ -53,6 +53,8 @@ interface AssemblableVideo {
   beats?: string[] | null;
   /** The single lipsync job id (whole montage), set once the lipsync has fired. */
   lipsync?: string | null;
+  /** Burn captions onto the reel (default true). */
+  captions?: boolean | null;
   heygen_video_id: string | null;
   /** Real listing photo URLs — the faithful backbone of the montage. */
   photos: string[];
@@ -95,6 +97,7 @@ export async function assembleCinematicVideo(
       fullScript,
       voiceId,
       lipsync: video.lipsync ?? null,
+      captions: video.captions ?? true,
     });
     if (res.status === "processing") return "processing";
     if (res.status === "failed") {

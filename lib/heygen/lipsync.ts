@@ -14,6 +14,8 @@ import { ENDPOINTS, heygenFetch, isMock, MOCK_VIDEO_URL } from "./client";
 export async function createLipsync(input: {
   videoUrl: string;
   audioUrl: string;
+  /** Burn captions onto the output (agent's choice; default on). */
+  enableCaption?: boolean;
 }): Promise<{ lipsyncId: string }> {
   if (isMock) {
     return { lipsyncId: `mock_ls_${Math.abs(hash(input.videoUrl)).toString(36)}` };
@@ -29,9 +31,8 @@ export async function createLipsync(input: {
         // Let the clip stretch/trim to the narration length so the mouth and
         // voice line up end-to-end.
         enable_dynamic_duration: true,
-        // Burn captions — social reels are watched muted, and captions reinforce
-        // that the agent is really talking (sells the lip-sync on screen).
-        enable_caption: true,
+        // Captions: social reels are watched muted; default on, toggleable.
+        enable_caption: input.enableCaption ?? true,
       },
     },
   );

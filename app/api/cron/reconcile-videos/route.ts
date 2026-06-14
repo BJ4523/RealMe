@@ -110,6 +110,8 @@ export async function GET(request: NextRequest) {
         beats: (v.script_segments as { beats?: string[] } | null)?.beats ?? null,
         lipsync:
           (v.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
+        captions:
+          (v.script_segments as { captions?: boolean } | null)?.captions ?? true,
         heygen_video_id: v.heygen_video_id,
         photos,
       },
@@ -147,6 +149,7 @@ export async function GET(request: NextRequest) {
       hypeReel?: { featureCallouts?: string[]; trackId?: string };
       beats?: string[];
       lipsync?: string;
+      captions?: boolean;
     } | null;
     const meta = seg?.hypeReel;
     const { data: avReel } = await supabase
@@ -172,6 +175,7 @@ export async function GET(request: NextRequest) {
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
       lipsync: seg?.lipsync ?? null,
+      captions: seg?.captions ?? true,
       voiceId: avReel?.voice_id ?? null,
     });
     if (result === "completed") reelsAssembled++;

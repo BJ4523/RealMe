@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Play,
   Pause,
+  Captions,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -46,6 +47,7 @@ export function VideoDetail({
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
   const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
   const [roomCount, setRoomCount] = useState(2);
+  const [captions, setCaptions] = useState(true);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -92,7 +94,7 @@ export function VideoDetail({
     startTransition(async () => {
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
-      await submitCinematicVideo(video.id, outfitId, roomCount);
+      await submitCinematicVideo(video.id, outfitId, roomCount, captions);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -102,7 +104,7 @@ export function VideoDetail({
     startTransition(async () => {
       await updateScript(video.id, script);
       setVideo((v) => ({ ...v, status: "submitting" }));
-      await submitHypeReelVideo(video.id, trackId, outfitId);
+      await submitHypeReelVideo(video.id, trackId, outfitId, captions);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -210,111 +212,129 @@ export function VideoDetail({
               </p>
             );
           })()}
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="flex flex-col gap-4">
             {cinematicReady ? (
               <>
-                {/* Outfit the agent wears — pinned (incl. shoes) across all shots. */}
-                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  Outfit
-                  <select
-                    value={outfitId}
-                    onChange={(e) => setOutfitId(e.target.value)}
-                    className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
-                    aria-label="Agent outfit"
-                  >
-                    <optgroup label="Men's">
-                      {WARDROBES.filter((w) => w.gender === "men").map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Women's">
-                      {WARDROBES.filter((w) => w.gender === "women").map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </label>
-                {/* How many rooms the cinematic walkthrough covers (1 clip each). */}
-                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  Rooms
-                  <select
-                    value={roomCount}
-                    onChange={(e) => setRoomCount(Number(e.target.value))}
-                    className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
-                    aria-label="Number of rooms"
-                  >
-                    {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {/* Digital-twin walkthrough is the only generation path. No
-                    presenter / avatar-over-photos anywhere. */}
-                <Button
-                  onClick={handleCinematic}
-                  disabled={pending || !script.trim()}
-                  size="lg"
-                  variant="outline"
-                  className="rounded-full"
-                  title="Your real listing photos with cinematic motion + your twin"
-                >
-                  <Film className="size-5" />
-                  {pending ? "Working…" : "Cinematic walkthrough"}
-                </Button>
-                {tracks.length > 0 ? (
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      onClick={togglePreview}
-                      size="icon"
-                      variant="outline"
-                      className="size-9 rounded-full"
-                      aria-label={previewing ? "Pause preview" : "Preview track"}
-                      title="Preview the beat"
-                    >
-                      {previewing ? (
-                        <Pause className="size-4" />
-                      ) : (
-                        <Play className="size-4" />
-                      )}
-                    </Button>
+                {/* Settings row — applies to whichever video you generate. */}
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    Outfit
                     <select
-                      value={trackId}
-                      onChange={(e) => setTrackId(e.target.value)}
-                      className="rounded-full border border-border bg-background px-3 py-2 text-sm"
-                      aria-label="Hype Reel music track"
+                      value={outfitId}
+                      onChange={(e) => setOutfitId(e.target.value)}
+                      className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
+                      aria-label="Agent outfit"
                     >
-                      {tracks.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
+                      <optgroup label="Men's">
+                        {WARDROBES.filter((w) => w.gender === "men").map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Women's">
+                        {WARDROBES.filter((w) => w.gender === "women").map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    Rooms
+                    <select
+                      value={roomCount}
+                      onChange={(e) => setRoomCount(Number(e.target.value))}
+                      className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
+                      aria-label="Number of rooms"
+                    >
+                      {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
                         </option>
                       ))}
                     </select>
-                    <audio
-                      ref={audioRef}
-                      src={currentTrack?.previewUrl}
-                      onEnded={() => setPreviewing(false)}
-                      preload="none"
-                      className="hidden"
-                    />
-                  </div>
-                ) : null}
-                <Button
-                  onClick={handleHypeReel}
-                  disabled={pending || !script.trim()}
-                  size="lg"
-                  className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-                  title="On-camera twin host + beat-synced tour of your real photos, set to music"
-                >
-                  <Film className="size-5" />
-                  {pending ? "Working…" : "Hype reel"}
-                </Button>
+                  </label>
+                  {/* Captions toggle (on = burned, muted-friendly). */}
+                  <button
+                    type="button"
+                    onClick={() => setCaptions((c) => !c)}
+                    aria-pressed={captions}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+                      captions
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background text-muted-foreground"
+                    }`}
+                    title="Burn captions onto the video (great for muted social feeds)"
+                  >
+                    <Captions className="size-4" />
+                    Captions {captions ? "on" : "off"}
+                  </button>
+                  {tracks.length > 0 ? (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        onClick={togglePreview}
+                        size="icon"
+                        variant="outline"
+                        className="size-9 rounded-full"
+                        aria-label={previewing ? "Pause preview" : "Preview track"}
+                        title="Preview the beat (Hype reel music)"
+                      >
+                        {previewing ? (
+                          <Pause className="size-4" />
+                        ) : (
+                          <Play className="size-4" />
+                        )}
+                      </Button>
+                      <select
+                        value={trackId}
+                        onChange={(e) => setTrackId(e.target.value)}
+                        className="rounded-full border border-border bg-background px-3 py-2 text-sm"
+                        aria-label="Hype Reel music track"
+                      >
+                        {tracks.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title}
+                          </option>
+                        ))}
+                      </select>
+                      <audio
+                        ref={audioRef}
+                        src={currentTrack?.previewUrl}
+                        onEnded={() => setPreviewing(false)}
+                        preload="none"
+                        className="hidden"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Two clearly-labeled outputs from the same settings. */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <Button
+                    onClick={handleCinematic}
+                    disabled={pending || !script.trim()}
+                    size="lg"
+                    variant="outline"
+                    className="rounded-full"
+                    title="Cinematic tour: your twin walking + talking through the home"
+                  >
+                    <Film className="size-5" />
+                    {pending ? "Working…" : "Cinematic walkthrough"}
+                  </Button>
+                  <Button
+                    onClick={handleHypeReel}
+                    disabled={pending || !script.trim()}
+                    size="lg"
+                    className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+                    title="Same tour, set to music — a punchy social hype reel"
+                  >
+                    <Film className="size-5" />
+                    {pending ? "Working…" : "Hype reel"}
+                  </Button>
+                </div>
               </>
             ) : hasTwin ? (
               // Twin exists but isn't consent-verified. Walkthroughs require it —
