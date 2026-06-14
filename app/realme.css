@@ -33,6 +33,10 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "ss01", "cv11";
+  /* Contain horizontal bleed (rotated/floating mockups, marquees) so the page
+     never scrolls sideways and section copy isn't pushed off-screen. `clip`
+     (not `hidden`) avoids breaking the sticky navs. */
+  overflow-x: clip;
 }
 
 .realme-surface * { box-sizing: border-box; }
