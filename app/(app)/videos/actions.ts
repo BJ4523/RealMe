@@ -31,10 +31,10 @@ import type { Json, Tables } from "@/lib/types/database";
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
  * listing photo). The agent picks how many within this; caps cost/render time. */
 const MAX_CINEMATIC_ROOMS = 8;
-const DEFAULT_CINEMATIC_ROOMS = 5;
+const DEFAULT_CINEMATIC_ROOMS = 2;
 /** AI room clips in a Hype Reel's middle tour (between the host bookends). Must
  * match ROOM_PHOTO_SHOTS in lib/video/hypereel.ts (beat-synced durations). */
-const HYPE_REEL_ROOMS = 3;
+const HYPE_REEL_ROOMS = 2;
 
 /**
  * Create a draft video for a listing and return its id (no redirect) so a CLIENT
