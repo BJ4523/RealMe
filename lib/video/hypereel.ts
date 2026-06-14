@@ -1,20 +1,14 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
+import { advanceLipsync, fetchBuffer, FULL_MS } from "@/lib/video/assemble";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
-import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
-import { createLipsync, getLipsyncStatus } from "@/lib/heygen/lipsync";
-import { generateSpeech } from "@/lib/heygen/voice";
-import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { assembleMontage, HYPE_REEL_TARGET_MS } from "@/lib/video/scenes";
-import { roomDurationsMs, beatTimesMs } from "@/lib/video/music/beats";
+import { beatTimesMs } from "@/lib/video/music/beats";
 import { overlaysFromListing } from "@/lib/video/overlay";
 import { getTrack } from "@/lib/video/music/tracks";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-
-/** "Play full natural length" sentinel for the keepAudio (lip-synced) scene. */
-const FULL_MS = 600000;
 
 type Db = SupabaseClient<Database>;
 
@@ -33,11 +27,6 @@ export function decodeReelJobs(id: string): {
   return { intro, outro, accents: acc.split(",").filter(Boolean) };
 }
 
-async function fetchBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetch ${res.status} for ${url.slice(0, 80)}`);
-  return Buffer.from(await res.arrayBuffer());
-}
 
 export interface ReelListingFacts {
   price: string | null;
@@ -63,7 +52,6 @@ export interface AssemblableReel {
   lipsync?: string | null;
 }
 
-const BEATS_PER_SHOT = 4;
 const OVERLAY_SHOW_MS = 1600;
 
 /**
@@ -79,89 +67,37 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
   if (!isHypeReel(reel.heygen_video_id)) return "processing";
   const { accents } = decodeReelJobs(reel.heygen_video_id!);
   try {
-    const vId = reel.voiceId ?? DEFAULT_VOICE_ID;
     const fullScript =
       (reel.beats ?? []).map((b) => b?.trim()).filter(Boolean).join(" ") ||
       "Check out this incredible home.";
-    const storage = adminConfigured ? createAdminClient() : supabase;
 
-    // STAGE A — the silent cinematic_avatar clips.
-    const clipS = await Promise.all(accents.map(getCinematicClipStatus));
-    if (clipS.some((s) => s.status === "failed")) {
-      const reason =
-        clipS.find((s) => s.status === "failed")?.error ||
-        "A Hype Reel shot failed to render.";
-      await supabase.from("videos").update({ status: "failed", error: reason }).eq("id", reel.id);
+    // Shared core: poll clips → stitch → TTS → one lipsync → lip-synced URL.
+    const res = await advanceLipsync(supabase, {
+      videoId: reel.id,
+      userId: reel.user_id,
+      clipIds: accents,
+      fullScript,
+      voiceId: reel.voiceId ?? null,
+      lipsync: reel.lipsync ?? null,
+    });
+    if (res.status === "processing") return "processing";
+    if (res.status === "failed") {
+      await supabase.from("videos").update({ status: "failed", error: res.error }).eq("id", reel.id);
       return "failed";
     }
-    if (clipS.some((s) => s.status !== "completed")) return "processing";
-    const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
-    if (clipUrls.length !== accents.length) return "processing";
 
-    // STAGE B — stitch the silent clips, host, TTS the hype script, lipsync the
-    // whole montage in one pass. Claim first so polls don't double-fire.
-    if (!reel.lipsync) {
-      const { data: claimedB } = await supabase
-        .from("videos").update({ status: "submitting" })
-        .eq("id", reel.id).eq("status", "processing").select("id");
-      if (!claimedB || claimedB.length === 0) return "processing";
-
-      const track = getTrack(reel.trackId);
-      const durations = roomDurationsMs(track.bpm, BEATS_PER_SHOT, clipUrls.length);
-      const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
-      const silent = await assembleMontage({
-        scenes: clipBufs.map((buf, i) => ({
-          kind: "video",
-          videoBuf: buf,
-          durationMs: durations[Math.min(i, durations.length - 1)],
-        })),
-        audio: {},
-      });
-      const silentPath = `${reel.user_id}/${reel.id}-silent.mp4`;
-      const upS = await storage.storage
-        .from("video-cache")
-        .upload(silentPath, silent, { contentType: "video/mp4", upsert: true });
-      if (upS.error) throw new Error(`silent upload failed: ${upS.error.message}`);
-      const { data: silentSigned } = await storage.storage
-        .from("video-cache")
-        .createSignedUrl(silentPath, 60 * 60 * 24);
-      if (!silentSigned?.signedUrl) throw new Error("silent sign failed");
-
-      const audio = await generateSpeech(fullScript, vId);
-      const { lipsyncId } = await createLipsync({
-        videoUrl: silentSigned.signedUrl,
-        audioUrl: audio.audioUrl,
-      });
-      await supabase
-        .from("videos")
-        .update({
-          status: "processing",
-          script_segments: {
-            hypeReel: { featureCallouts: reel.featureCallouts, trackId: reel.trackId },
-            beats: reel.beats ?? [],
-            lipsync: lipsyncId,
-          } as unknown as never,
-        })
-        .eq("id", reel.id);
-      return "processing";
-    }
-
-    // STAGE C — poll the lipsync, then add music (ducked under the voice) + overlays.
-    const ls = await getLipsyncStatus(reel.lipsync);
-    if (ls.status === "failed") {
-      await supabase.from("videos").update({ status: "failed", error: ls.error ?? "Lipsync failed." }).eq("id", reel.id);
-      return "failed";
-    }
-    if (ls.status !== "completed" || !ls.videoUrl) return "processing";
-
+    // Ready — claim the final pass: add the MUSIC bed (ducked under the voice)
+    // + animated overlays onto the lip-synced reel. This is the only thing that
+    // differs from the cinematic walkthrough.
     const { data: claimed } = await supabase
       .from("videos").update({ status: "submitting" })
       .eq("id", reel.id).eq("status", "processing").select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
+    const storage = adminConfigured ? createAdminClient() : supabase;
     const track = getTrack(reel.trackId);
     const [lipBuf, musicBuf] = await Promise.all([
-      fetchBuffer(ls.videoUrl),
+      fetchBuffer(res.videoUrl),
       readFile(resolve(track.file)),
     ]);
     const grid = beatTimesMs(track.bpm, track.beatOffsetMs, HYPE_REEL_TARGET_MS);

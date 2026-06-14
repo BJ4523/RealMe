@@ -2,19 +2,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
-import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
-import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
-import { createLipsync, getLipsyncStatus } from "@/lib/heygen/lipsync";
-import { generateSpeech } from "@/lib/heygen/voice";
-import { assembleMontage, type MontageScene } from "@/lib/video/scenes";
+import { advanceLipsync, fetchBuffer } from "@/lib/video/assemble";
 
 type Db = SupabaseClient<Database>;
 
 /** Prefix marking a video whose heygen_video_id holds cinematic clip job ids. */
 export const CINEMATIC_PREFIX = "cine:";
-
-/** "Play full natural length" sentinel for keepAudio (lip-synced) scenes. */
-const FULL_MS = 600000;
 
 export function isCinematic(heygenVideoId: string | null | undefined): boolean {
   return !!heygenVideoId && heygenVideoId.startsWith(CINEMATIC_PREFIX);
@@ -47,11 +40,6 @@ function decodeCinematicJobs(heygenVideoId: string): {
   return { intro: "", outro: "", rooms: rest.split(",").filter(Boolean) };
 }
 
-async function fetchBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetch ${res.status} for ${url.slice(0, 80)}`);
-  return Buffer.from(await res.arrayBuffer());
-}
 
 interface AssemblableVideo {
   id: string;
@@ -90,89 +78,31 @@ export async function assembleCinematicVideo(
   }
 
   try {
-    const vId = voiceId ?? DEFAULT_VOICE_ID;
     const fullScript =
       (video.beats ?? []).map((b) => b?.trim()).filter(Boolean).join(" ") ||
       video.script?.trim() ||
       "Welcome to this beautiful home.";
-    const storage = adminConfigured ? createAdminClient() : supabase;
 
-    // STAGE A — the silent cinematic_avatar clips (opener, rooms, closer).
-    const clipS = await Promise.all(rooms.map(getCinematicClipStatus));
-    if (clipS.some((s) => s.status === "failed")) {
-      const reason =
-        clipS.find((s) => s.status === "failed")?.error ??
-        "A cinematic shot failed to render.";
+    // Shared core: poll clips → stitch → TTS → one lipsync → lip-synced URL.
+    const res = await advanceLipsync(supabase, {
+      videoId: video.id,
+      userId: video.user_id,
+      clipIds: rooms,
+      fullScript,
+      voiceId,
+      lipsync: video.lipsync ?? null,
+    });
+    if (res.status === "processing") return "processing";
+    if (res.status === "failed") {
       await supabase
         .from("videos")
-        .update({ status: "failed", error: reason })
+        .update({ status: "failed", error: res.error })
         .eq("id", video.id);
       return "failed";
     }
-    if (clipS.some((s) => s.status !== "completed")) return "processing";
-    const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
-    if (clipUrls.length !== rooms.length) return "processing";
 
-    // STAGE B — clips ready, lipsync not fired: stitch the silent clips into ONE
-    // long-form video, host it, TTS the full script, and Lipsync-Precision the
-    // whole thing in a SINGLE pass (lipsync is built for long-form cinematic).
-    // Claim first so polls don't double-fire, then release to poll the lipsync.
-    if (!video.lipsync) {
-      const { data: claimedB } = await supabase
-        .from("videos")
-        .update({ status: "submitting" })
-        .eq("id", video.id)
-        .eq("status", "processing")
-        .select("id");
-      if (!claimedB || claimedB.length === 0) return "processing";
-
-      const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
-      const silent = await assembleMontage({
-        scenes: clipBufs.map((buf) => ({
-          kind: "video",
-          videoBuf: buf,
-          durationMs: FULL_MS,
-        })),
-        audio: {},
-      });
-      // Host the silent montage so HeyGen lipsync can fetch it (signed URL).
-      const silentPath = `${video.user_id}/${video.id}-silent.mp4`;
-      const upS = await storage.storage
-        .from("video-cache")
-        .upload(silentPath, silent, { contentType: "video/mp4", upsert: true });
-      if (upS.error) throw new Error(`silent upload failed: ${upS.error.message}`);
-      const { data: silentSigned } = await storage.storage
-        .from("video-cache")
-        .createSignedUrl(silentPath, 60 * 60 * 24);
-      if (!silentSigned?.signedUrl) throw new Error("silent sign failed");
-
-      const audio = await generateSpeech(fullScript, vId);
-      const { lipsyncId } = await createLipsync({
-        videoUrl: silentSigned.signedUrl,
-        audioUrl: audio.audioUrl,
-      });
-      await supabase
-        .from("videos")
-        .update({
-          status: "processing",
-          script_segments: { beats: video.beats ?? [], lipsync: lipsyncId } as unknown as never,
-        })
-        .eq("id", video.id);
-      return "processing";
-    }
-
-    // STAGE C — poll the single lipsync job (the whole montage, lip-synced).
-    const ls = await getLipsyncStatus(video.lipsync);
-    if (ls.status === "failed") {
-      await supabase
-        .from("videos")
-        .update({ status: "failed", error: ls.error ?? "Lipsync failed." })
-        .eq("id", video.id);
-      return "failed";
-    }
-    if (ls.status !== "completed" || !ls.videoUrl) return "processing";
-
-    // Claim the final upload.
+    // Ready — claim the final, then re-host the lip-synced video as the result.
+    // (Cinematic needs no extra pass; the lipsync output IS the finished reel.)
     const { data: claimed } = await supabase
       .from("videos")
       .update({ status: "submitting" })
@@ -181,9 +111,8 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    // The lipsync output IS the finished video (the realtor walking + talking in
-    // their own voice). Re-host it in our bucket as the final.
-    const assembled = await fetchBuffer(ls.videoUrl);
+    const assembled = await fetchBuffer(res.videoUrl);
+    const storage = adminConfigured ? createAdminClient() : supabase;
     const path = `${video.user_id}/${video.id}.mp4`;
     const up = await storage.storage
       .from("video-cache")

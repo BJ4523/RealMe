@@ -26,6 +26,7 @@ import {
 } from "@/lib/video/cinematic";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
+import { wardrobePrompt } from "@/lib/video/wardrobe";
 import type { Json, Tables } from "@/lib/types/database";
 
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
@@ -316,32 +317,67 @@ function beatLinesForRooms(
  * digital twin. Stores the clip job ids in heygen_video_id (cine:<id,id,...>).
  */
 /**
- * Always the real digital twin in its OWN trained outfit — never a picked
- * outfit. The lip-synced opening bookend (v3 avatar) can only wear the trained
- * outfit (v3 has no clothing control), so for the opening to MATCH the cinematic
- * the rooms must use the trained outfit too. The Seedance wardrobe clause
- * therefore pins "the same clothing the agent already wears, identical in every
- * shot" rather than imposing a new garment.
+ * Always the real digital twin (avatar_id). The agent PICKS the outfit; its
+ * concrete clause (incl. footwear, from lib/video/wardrobe) is pinned into every
+ * shot's prompt with "identical in every shot" emphasis, so the independently-
+ * generated Seedance clips don't drift (shoe color, garments).
  */
 function resolveLook(
   avatar: Tables<"avatars">,
+  outfitId?: string,
 ): { lookId: string; wardrobe: string } {
   return {
     lookId: avatar.heygen_avatar_id!,
-    // Pin a CONCRETE outfit (incl. footwear) so Seedance renders the identical
-    // clothing in every independently-generated clip — otherwise details like
-    // shoe color drift shot to shot.
-    wardrobe:
-      "wearing a tailored charcoal-grey blazer over a crisp white button-down shirt, " +
-      "matching charcoal-grey trousers, and dark brown leather dress shoes — this EXACT " +
-      "outfit, the SAME garments, the SAME colors and the SAME dark brown shoes, " +
-      "IDENTICAL in every single shot and never changing",
+    wardrobe: wardrobePrompt(outfitId),
   };
+}
+
+/**
+ * Fire the silent cinematic_avatar beat clips shared by BOTH video paths:
+ * exterior opener + one room clip per photo + exterior closer, all the real twin
+ * in the chosen outfit. Returns the clip ids in playback order.
+ */
+async function fireBeatClips(opts: {
+  lookId: string;
+  wardrobe: string;
+  listing: Tables<"listings"> | null;
+  exterior: string;
+  roomPhotos: string[];
+  openerSec?: number;
+  roomSec?: number;
+  closerSec?: number;
+}): Promise<string[]> {
+  const { lookId, wardrobe, listing, exterior, roomPhotos } = opts;
+  const [opener, rooms, closer] = await Promise.all([
+    generateCinematicClip({
+      avatarLookId: lookId,
+      referenceUrl: exterior,
+      prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
+      duration: opts.openerSec ?? 10,
+    }),
+    Promise.all(
+      roomPhotos.map((url, i) =>
+        generateCinematicClip({
+          avatarLookId: lookId,
+          referenceUrl: url,
+          prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
+          duration: opts.roomSec ?? 10,
+        }),
+      ),
+    ),
+    generateCinematicClip({
+      avatarLookId: lookId,
+      referenceUrl: exterior,
+      prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
+      duration: opts.closerSec ?? 8,
+    }),
+  ]);
+  return [opener.jobId, ...rooms.map((j) => j.jobId), closer.jobId];
 }
 
 export async function submitCinematicVideo(
   videoId: string,
-  _outfitId?: string,
+  outfitId?: string,
   roomCount?: number,
 ) {
   const rooms = Math.min(
@@ -398,7 +434,7 @@ export async function submitCinematicVideo(
     // their own voice, lip-synced. Beats = exterior opener + each room +
     // exterior closer. Here we just fire the (silent) clips and store the
     // per-beat scripts; the assembler does TTS + lipsync + stitch.
-    const { lookId, wardrobe } = resolveLook(avatar);
+    const { lookId, wardrobe } = resolveLook(avatar, outfitId);
     const exterior = photos[0];
     const openingPitch =
       video.script?.trim() || "Welcome — let me show you this beautiful home.";
@@ -409,32 +445,8 @@ export async function submitCinematicVideo(
     const roomLines = beatLinesForRooms(roomScript, roomPhotos.length);
     const cta = hook.outro?.trim() || "Reach out today to see it in person.";
 
-    const [openerClip, roomJobs, closerClip] = await Promise.all([
-      generateCinematicClip({
-        avatarLookId: lookId,
-        referenceUrl: exterior,
-        prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
-        duration: 10,
-      }),
-      Promise.all(
-        roomPhotos.map((url, i) =>
-          generateCinematicClip({
-            avatarLookId: lookId,
-            referenceUrl: url,
-            prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-            duration: 10,
-          }),
-        ),
-      ),
-      generateCinematicClip({
-        avatarLookId: lookId,
-        referenceUrl: exterior,
-        prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
-        duration: 8,
-      }),
-    ]);
     // Clips and their per-beat scripts share one order: [opener, ...rooms, closer].
-    const allClips = [openerClip.jobId, ...roomJobs.map((j) => j.jobId), closerClip.jobId];
+    const allClips = await fireBeatClips({ lookId, wardrobe, listing, exterior, roomPhotos });
     const beats = [openingPitch, ...roomLines, cta];
 
     await supabase
@@ -458,7 +470,7 @@ export async function submitCinematicVideo(
 export async function submitHypeReelVideo(
   videoId: string,
   trackId?: string,
-  _outfitId?: string,
+  outfitId?: string,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -495,41 +507,23 @@ export async function submitHypeReelVideo(
     // SAME pipeline as the cinematic walkthrough (cinematic_avatar + Lipsync-
     // Precision → the twin TALKING in their own voice), just with MUSIC built in.
     // Punchy short script so it lands ~15s.
-    const { lookId, wardrobe } = resolveLook(avatar);
+    const { lookId, wardrobe } = resolveLook(avatar, outfitId);
     const script = await generateHypeReelScript(listing as Tables<"listings">);
     const beats = [script.intro, ...script.featureCallouts.slice(0, 2), script.outro]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
-    const [introClip, roomJobs, closerClip] = await Promise.all([
-      generateCinematicClip({
-        avatarLookId: lookId,
-        referenceUrl: hero,
-        prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
-        duration: 6,
-      }),
-      Promise.all(
-        roomPhotos.map((url, i) =>
-          generateCinematicClip({
-            avatarLookId: lookId,
-            referenceUrl: url,
-            prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-            duration: 8,
-          }),
-        ),
-      ),
-      generateCinematicClip({
-        avatarLookId: lookId,
-        referenceUrl: hero,
-        prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
-        duration: 6,
-      }),
-    ]);
-    const allClips = [
-      introClip.jobId,
-      ...roomJobs.map((j) => j.jobId),
-      closerClip.jobId,
-    ];
+    // Shorter clips for the punchy hype-reel rhythm.
+    const allClips = await fireBeatClips({
+      lookId,
+      wardrobe,
+      listing,
+      exterior: hero,
+      roomPhotos,
+      openerSec: 6,
+      roomSec: 8,
+      closerSec: 6,
+    });
 
     await supabase.from("videos").update({
       heygen_video_id: encodeReelJobs("", "", allClips),

@@ -19,28 +19,28 @@ export const WARDROBES: WardrobeOption[] = [
     label: "Charcoal blazer + white shirt",
     gender: "men",
     prompt:
-      "wearing a tailored charcoal blazer over a crisp white dress shirt with dark trousers",
+      "wearing a tailored charcoal blazer over a crisp white dress shirt, dark trousers and dark brown leather dress shoes",
   },
   {
     id: "m-navy-suit",
     label: "Navy suit (no tie)",
     gender: "men",
     prompt:
-      "wearing a well-fitted navy suit with a light blue dress shirt, open collar, no tie",
+      "wearing a well-fitted navy suit with a light blue dress shirt, open collar, no tie, and dark brown leather dress shoes",
   },
   {
     id: "m-quarter-zip",
     label: "Smart-casual quarter-zip",
     gender: "men",
     prompt:
-      "wearing a smart-casual quarter-zip sweater over a collared shirt with tailored chinos",
+      "wearing a smart-casual quarter-zip sweater over a collared shirt, tailored chinos and clean white leather sneakers",
   },
   {
     id: "m-button-down",
     label: "White button-down + slacks",
     gender: "men",
     prompt:
-      "wearing a crisp white button-down shirt with the sleeves rolled and dark dress slacks",
+      "wearing a crisp white button-down shirt with sleeves rolled, dark dress slacks and brown leather loafers",
   },
   // Women's
   {
@@ -48,26 +48,26 @@ export const WARDROBES: WardrobeOption[] = [
     label: "Blazer + silk blouse",
     gender: "women",
     prompt:
-      "wearing a tailored blazer over a silk blouse with slim dress trousers",
+      "wearing a tailored blazer over a silk blouse, slim dress trousers and pointed-toe heels",
   },
   {
     id: "w-sheath",
     label: "Sheath dress",
     gender: "women",
-    prompt: "wearing an elegant, professional knee-length sheath dress",
+    prompt: "wearing an elegant, professional knee-length sheath dress with classic closed-toe heels",
   },
   {
     id: "w-sweater",
     label: "Smart-casual sweater",
     gender: "women",
     prompt:
-      "wearing a smart-casual fitted sweater with tailored high-waisted pants",
+      "wearing a smart-casual fitted sweater, tailored high-waisted pants and ankle boots",
   },
   {
     id: "w-pencil-skirt",
     label: "Blazer + pencil skirt",
     gender: "women",
-    prompt: "wearing a professional blazer with a matching pencil skirt and blouse",
+    prompt: "wearing a professional blazer with a matching pencil skirt, blouse and classic pumps",
   },
 ];
 
