@@ -269,9 +269,12 @@ function cinematicExteriorPrompt(
     "Premium cinematic vertical 9:16 real-estate hero shot, the look of a polished",
     "luxury listing launch film — warm golden-hour light, shallow depth of field,",
     "rich filmic color, gentle film grain.",
-    // Faithful exterior from the reference.
-    "Recreate the house EXTERIOR in the reference image accurately: the same",
-    "architecture, materials, landscaping and driveway.",
+    // Faithful exterior — the opener and closer MUST show the identical yard.
+    "Recreate the house EXTERIOR in the reference image EXACTLY and faithfully:",
+    "the same architecture, materials, roof, windows, AND the identical FRONT YARD —",
+    "the same lawn, landscaping, plants, trees, walkway and driveway, in the same",
+    "positions. This is the SAME house and SAME front yard in both the opening and",
+    "closing shots — they must match, do not invent or rearrange the yard.",
     `In front of ${place}, a confident, charismatic real-estate agent ${wardrobe}`,
     kind === "intro"
       ? "addresses the camera directly with warm, engaging presenter energy — a natural welcoming gesture toward the home, as if greeting a buyer."
@@ -325,8 +328,14 @@ function resolveLook(
 ): { lookId: string; wardrobe: string } {
   return {
     lookId: avatar.heygen_avatar_id!,
+    // Pin a CONCRETE outfit (incl. footwear) so Seedance renders the identical
+    // clothing in every independently-generated clip — otherwise details like
+    // shoe color drift shot to shot.
     wardrobe:
-      "wearing their own natural clothing — the EXACT SAME outfit in every single shot, never changing",
+      "wearing a tailored charcoal-grey blazer over a crisp white button-down shirt, " +
+      "matching charcoal-grey trousers, and dark brown leather dress shoes — this EXACT " +
+      "outfit, the SAME garments, the SAME colors and the SAME dark brown shoes, " +
+      "IDENTICAL in every single shot and never changing",
   };
 }
 
