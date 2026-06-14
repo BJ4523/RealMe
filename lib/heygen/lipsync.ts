@@ -27,10 +27,14 @@ export async function createLipsync(input: {
       json: {
         video: { type: "url", url: input.videoUrl },
         audio: { type: "url", url: input.audioUrl },
+        // precision = avatar-inference lip-sync (high quality); re-animates the
+        // speaker's mouth to match the audio. "speed" is the cheaper/rougher mode.
         mode: "precision",
         // Let the clip stretch/trim to the narration length so the mouth and
         // voice line up end-to-end.
         enable_dynamic_duration: true,
+        // Clean up the cloned-voice track (reduce artifacts/noise).
+        enable_speech_enhancement: true,
         // Captions: social reels are watched muted; default on, toggleable.
         enable_caption: input.enableCaption ?? true,
       },

@@ -271,9 +271,15 @@ function cinematicPrompt(
     "Recreate the room in the reference image accurately: the same layout, furniture,",
     "wall colors, flooring, windows, fixtures and finishes. Do NOT invent or rearrange.",
     `Inside that recreated room of ${place}, a charismatic real-estate agent ${wardrobe}`,
-    "moves through the space presenting it, looking toward the camera and gesturing to its features.",
-    // Face visible for lip-sync.
-    "The agent FACES the camera with their face clearly visible throughout, engaged and warm.",
+    "walks through and showcases the space — moving naturally, gesturing to its features.",
+    // The whole montage is lip-synced in ONE pass over the cloned voice-over, so
+    // the agent does NOT need to face camera the whole time — walking and showing
+    // the property is great. They should just turn to address the camera and speak
+    // at a beat or two (lip-sync lands there); elsewhere the voice rides as
+    // narration over the walkthrough.
+    "The agent tours the room naturally AND turns to speak to the camera at a moment",
+    "or two, face clearly visible and well-lit when they do — warm and expressive.",
+    "Always keep the agent in frame (never an empty room with no person).",
     // Single subject.
     "EXACTLY ONE person in the scene — the agent, completely alone. No other people,",
     "bystanders, background figures, reflections or photos of other people.",
@@ -286,8 +292,9 @@ function cinematicPrompt(
 /**
  * Motion brief for the EXTERIOR opener/closer Seedance shot: the agent standing
  * confidently in front of the house (recreated from the exterior photo),
- * presenter energy. Same engine as the room walk so the shots cut together; the
- * pitch/CTA is muxed as voice-over (so mouth stays relaxed — no fake lip-sync).
+ * presenter energy. Same engine as the room walk so the shots cut together, and
+ * part of the SAME single lip-sync pass — so the agent must be face-to-camera and
+ * actively speaking here too (the opener pitch / closing CTA gets lip-synced).
  */
 function cinematicExteriorPrompt(
   listing: Tables<"listings"> | null,
@@ -309,6 +316,10 @@ function cinematicExteriorPrompt(
     kind === "intro"
       ? "addresses the camera directly with warm, engaging presenter energy — a natural welcoming gesture toward the home, as if greeting a buyer."
       : "gives a warm, inviting close to the camera with an open gesture toward the home.",
+    // Opener/closer is the natural piece-to-camera pitch (it's lip-synced), so the
+    // agent mostly addresses the camera here — a gesture to the home is fine.
+    "The agent primarily addresses the camera, face clearly visible and well-lit,",
+    "speaking warmly to the viewer, with a natural gesture toward the home.",
     // Single subject, cinematic camera.
     "EXACTLY ONE person in frame — the agent, alone. No other people, bystanders,",
     "background figures or crowds.",
