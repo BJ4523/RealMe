@@ -25,6 +25,15 @@ import type { Tables } from "@/lib/types/database";
 import { WARDROBES } from "@/lib/video/wardrobe";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "./status-badge";
 
 type Video = Tables<"videos">;
@@ -247,45 +256,58 @@ export function VideoDetail({
               <>
                 {/* Settings row — applies to whichever video you generate. */}
                 <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
-                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    Outfit
-                    <select
-                      value={outfitId}
-                      onChange={(e) => setOutfitId(e.target.value)}
-                      className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
-                      aria-label="Agent outfit"
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span>Outfit</span>
+                    <Select value={outfitId} onValueChange={setOutfitId}>
+                      <SelectTrigger
+                        size="sm"
+                        aria-label="Agent outfit"
+                        className="w-auto rounded-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Men&apos;s</SelectLabel>
+                          {WARDROBES.filter((w) => w.gender === "men").map((w) => (
+                            <SelectItem key={w.id} value={w.id}>
+                              {w.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Women&apos;s</SelectLabel>
+                          {WARDROBES.filter((w) => w.gender === "women").map((w) => (
+                            <SelectItem key={w.id} value={w.id}>
+                              {w.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span>Rooms</span>
+                    <Select
+                      value={String(roomCount)}
+                      onValueChange={(v) => setRoomCount(Number(v))}
                     >
-                      <optgroup label="Men's">
-                        {WARDROBES.filter((w) => w.gender === "men").map((w) => (
-                          <option key={w.id} value={w.id}>
-                            {w.label}
-                          </option>
+                      <SelectTrigger
+                        size="sm"
+                        aria-label="Number of rooms"
+                        className="w-auto rounded-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}
+                          </SelectItem>
                         ))}
-                      </optgroup>
-                      <optgroup label="Women's">
-                        {WARDROBES.filter((w) => w.gender === "women").map((w) => (
-                          <option key={w.id} value={w.id}>
-                            {w.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    Rooms
-                    <select
-                      value={roomCount}
-                      onChange={(e) => setRoomCount(Number(e.target.value))}
-                      className="rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground"
-                      aria-label="Number of rooms"
-                    >
-                      {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {/* Captions toggle (on = burned, muted-friendly). */}
                   <button
                     type="button"
@@ -318,18 +340,22 @@ export function VideoDetail({
                           <Play className="size-4" />
                         )}
                       </Button>
-                      <select
-                        value={trackId}
-                        onChange={(e) => setTrackId(e.target.value)}
-                        className="rounded-full border border-border bg-background px-3 py-2 text-sm"
-                        aria-label="Hype Reel music track"
-                      >
-                        {tracks.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.title}
-                          </option>
-                        ))}
-                      </select>
+                      <Select value={trackId} onValueChange={setTrackId}>
+                        <SelectTrigger
+                          size="sm"
+                          aria-label="Hype Reel music track"
+                          className="w-auto rounded-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tracks.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <audio
                         ref={audioRef}
                         src={currentTrack?.previewUrl}
