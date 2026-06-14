@@ -182,9 +182,17 @@ export async function assembleMontage(opts: {
         "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out,
       ]);
     } else if (opts.audio.music) {
-      // Hype Reel: music bed, optionally ducked under the concat's own audio.
+      // Hype Reel: music bed, ducked under the VOICE. The voice comes from an
+      // explicit narration track when provided (authoritative — the lip-synced
+      // clip's own audio track is unreliable), else the concat's kept audio.
       const musicPath = join(dir, "music");
       await writeFile(musicPath, opts.audio.music);
+      let narrPath: string | null = null;
+      if (opts.audio.narration) {
+        narrPath = join(dir, "narr-mix");
+        await writeFile(narrPath, opts.audio.narration);
+      }
+      const voiceSrc = narrPath ? "[2:a]" : "[0:a]";
 
       // FIXED length, independent of the song: clamp to HYPE_REEL_TARGET_MS and
       // fade out at the very end. If the montage is shorter than the target, hold
@@ -212,7 +220,7 @@ export async function assembleMontage(opts: {
       // the default rescaling by 1/inputs is what made the voice too quiet).
       const audioCore = opts.audio.duckUnderSceneAudio
         ? `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.5[mus];` +
-          `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=1.6,asplit=2[vokey][vomix];` +
+          `${voiceSrc}aformat=sample_rates=44100:channel_layouts=stereo,volume=1.6,asplit=2[vokey][vomix];` +
           `[mus][vokey]sidechaincompress=threshold=0.02:ratio=12:attack=15:release=400[ducked];` +
           `[ducked][vomix]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[amix]`
         : `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=0.8[amix]`;
@@ -220,6 +228,7 @@ export async function assembleMontage(opts: {
 
       await ff([
         "-y", "-i", concatV, "-stream_loop", "-1", "-i", musicPath,
+        ...(narrPath ? ["-i", narrPath] : []),
         "-filter_complex", `${videoGraph};${audioGraph}`,
         "-map", "[vout]", "-map", "[aout]", "-t", Dsec,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",

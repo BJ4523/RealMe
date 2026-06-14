@@ -57,6 +57,8 @@ export interface AssemblableReel {
   lipsync?: string | null;
   /** Burn captions onto the reel (default true). */
   captions?: boolean | null;
+  /** Hosted cloned-voice narration (authoritative voice for the music mux). */
+  narration?: string | null;
 }
 
 const OVERLAY_SHOW_MS = 1600;
@@ -104,9 +106,10 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
 
     const storage = adminConfigured ? createAdminClient() : supabase;
     const track = getTrack(reel.trackId);
-    const [lipBuf, musicBuf] = await Promise.all([
+    const [lipBuf, musicBuf, narrBuf] = await Promise.all([
       fetchBuffer(res.videoUrl),
       readFile(resolve(track.file)),
+      reel.narration ? fetchBuffer(reel.narration) : Promise.resolve(null),
     ]);
     const grid = beatTimesMs(track.bpm, track.beatOffsetMs, HYPE_REEL_TARGET_MS);
     const overlays = overlaysFromListing({
@@ -116,8 +119,14 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       showDurMs: OVERLAY_SHOW_MS,
     });
     const assembled = await assembleMontage({
-      scenes: [{ kind: "video", videoBuf: lipBuf, durationMs: FULL_MS, keepAudio: true }],
-      audio: { music: musicBuf, duckUnderSceneAudio: true },
+      // Voice = the explicit narration track (authoritative). Only fall back to
+      // the clip's own audio (keepAudio) if we somehow have no narration.
+      scenes: [{ kind: "video", videoBuf: lipBuf, durationMs: FULL_MS, keepAudio: !narrBuf }],
+      audio: {
+        music: musicBuf,
+        duckUnderSceneAudio: true,
+        ...(narrBuf ? { narration: narrBuf } : {}),
+      },
       overlays,
     });
 

@@ -6,7 +6,9 @@ import {
   advanceLipsync,
   fetchBuffer,
   uploadThumbnailFromVideo,
+  FULL_MS,
 } from "@/lib/video/assemble";
+import { assembleMontage } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
 
@@ -55,6 +57,8 @@ interface AssemblableVideo {
   lipsync?: string | null;
   /** Burn captions onto the reel (default true). */
   captions?: boolean | null;
+  /** Hosted cloned-voice narration (authoritative audio for the final mux). */
+  narration?: string | null;
   heygen_video_id: string | null;
   /** Real listing photo URLs — the faithful backbone of the montage. */
   photos: string[];
@@ -118,7 +122,18 @@ export async function assembleCinematicVideo(
       .select("id");
     if (!claimed || claimed.length === 0) return "processing";
 
-    const assembled = await fetchBuffer(res.videoUrl);
+    // Mux the cloned-voice narration over the lip-synced visuals. We do NOT rely
+    // on the lipsync output's own audio track (it can come back silent — the
+    // "no voice" bug); the narration is the authoritative voice. Falls back to
+    // re-hosting as-is only if we somehow have no narration.
+    const lipBuf = await fetchBuffer(res.videoUrl);
+    const narrBuf = video.narration ? await fetchBuffer(video.narration) : null;
+    const assembled = narrBuf
+      ? await assembleMontage({
+          scenes: [{ kind: "video", videoBuf: lipBuf, durationMs: FULL_MS }],
+          audio: { narration: narrBuf },
+        })
+      : lipBuf;
     const storage = adminConfigured ? createAdminClient() : supabase;
     const path = `${video.user_id}/${video.id}.mp4`;
     const up = await storage.storage

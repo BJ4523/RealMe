@@ -642,6 +642,7 @@ export async function pollVideoStatus(
       beats?: string[];
       lipsync?: string;
       captions?: boolean;
+      narration?: string;
     } | null;
     const meta = seg?.hypeReel;
     const { data: avReel } = await supabase
@@ -660,6 +661,7 @@ export async function pollVideoStatus(
       beats: seg?.beats ?? null,
       lipsync: seg?.lipsync ?? null,
       captions: seg?.captions ?? true,
+      narration: seg?.narration ?? null,
       voiceId: avReel?.voice_id ?? null,
     });
     const { data: latest } = await supabase
@@ -692,6 +694,9 @@ export async function pollVideoStatus(
         captions:
           (video.script_segments as { captions?: boolean } | null)?.captions ??
           true,
+        narration:
+          (video.script_segments as { narration?: string } | null)?.narration ??
+          null,
         heygen_video_id: video.heygen_video_id,
         photos,
       },

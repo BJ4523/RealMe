@@ -150,13 +150,36 @@ export async function advanceLipsync(
     if (!silentSigned?.signedUrl) throw new Error("silent sign failed");
 
     const audio = await generateSpeech(opts.fullScript, vId);
+
+    // Persist the narration so the FINAL mux can use it as the authoritative
+    // voice track. The HeyGen lipsync output's own audio track is unreliable
+    // (it can come back silent), which is why a reel could end up "music only".
+    // Re-host the TTS bytes in our bucket so the Stage-C poll (minutes later)
+    // still has a valid URL.
+    let narrationUrl = audio.audioUrl;
+    try {
+      const narrBuf = await fetchBuffer(audio.audioUrl);
+      const narrPath = `${userId}/${videoId}-narration`;
+      const upN = await storage.storage
+        .from("video-cache")
+        .upload(narrPath, narrBuf, { contentType: "audio/mpeg", upsert: true });
+      if (!upN.error) {
+        const { data: ns } = await storage.storage
+          .from("video-cache")
+          .createSignedUrl(narrPath, 60 * 60 * 24);
+        if (ns?.signedUrl) narrationUrl = ns.signedUrl;
+      }
+    } catch {
+      /* fall back to the raw TTS url */
+    }
+
     const { lipsyncId } = await createLipsync({
       videoUrl: silentSigned.signedUrl,
       audioUrl: audio.audioUrl,
       enableCaption: opts.captions ?? true,
     });
 
-    // Merge the lipsync id into script_segments (preserve beats/hypeReel/etc).
+    // Merge lipsync id + narration url into script_segments (preserve the rest).
     const { data: row } = await supabase
       .from("videos")
       .select("script_segments")
@@ -167,7 +190,11 @@ export async function advanceLipsync(
       .from("videos")
       .update({
         status: "processing",
-        script_segments: { ...seg, lipsync: lipsyncId } as never,
+        script_segments: {
+          ...seg,
+          lipsync: lipsyncId,
+          narration: narrationUrl,
+        } as never,
       })
       .eq("id", videoId);
     return { status: "processing" };
