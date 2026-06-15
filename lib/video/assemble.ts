@@ -131,12 +131,22 @@ export async function advanceLipsync(
       .select("id");
     if (!claimedB || claimedB.length === 0) return { status: "processing" };
 
+    // TTS FIRST so we know the narration length, then build the silent montage to
+    // MATCH it (each clip trimmed/held to narration ÷ clipCount). Lipsync requires
+    // the video and audio durations to be within ~15% — a natural-length montage
+    // (e.g. 28s) vs a short narration (e.g. 12s) is rejected outright.
+    const audio = await generateSpeech(opts.fullScript, vId);
+    const perClipMs = Math.max(
+      1500,
+      Math.round(((audio.duration || 20) / clipUrls.length) * 1000),
+    );
+
     const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
     const silent = await assembleMontage({
       scenes: clipBufs.map((buf) => ({
         kind: "video",
         videoBuf: buf,
-        durationMs: FULL_MS,
+        durationMs: perClipMs,
       })),
       audio: {},
     });
@@ -149,8 +159,6 @@ export async function advanceLipsync(
       .from("video-cache")
       .createSignedUrl(silentPath, 60 * 60 * 24);
     if (!silentSigned?.signedUrl) throw new Error("silent sign failed");
-
-    const audio = await generateSpeech(opts.fullScript, vId);
 
     // Persist the narration so the FINAL mux can use it as the authoritative
     // voice track. The HeyGen lipsync output's own audio track is unreliable

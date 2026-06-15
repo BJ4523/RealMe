@@ -773,7 +773,7 @@ export async function retryVideo(
   const supabase = await createClient();
   const { data: video } = await supabase
     .from("videos")
-    .select("heygen_video_id")
+    .select("heygen_video_id, script_segments")
     .eq("id", videoId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -782,11 +782,21 @@ export async function retryVideo(
   if (!isCinematic(video.heygen_video_id) && !isHypeReel(video.heygen_video_id)) {
     return null;
   }
+  // Clear any prior lipsync/narration so Stage B re-fires fresh — a retry after a
+  // FAILED lipsync (e.g. the duration-mismatch bug) must re-stitch, not re-poll
+  // the dead lipsync id. Keep beats/hypeReel/captions. Clips are untouched (no
+  // new clip credits).
+  const seg = (video.script_segments as Record<string, unknown> | null) ?? {};
+  const { lipsync: _l, narration: _n, ...keepSeg } = seg;
   // Reset and return immediately — the client's poll loop drives the assembly,
   // so the UI flips to the "generating" state right away (no inline wait here).
   const { data: latest } = await supabase
     .from("videos")
-    .update({ status: "processing", error: null })
+    .update({
+      status: "processing",
+      error: null,
+      script_segments: keepSeg as never,
+    })
     .eq("id", videoId)
     .eq("user_id", userId)
     .select("*")

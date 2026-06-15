@@ -147,14 +147,30 @@ async function renderScene(
     ]);
     return;
   }
-  // Silent: synthesize a stereo null track of the same duration. This segment is
-  // only ever fed to HeyGen lipsync (which fully re-renders the video), so its
-  // encode quality is irrelevant — use ultrafast + a high CRF to keep the stitch
-  // FAST (the stitch time is what blows the serverless function budget).
+  // Silent video. Two modes by durationMs:
+  //  • "natural" sentinel (>= 5 min, e.g. FULL_MS): play the clip's OWN length —
+  //    used for the lip-synced final, which a later -shortest trims to the audio.
+  //  • exact duration: trim long clips (-t) and freeze-pad short ones (tpad) to
+  //    EXACTLY durSec — used to size the silent montage to the narration so the
+  //    lipsync video/audio lengths match (HeyGen rejects >15% mismatch).
+  // Quality is irrelevant (lipsync re-renders), so encode ultrafast to stay fast.
+  const isNatural = scene.durationMs >= 300000;
+  if (isNatural) {
+    await ff([
+      "-y", "-i", inPath,
+      "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+      "-vf", vf,
+      "-map", "0:v:0", "-map", "1:a:0", "-shortest",
+      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outPath,
+    ]);
+    return;
+  }
   await ff([
     "-y", "-i", inPath,
     "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
-    "-t", durSec, "-vf", vf,
+    "-t", durSec,
+    "-vf", `${vf},tpad=stop_mode=clone:stop_duration=3600`,
     "-map", "0:v:0", "-map", "1:a:0",
     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outPath,
