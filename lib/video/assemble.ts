@@ -124,12 +124,23 @@ async function padAudioToClip(
     await writeFile(clipP, await fetchBuffer(clipUrl));
     await writeFile(audP, await fetchBuffer(audioUrl));
     const [dc, da] = await Promise.all([probeDurSec(clipP), probeDurSec(audP)]);
-    // Already ~clip length (or longer): host the raw narration unchanged.
-    if (!dc || da >= dc * 0.95) return hostAudio(storage, audioUrl, `${path}.wav`);
+    if (!dc || !da) return hostAudio(storage, audioUrl, `${path}.wav`);
+    // Bring the narration within ~15% of the clip so lipsync accepts it:
+    //  • too SHORT → pad with trailing silence up to the clip length
+    //  • too LONG  → speed it up (atempo, capped 2x) to ~the clip, then pad
+    // Within range already → leave it.
+    let filter: string | null = null;
+    if (da < dc * 0.95) {
+      filter = `apad=whole_dur=${dc.toFixed(3)}`;
+    } else if (da > dc * 1.1) {
+      const ratio = Math.min(2.0, Math.max(0.5, da / dc));
+      filter = `atempo=${ratio.toFixed(3)},apad=whole_dur=${dc.toFixed(3)}`;
+    }
+    if (!filter) return hostAudio(storage, audioUrl, `${path}.wav`);
     await new Promise<void>((res, rej) =>
       execFile(
         ffmpegPath as string,
-        ["-y", "-i", audP, "-af", `apad=whole_dur=${dc.toFixed(3)}`, "-c:a", "aac", "-b:a", "192k", outP],
+        ["-y", "-i", audP, "-af", filter, "-c:a", "aac", "-b:a", "192k", outP],
         { maxBuffer: 1 << 24 },
         (e) => (e ? rej(e) : res()),
       ),
