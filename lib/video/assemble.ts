@@ -72,7 +72,9 @@ export async function uploadThumbnailFromVideo(
 export type LipsyncResult =
   | { status: "processing" }
   | { status: "failed"; error: string }
-  | { status: "ready"; videoUrl: string };
+  // `lipsynced: false` = Path A fallback (VO over the silent cinematic montage;
+  // the lipsync couldn't process the clips). The final mux is the same either way.
+  | { status: "ready"; videoUrl: string; lipsynced: boolean };
 
 /**
  * The shared core of BOTH video paths (cinematic walkthrough + hype reel). Given
@@ -212,8 +214,21 @@ export async function advanceLipsync(
   // STAGE C — poll the single lipsync job.
   const ls = await getLipsyncStatus(opts.lipsync);
   if (ls.status === "failed") {
+    // PATH A FALLBACK (per the build spec): lipsync can't always process a
+    // cinematic walkthrough — e.g. "no speaker detected" when the agent isn't
+    // front-facing, or heavy motion. Rather than fail the whole reel, fall back
+    // to VO-over-cinematic: use the silent montage as the visual and let the
+    // caller mux the narration (+ music) over it. The agent is still in the
+    // scene with their cloned voice — just without mouth lip-sync.
+    const silentPath = `${userId}/${videoId}-silent.mp4`;
+    const { data: signed } = await storage.storage
+      .from("video-cache")
+      .createSignedUrl(silentPath, 60 * 60 * 24);
+    if (signed?.signedUrl) {
+      return { status: "ready", videoUrl: signed.signedUrl, lipsynced: false };
+    }
     return { status: "failed", error: ls.error ?? "Lipsync failed." };
   }
   if (ls.status !== "completed" || !ls.videoUrl) return { status: "processing" };
-  return { status: "ready", videoUrl: ls.videoUrl };
+  return { status: "ready", videoUrl: ls.videoUrl, lipsynced: true };
 }
