@@ -58,7 +58,7 @@ export function VideoDetail({
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
   const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
   const [roomCount, setRoomCount] = useState(2);
-  const [captions, setCaptions] = useState(true);
+  const [captions, setCaptions] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [rewriting, startRewrite] = useTransition();

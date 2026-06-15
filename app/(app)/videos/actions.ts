@@ -303,20 +303,21 @@ function cinematicExteriorPrompt(
   wardrobe: string,
 ): string {
   const place = listing?.address ? `the home at ${listing.address}` : "this home";
+  // Opener = FRONT of the house; closer = the BACKYARD (each recreated faithfully
+  // from its OWN reference photo — they are different areas, so don't force a match).
+  const scene =
+    kind === "intro"
+      ? "Recreate the house FRONT EXTERIOR in the reference image EXACTLY and faithfully: the same architecture, materials, roof, windows, and the front yard — lawn, landscaping, walkway and driveway, in the same positions. Do not invent or rearrange."
+      : "Recreate the BACKYARD / rear outdoor space in the reference image EXACTLY and faithfully: the same patio or deck, yard and landscaping, pool or fire-pit if present, fencing and structures, in the same positions. Do not invent or rearrange.";
   return [
     "Premium cinematic vertical 9:16 real-estate hero shot, the look of a polished",
     "luxury listing launch film — warm golden-hour light, shallow depth of field,",
     "rich filmic color, gentle film grain.",
-    // Faithful exterior — the opener and closer MUST show the identical yard.
-    "Recreate the house EXTERIOR in the reference image EXACTLY and faithfully:",
-    "the same architecture, materials, roof, windows, AND the identical FRONT YARD —",
-    "the same lawn, landscaping, plants, trees, walkway and driveway, in the same",
-    "positions. This is the SAME house and SAME front yard in both the opening and",
-    "closing shots — they must match, do not invent or rearrange the yard.",
-    `In front of ${place}, a confident, charismatic real-estate agent ${wardrobe}`,
+    scene,
+    `${kind === "intro" ? `In front of ${place}` : `In the backyard of ${place}`}, a confident, charismatic real-estate agent ${wardrobe}`,
     kind === "intro"
       ? "OPENS facing the camera directly and SPEAKING a warm, welcoming greeting to the viewer, with a brief gesture toward the home."
-      : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the home.",
+      : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the backyard.",
     // LIP-SYNC ANCHOR: this opener/closer shot must hold a clear, detectable
     // speaking face so HeyGen lipsync can sync the mouth on this beat (the room
     // walkthroughs are voice-over only). Frame the face large, centered, lit.
@@ -387,12 +388,15 @@ async function fireBeatClips(opts: {
   wardrobe: string;
   listing: Tables<"listings"> | null;
   exterior: string;
+  /** Closer reference — the BACKYARD photo (falls back to the exterior). */
+  backyard?: string;
   roomPhotos: string[];
   openerSec?: number;
   roomSec?: number;
   closerSec?: number;
 }): Promise<string[]> {
   const { lookId, wardrobe, listing, exterior, roomPhotos } = opts;
+  const backyard = opts.backyard || exterior;
   const [opener, rooms, closer] = await Promise.all([
     generateCinematicClip({
       avatarLookId: lookId,
@@ -412,7 +416,7 @@ async function fireBeatClips(opts: {
     ),
     generateCinematicClip({
       avatarLookId: lookId,
-      referenceUrl: exterior,
+      referenceUrl: backyard,
       prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
       duration: opts.closerSec ?? 8,
     }),
@@ -424,7 +428,7 @@ export async function submitCinematicVideo(
   videoId: string,
   outfitId?: string,
   roomCount?: number,
-  captions: boolean = true,
+  captions: boolean = false,
 ) {
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
@@ -492,7 +496,10 @@ export async function submitCinematicVideo(
     const cta = hook.outro?.trim() || "Reach out today to see it in person.";
 
     // Clips and their per-beat scripts share one order: [opener, ...rooms, closer].
-    const allClips = await fireBeatClips({ lookId, wardrobe, listing, exterior, roomPhotos });
+    // Closer bookend = the backyard: use the LAST photo (listings usually end on
+    // an outdoor/backyard/pool shot), distinct from the front-exterior opener.
+    const backyard = photos[photos.length - 1] ?? exterior;
+    const allClips = await fireBeatClips({ lookId, wardrobe, listing, exterior, backyard, roomPhotos });
     const beats = [openingPitch, ...roomLines, cta];
 
     await supabase
@@ -517,7 +524,7 @@ export async function submitHypeReelVideo(
   videoId: string,
   trackId?: string,
   outfitId?: string,
-  captions: boolean = true,
+  captions: boolean = false,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -560,12 +567,14 @@ export async function submitHypeReelVideo(
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
+    const backyard = photos[photos.length - 1] ?? hero; // closer = backyard
     // Shorter clips for the punchy hype-reel rhythm.
     const allClips = await fireBeatClips({
       lookId,
       wardrobe,
       listing,
       exterior: hero,
+      backyard,
       roomPhotos,
       openerSec: 6,
       roomSec: 8,
