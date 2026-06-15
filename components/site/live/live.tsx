@@ -106,7 +106,7 @@ function rentShort(n) {
 // RealMe Live — Public-facing ILS (renter marketplace)
 // Where renters discover units via AI agent reels
 
-export function RealMeLive({ onBackToSite }) {
+export function RealMeLive({ onBackToSite, heroReelUrl = null, heroPoster = null }) {
   const [filters, setFilters] = useState({ q: "", beds: "any", maxRent: 6000, pets: false });
   const [active, setActive] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
@@ -133,12 +133,56 @@ export function RealMeLive({ onBackToSite }) {
     <div data-screen-label="04 RealMe Live (Public ILS)" style={{ background: "var(--bg)", minHeight: "100vh", overflowX: "hidden", maxWidth: "100vw" }}>
       <LiveNav savedCount={savedIds.size} onBackToSite={onBackToSite} />
       <LiveHero filters={filters} setFilters={setFilters} resultCount={visible.length} />
+      {heroReelUrl ? <LiveHeroReel url={heroReelUrl} poster={heroPoster} /> : null}
       <FeaturedAgents />
       <LiveResults units={visible} onPick={setActive} savedIds={savedIds} toggleSave={toggleSave} />
       <LiveWhyDifferent />
       <LiveFooter onBackToSite={onBackToSite} />
       {active && <UnitDetailOverlay unit={active} onClose={() => setActive(null)} saved={savedIds.has(active.id)} onSave={() => toggleSave(active.id)} />}
     </div>
+  );
+}
+
+// ====== FEATURED HERO REEL (the agent's real generated video) ======
+function LiveHeroReel({ url, poster }) {
+  const isMobile = useIsMobile();
+  return (
+    <section style={{ padding: isMobile ? "8px 16px 24px" : "16px 32px 40px", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{
+        display: "flex", flexDirection: isMobile ? "column" : "row",
+        alignItems: "center", gap: isMobile ? 20 : 48,
+        background: "var(--bg-warm)", border: "1px solid var(--rule)",
+        borderRadius: 24, padding: isMobile ? 20 : 32,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", letterSpacing: "0.12em", color: "var(--coral)", fontWeight: 700, marginBottom: 10 }}>
+            ▸ JUST LISTED · AGENT ON CAMERA
+          </div>
+          <h2 className="display" style={{ fontSize: isMobile ? 28 : 40, lineHeight: 1.05, letterSpacing: "-0.03em", margin: 0 }}>
+            See the agent walk you through it — in their own voice.
+          </h2>
+          <p style={{ fontSize: 15, color: "var(--ink-soft)", marginTop: 14, maxWidth: 440 }}>
+            Every RealMe listing comes with a real agent-on-camera reel. Tap play —
+            this is generated from the listing, automatically.
+          </p>
+        </div>
+        <div style={{
+          width: isMobile ? 220 : 270, flexShrink: 0,
+          borderRadius: 28, overflow: "hidden", background: "#000",
+          boxShadow: "var(--shadow-pop)", border: "6px solid #111",
+          aspectRatio: "9 / 16",
+        }}>
+          <video
+            src={url}
+            poster={poster || undefined}
+            controls
+            playsInline
+            preload="metadata"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", background: "#000" }}
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
