@@ -271,15 +271,14 @@ function cinematicPrompt(
     "Recreate the room in the reference image accurately: the same layout, furniture,",
     "wall colors, flooring, windows, fixtures and finishes. Do NOT invent or rearrange.",
     `Inside that recreated room of ${place}, a charismatic real-estate agent ${wardrobe}`,
-    "walks through and showcases the space — moving naturally, gesturing to its features.",
-    // The whole montage is lip-synced in ONE pass over the cloned voice-over, so
-    // the agent does NOT need to face camera the whole time — walking and showing
-    // the property is great. They should just turn to address the camera and speak
-    // at a beat or two (lip-sync lands there); elsewhere the voice rides as
-    // narration over the walkthrough.
-    "The agent tours the room naturally AND turns to speak to the camera at a moment",
-    "or two, face clearly visible and well-lit when they do — warm and expressive.",
-    "Always keep the agent in frame (never an empty room with no person).",
+    "gives a walking tour TO CAMERA — moving through the room while facing the lens,",
+    "presenting and gesturing to its features like a host walking backward leading you in.",
+    // EVERY clip is lip-synced now, so the agent's face must stay camera-visible the
+    // whole shot (HeyGen lipsync needs a detectable speaking face). Walking is great,
+    // but keep the face toward the camera and actively talking throughout.
+    "The agent's FACE stays clearly visible and toward the camera the ENTIRE clip,",
+    "actively speaking to the viewer, mouth moving naturally — well-lit, head and",
+    "shoulders prominent. Never turn fully away, walk out of frame, or hide the face.",
     // Single subject.
     "EXACTLY ONE person in the scene — the agent, completely alone. No other people,",
     "bystanders, background figures, reflections or photos of other people.",
@@ -684,8 +683,7 @@ export async function pollVideoStatus(
     const seg = video.script_segments as {
       hypeReel?: { featureCallouts?: string[]; trackId?: string };
       beats?: string[];
-      lipOpener?: string;
-      lipCloser?: string;
+      lipsyncs?: string[];
       captions?: boolean;
     } | null;
     const meta = seg?.hypeReel;
@@ -703,8 +701,7 @@ export async function pollVideoStatus(
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
-      lipOpener: seg?.lipOpener ?? null,
-      lipCloser: seg?.lipCloser ?? null,
+      lipsyncs: seg?.lipsyncs ?? null,
       captions: seg?.captions ?? false,
       voiceId: avReel?.voice_id ?? null,
     });
@@ -733,11 +730,8 @@ export async function pollVideoStatus(
         script: video.script,
         beats:
           (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipOpener:
-          (video.script_segments as { lipOpener?: string } | null)?.lipOpener ??
-          null,
-        lipCloser:
-          (video.script_segments as { lipCloser?: string } | null)?.lipCloser ??
+        lipsyncs:
+          (video.script_segments as { lipsyncs?: string[] } | null)?.lipsyncs ??
           null,
         captions:
           (video.script_segments as { captions?: boolean } | null)?.captions ??
@@ -822,12 +816,12 @@ export async function retryVideo(
   const {
     lipsync: _l,
     narration: _n,
+    lipsyncs: _ls,
+    narrations: _ns,
     lipOpener: _lo,
     lipCloser: _lc,
     roomNarration: _rn,
     roomPerClipMs: _rp,
-    openerMatched: _om,
-    closerMatched: _cm,
     openerNarration: _on,
     closerNarration: _cn,
     ...keepSeg

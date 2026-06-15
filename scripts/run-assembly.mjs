@@ -32,7 +32,7 @@ console.log(`target ${v.id}  status=${v.status}  kind=${isHypeReel(v.heygen_vide
 // reset the lock so the assembler can re-claim it.
 {
   const seg = v.script_segments || {};
-  const { lipsync, narration, lipOpener, lipCloser, roomNarration, roomPerClipMs, openerMatched, closerMatched, openerNarration, closerNarration, ...keep } = seg;
+  const { lipsync, narration, lipsyncs, narrations, lipOpener, lipCloser, roomNarration, roomPerClipMs, openerNarration, closerNarration, ...keep } = seg;
   await sb
     .from("videos")
     .update({ status: "processing", error: null, script_segments: keep })
@@ -62,7 +62,7 @@ for (let i = 1; i <= 20; i++) {
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg.beats ?? null,
-      lipOpener: seg.lipOpener ?? null, lipCloser: seg.lipCloser ?? null,
+      lipsyncs: seg.lipsyncs ?? null,
       captions: seg.captions ?? false,
       voiceId: av?.voice_id ?? null,
     });
@@ -70,14 +70,14 @@ for (let i = 1; i <= 20; i++) {
     result = await assembleCinematicVideo(sb, {
       id: v.id, user_id: v.user_id, script: v.script,
       beats: seg.beats ?? null,
-      lipOpener: seg.lipOpener ?? null, lipCloser: seg.lipCloser ?? null,
+      lipsyncs: seg.lipsyncs ?? null,
       captions: seg.captions ?? false,
       heygen_video_id: v.heygen_video_id, photos,
     }, av?.voice_id ?? null);
   } else { console.log("not a reel/cine video"); break; }
 
   const s2 = (await load()).script_segments || {};
-  console.log(`[run ${i}] → ${result}  (bookend lipsync=${s2.lipOpener ? "fired" : "—"})`);
+  console.log(`[run ${i}] → ${result}  (lipsyncs=${(s2.lipsyncs?.length || 0)} fired)`);
   if (result === "completed" || result === "failed") {
     const f = await load();
     console.log(f.status === "completed" ? `✅ video_url ${f.video_url ? "set" : "MISSING"}` : `❌ ${f.error}`);

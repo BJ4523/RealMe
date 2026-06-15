@@ -53,9 +53,8 @@ export interface AssemblableReel {
   /** Per-clip narration, 1:1 with clips: [openerBeat, roomBeats…, closerBeat]. */
   beats?: string[] | null;
   voiceId?: string | null;
-  /** Bookend lipsync ids (opener/closer), set once stage B has fired them. */
-  lipOpener?: string | null;
-  lipCloser?: string | null;
+  /** Per-clip lipsync ids, set once stage B has fired them. */
+  lipsyncs?: string[] | null;
   /** Burn captions onto the reel (default off). */
   captions?: boolean | null;
 }
@@ -85,8 +84,7 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       clipIds: accents,
       beats,
       voiceId: reel.voiceId ?? null,
-      lipOpener: reel.lipOpener ?? null,
-      lipCloser: reel.lipCloser ?? null,
+      lipsyncs: reel.lipsyncs ?? null,
       captions: reel.captions ?? false,
     });
     if (res.status === "processing") return "processing";

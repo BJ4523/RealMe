@@ -51,9 +51,8 @@ interface AssemblableVideo {
   script: string | null;
   /** Per-clip narration, 1:1 with clips: [openerBeat, roomBeats…, closerBeat]. */
   beats?: string[] | null;
-  /** Bookend lipsync ids (opener/closer), set once stage B has fired them. */
-  lipOpener?: string | null;
-  lipCloser?: string | null;
+  /** Per-clip lipsync ids, set once stage B has fired them. */
+  lipsyncs?: string[] | null;
   /** Burn captions onto the reel (default off). */
   captions?: boolean | null;
   heygen_video_id: string | null;
@@ -95,8 +94,7 @@ export async function assembleCinematicVideo(
       clipIds: rooms,
       beats,
       voiceId,
-      lipOpener: video.lipOpener ?? null,
-      lipCloser: video.lipCloser ?? null,
+      lipsyncs: video.lipsyncs ?? null,
       captions: video.captions ?? false,
     });
     if (res.status === "processing") return "processing";

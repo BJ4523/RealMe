@@ -164,26 +164,24 @@ async function padAudioToClip(
 export type LipsyncResult =
   | { status: "processing" }
   | { status: "failed"; error: string }
-  // The lip-synced/VO BODY: [opener][rooms][closer] stitched with all audio baked
-  // in. `lipsynced` is true if at least one bookend actually lip-synced. Caller
-  // does the final pass (cinematic: re-host; hype: + music + overlays). Status is
-  // left at `submitting` (claimed) so the caller finishes without re-claiming.
+  // The finished BODY: every clip lip-synced (or VO-fallback) and stitched, all
+  // audio baked in. `lipsynced` = at least one clip actually lip-synced. The caller
+  // does the final pass (cinematic: re-host; hype: + music + overlays). The row is
+  // left `submitting` (claimed) so the caller finishes without re-claiming.
   | { status: "ready"; videoUrl: string; lipsynced: boolean };
 
 /**
- * Assemble the lip-synced BODY. HeyGen lipsync needs a detectable speaker, which
- * the room-walk clips lack (they fail "no speaker detected"), but the
- * face-to-camera OPENER and CLOSER do lip-sync. So we lipsync the two bookend
- * clips INDIVIDUALLY (each to its own beat), voice-over the room clips, then
- * stitch [opener][rooms][closer] into one body with all audio baked in.
+ * Assemble the lip-synced BODY. HeyGen lipsync needs a detectable speaker, so each
+ * clip is prompted face-to-camera and lip-synced INDIVIDUALLY — a single lipsync
+ * over the whole montage fails "no speaker detected" because faceless frames poison
+ * detection. The agent walks room-by-room talking to camera; we lipsync every clip
+ * to its own beat, then stitch them into one body.
  *
- * State machine over script_segments {lipOpener, lipCloser, roomNarration, roomPerClipMs}:
+ * State over script_segments {lipsyncs: string[], narrations: string[]}:
  *   A) poll the silent clips
- *   B) per-beat TTS → fire opener + closer lipsync, host the room VO, persist ids
- *   C) poll both bookend lipsyncs → stitch opener + room-VO montage + closer → body
- *
- * Per-bookend fallback: if a bookend lipsync fails (e.g. duration mismatch), that
- * clip plays silent with its voice-over instead, so the reel still completes.
+ *   B) per clip: TTS its beat, fit the audio to the raw clip, fire one lipsync
+ *   C) poll all lipsyncs → per clip use the lip-synced video (or raw clip + its VO
+ *      if that one failed) → stitch into one body.
  */
 export async function advanceLipsync(
   supabase: Db,
@@ -196,9 +194,8 @@ export async function advanceLipsync(
     beats: string[];
     voiceId: string | null;
     captions?: boolean;
-    /** Bookend lipsync ids from script_segments (null until stage B fires them). */
-    lipOpener: string | null;
-    lipCloser: string | null;
+    /** Per-clip lipsync ids from script_segments (null until stage B fires them). */
+    lipsyncs: string[] | null;
   },
 ): Promise<LipsyncResult> {
   const { videoId, userId, clipIds, beats } = opts;
@@ -219,21 +216,20 @@ export async function advanceLipsync(
   const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
   if (clipUrls.length !== clipIds.length) return { status: "processing" };
 
-  const last = clipIds.length - 1;
-  const openerUrl = clipUrls[0];
-  const closerUrl = clipUrls[last];
-  const roomUrls = clipUrls.slice(1, last);
-  const openerBeat =
-    (beats[0] || "Welcome — come take a look at this home.").trim();
-  const closerBeat =
-    (beats[last] || "Reach out today to come see it in person.").trim();
-  const roomBeats = beats
-    .slice(1, last)
-    .map((b) => (b || "").trim())
-    .filter(Boolean);
+  const lastIdx = clipIds.length - 1;
+  const beatFor = (i: number) =>
+    (
+      beats[i] ||
+      (i === 0
+        ? "Welcome — come take a look at this home."
+        : i === lastIdx
+          ? "Reach out today to come see it in person."
+          : "Take a look at this space.")
+    ).trim();
 
-  // STAGE B — TTS each beat, fire the two bookend lipsyncs, host the room VO.
-  if (!opts.lipOpener) {
+  // STAGE B — per clip: TTS its beat, fit the audio to the RAW clip (no clip
+  // re-encode — that kills HeyGen's face detection), fire ONE lipsync per clip.
+  if (!opts.lipsyncs || opts.lipsyncs.length === 0) {
     const { data: claimed } = await supabase
       .from("videos")
       .update({ status: "submitting" })
@@ -242,48 +238,23 @@ export async function advanceLipsync(
       .select("id");
     if (!claimed || claimed.length === 0) return { status: "processing" };
 
-    const [openerAudio, closerAudio, roomAudio] = await Promise.all([
-      generateSpeech(openerBeat, vId),
-      generateSpeech(closerBeat, vId),
-      roomUrls.length
-        ? generateSpeech(roomBeats.join(" ") || "Take a look through this home.", vId)
-        : Promise.resolve(null),
-    ]);
-
-    // Pad each beat's narration to the RAW clip's length (no clip re-encode —
-    // re-encoding kills HeyGen's face detection). These hosted audios are both
-    // the lipsync input AND the VO fallback if lipsync fails.
-    const [openerNarration, closerNarration] = await Promise.all([
-      padAudioToClip(storage, openerUrl, openerAudio.audioUrl, `${userId}/${videoId}-openera`),
-      padAudioToClip(storage, closerUrl, closerAudio.audioUrl, `${userId}/${videoId}-closera`),
-    ]);
-
-    const [openerLs, closerLs] = await Promise.all([
-      createLipsync({
-        videoUrl: openerUrl, // the RAW clip (detectable face)
-        audioUrl: openerNarration,
-        enableCaption: opts.captions ?? false,
+    const perClip = await Promise.all(
+      clipUrls.map(async (clipUrl, i) => {
+        const audio = await generateSpeech(beatFor(i), vId);
+        const narration = await padAudioToClip(
+          storage,
+          clipUrl,
+          audio.audioUrl,
+          `${userId}/${videoId}-n${i}`,
+        );
+        const ls = await createLipsync({
+          videoUrl: clipUrl,
+          audioUrl: narration,
+          enableCaption: opts.captions ?? false,
+        });
+        return { lipsync: ls.lipsyncId, narration };
       }),
-      createLipsync({
-        videoUrl: closerUrl,
-        audioUrl: closerNarration,
-        enableCaption: opts.captions ?? false,
-      }),
-    ]);
-
-    let roomNarration: string | null = null;
-    let roomPerClipMs = 0;
-    if (roomUrls.length && roomAudio) {
-      roomNarration = await hostAudio(
-        storage,
-        roomAudio.audioUrl,
-        `${userId}/${videoId}-rooms`,
-      );
-      roomPerClipMs = Math.max(
-        1500,
-        Math.round(((roomAudio.duration || roomUrls.length * 4) / roomUrls.length) * 1000),
-      );
-    }
+    );
 
     const { data: row } = await supabase
       .from("videos")
@@ -297,31 +268,21 @@ export async function advanceLipsync(
         status: "processing",
         script_segments: {
           ...seg,
-          lipOpener: openerLs.lipsyncId,
-          lipCloser: closerLs.lipsyncId,
-          openerNarration,
-          closerNarration,
-          roomNarration,
-          roomPerClipMs,
+          lipsyncs: perClip.map((p) => p.lipsync),
+          narrations: perClip.map((p) => p.narration),
         } as never,
       })
       .eq("id", videoId);
     return { status: "processing" };
   }
 
-  // STAGE C — poll both bookend lipsyncs; once both resolve, stitch the body.
-  const [lo, lc] = await Promise.all([
-    getLipsyncStatus(opts.lipOpener),
-    getLipsyncStatus(opts.lipCloser ?? opts.lipOpener),
-  ]);
-  if (lo.status === "processing" || lc.status === "processing") {
+  // STAGE C — poll all lipsyncs; once all resolve, stitch the body.
+  const statuses = await Promise.all(opts.lipsyncs.map(getLipsyncStatus));
+  if (statuses.some((s) => s.status === "processing")) {
     return { status: "processing" };
   }
-  const openerDone = lo.status === "completed" && !!lo.videoUrl;
-  const closerDone = lc.status === "completed" && !!lc.videoUrl;
 
-  // Claim the heavy stitch so concurrent polls don't double-run it. We keep the
-  // `submitting` lock through to the caller's final upload (no re-claim there).
+  // Claim the heavy stitch (held through the caller's final upload — no re-claim).
   const { data: claimedC } = await supabase
     .from("videos")
     .update({ status: "submitting" })
@@ -335,63 +296,37 @@ export async function advanceLipsync(
     .select("script_segments")
     .eq("id", videoId)
     .maybeSingle();
-  const seg2 =
-    (row2?.script_segments as {
-      roomNarration?: string;
-      roomPerClipMs?: number;
-      openerNarration?: string;
-      closerNarration?: string;
-    } | null) ?? {};
+  const narrations =
+    (row2?.script_segments as { narrations?: string[] } | null)?.narrations ?? [];
 
-  // A bookend: the lip-synced video if it completed, else the raw clip with its
-  // (padded) VO muxed on — still the agent's voice, just no mouth-sync.
-  const bookend = async (
-    done: boolean,
-    lipUrl: string | undefined,
-    rawUrl: string,
-    narrUrl: string | undefined,
-  ): Promise<Buffer> => {
-    if (done && lipUrl) return fetchBuffer(lipUrl);
-    const clipBuf = await fetchBuffer(rawUrl);
-    const narrBuf = narrUrl ? await fetchBuffer(narrUrl).catch(() => null) : null;
-    if (!narrBuf) return clipBuf;
-    return assembleMontage({
-      scenes: [{ kind: "video" as const, videoBuf: clipBuf, durationMs: FULL_MS }],
-      audio: { narration: narrBuf },
-    });
-  };
+  // Each clip: the lip-synced video if it completed, else the raw clip with its
+  // (fitted) VO muxed on — still the agent's voice on that clip, just no mouth-sync.
+  const sceneBufs = await Promise.all(
+    clipUrls.map(async (clipUrl, i) => {
+      const st = statuses[i];
+      if (st && st.status === "completed" && st.videoUrl) {
+        return fetchBuffer(st.videoUrl);
+      }
+      const clipBuf = await fetchBuffer(clipUrl);
+      const narrUrl = narrations[i];
+      const narrBuf = narrUrl ? await fetchBuffer(narrUrl).catch(() => null) : null;
+      if (!narrBuf) return clipBuf;
+      return assembleMontage({
+        scenes: [{ kind: "video" as const, videoBuf: clipBuf, durationMs: FULL_MS }],
+        audio: { narration: narrBuf },
+      });
+    }),
+  );
 
-  const [openerVidBuf, closerVidBuf] = await Promise.all([
-    bookend(openerDone, lo.videoUrl, openerUrl, seg2.openerNarration),
-    bookend(closerDone, lc.videoUrl, closerUrl, seg2.closerNarration),
-  ]);
-
-  // Room VO montage (silent room clips sized to the room narration + VO muxed).
-  let roomBodyBuf: Buffer | null = null;
-  if (roomUrls.length) {
-    const roomBufs = await Promise.all(roomUrls.map(fetchBuffer));
-    const roomNarrBuf = seg2.roomNarration
-      ? await fetchBuffer(seg2.roomNarration).catch(() => null)
-      : null;
-    roomBodyBuf = await assembleMontage({
-      scenes: roomBufs.map((b) => ({
-        kind: "video" as const,
-        videoBuf: b,
-        durationMs: seg2.roomPerClipMs || 4000,
-      })),
-      audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
-    });
-  }
-
-  // Stitch [opener][rooms][closer] — each keeps its own baked audio.
-  const bodyScenes = [
-    { kind: "video" as const, videoBuf: openerVidBuf, durationMs: FULL_MS, keepAudio: true },
-    ...(roomBodyBuf
-      ? [{ kind: "video" as const, videoBuf: roomBodyBuf, durationMs: FULL_MS, keepAudio: true }]
-      : []),
-    { kind: "video" as const, videoBuf: closerVidBuf, durationMs: FULL_MS, keepAudio: true },
-  ];
-  const body = await assembleMontage({ scenes: bodyScenes, audio: {} });
+  const body = await assembleMontage({
+    scenes: sceneBufs.map((b) => ({
+      kind: "video" as const,
+      videoBuf: b,
+      durationMs: FULL_MS,
+      keepAudio: true,
+    })),
+    audio: {},
+  });
 
   const bodyPath = `${userId}/${videoId}-body.mp4`;
   const up = await storage.storage
@@ -406,6 +341,6 @@ export async function advanceLipsync(
   return {
     status: "ready",
     videoUrl: signed.signedUrl,
-    lipsynced: openerDone || closerDone,
+    lipsynced: statuses.some((s) => s.status === "completed"),
   };
 }
