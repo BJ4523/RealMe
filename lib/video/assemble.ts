@@ -90,39 +90,63 @@ async function hostAudio(
   }
 }
 
+/** Media duration in seconds via an ffmpeg probe (0 if unknown). */
+function probeDurSec(path: string): Promise<number> {
+  if (!ffmpegPath) return Promise.resolve(0);
+  return new Promise((res) =>
+    execFile(ffmpegPath as string, ["-i", path], (_e, _so, se) => {
+      const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(se || "");
+      res(m ? +m[1] * 3600 + +m[2] * 60 + parseFloat(m[3]) : 0);
+    }),
+  );
+}
+
 /**
- * Trim/freeze-pad a clip to ~`durSec` seconds and re-host it. HeyGen lipsync
- * rejects video/audio length mismatches over ~15%, and a raw bookend clip rarely
- * matches its beat narration — so we resize the clip to the audio before lipsync.
+ * Match a bookend beat's narration to the RAW clip's length WITHOUT re-encoding
+ * the clip (re-encoding degrades the face so HeyGen lipsync stops detecting a
+ * speaker — the whole reason the montage approach failed). We lipsync the raw
+ * clip directly, so the audio must be within ~15% of the clip: pad the narration
+ * with trailing silence to the clip's duration when it's shorter. Returns the
+ * hosted (possibly padded) audio URL. Leaves longer audio as-is.
  */
-async function matchClipToAudio(
+async function padAudioToClip(
   storage: Storage,
   clipUrl: string,
-  durSec: number,
+  audioUrl: string,
   path: string,
 ): Promise<string> {
+  if (!ffmpegPath) return hostAudio(storage, audioUrl, `${path}.wav`);
+  const dir = await mkdtemp(join(tmpdir(), "pad-"));
   try {
-    const buf = await fetchBuffer(clipUrl);
-    const matched = await assembleMontage({
-      scenes: [
-        {
-          kind: "video" as const,
-          videoBuf: buf,
-          durationMs: Math.max(1500, Math.round((durSec || 4) * 1000)),
-        },
-      ],
-      audio: {},
-    });
+    const clipP = join(dir, "clip.mp4");
+    const audP = join(dir, "a.wav");
+    const outP = join(dir, "out.m4a");
+    await writeFile(clipP, await fetchBuffer(clipUrl));
+    await writeFile(audP, await fetchBuffer(audioUrl));
+    const [dc, da] = await Promise.all([probeDurSec(clipP), probeDurSec(audP)]);
+    // Already ~clip length (or longer): host the raw narration unchanged.
+    if (!dc || da >= dc * 0.95) return hostAudio(storage, audioUrl, `${path}.wav`);
+    await new Promise<void>((res, rej) =>
+      execFile(
+        ffmpegPath as string,
+        ["-y", "-i", audP, "-af", `apad=whole_dur=${dc.toFixed(3)}`, "-c:a", "aac", "-b:a", "192k", outP],
+        { maxBuffer: 1 << 24 },
+        (e) => (e ? rej(e) : res()),
+      ),
+    );
+    const buf = await readFile(outP);
     const up = await storage.storage
       .from("video-cache")
-      .upload(path, matched, { contentType: "video/mp4", upsert: true });
-    if (up.error) return clipUrl;
+      .upload(`${path}.m4a`, buf, { contentType: "audio/mp4", upsert: true });
+    if (up.error) return hostAudio(storage, audioUrl, `${path}.wav`);
     const { data } = await storage.storage
       .from("video-cache")
-      .createSignedUrl(path, 60 * 60 * 24);
-    return data?.signedUrl ?? clipUrl;
+      .createSignedUrl(`${path}.m4a`, 60 * 60 * 24);
+    return data?.signedUrl ?? audioUrl;
   } catch {
-    return clipUrl;
+    return hostAudio(storage, audioUrl, `${path}.wav`);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
@@ -215,25 +239,23 @@ export async function advanceLipsync(
         : Promise.resolve(null),
     ]);
 
-    // Resize each bookend clip to its beat audio, and host the beat audio (the
-    // authoritative VO + the fallback if lipsync fails).
-    const [openerMatched, closerMatched, openerNarration, closerNarration] =
-      await Promise.all([
-        matchClipToAudio(storage, openerUrl, openerAudio.duration, `${userId}/${videoId}-openerc.mp4`),
-        matchClipToAudio(storage, closerUrl, closerAudio.duration, `${userId}/${videoId}-closerc.mp4`),
-        hostAudio(storage, openerAudio.audioUrl, `${userId}/${videoId}-openera`),
-        hostAudio(storage, closerAudio.audioUrl, `${userId}/${videoId}-closera`),
-      ]);
+    // Pad each beat's narration to the RAW clip's length (no clip re-encode —
+    // re-encoding kills HeyGen's face detection). These hosted audios are both
+    // the lipsync input AND the VO fallback if lipsync fails.
+    const [openerNarration, closerNarration] = await Promise.all([
+      padAudioToClip(storage, openerUrl, openerAudio.audioUrl, `${userId}/${videoId}-openera`),
+      padAudioToClip(storage, closerUrl, closerAudio.audioUrl, `${userId}/${videoId}-closera`),
+    ]);
 
     const [openerLs, closerLs] = await Promise.all([
       createLipsync({
-        videoUrl: openerMatched,
-        audioUrl: openerAudio.audioUrl,
+        videoUrl: openerUrl, // the RAW clip (detectable face)
+        audioUrl: openerNarration,
         enableCaption: opts.captions ?? false,
       }),
       createLipsync({
-        videoUrl: closerMatched,
-        audioUrl: closerAudio.audioUrl,
+        videoUrl: closerUrl,
+        audioUrl: closerNarration,
         enableCaption: opts.captions ?? false,
       }),
     ]);
@@ -266,8 +288,6 @@ export async function advanceLipsync(
           ...seg,
           lipOpener: openerLs.lipsyncId,
           lipCloser: closerLs.lipsyncId,
-          openerMatched,
-          closerMatched,
           openerNarration,
           closerNarration,
           roomNarration,
@@ -308,23 +328,20 @@ export async function advanceLipsync(
     (row2?.script_segments as {
       roomNarration?: string;
       roomPerClipMs?: number;
-      openerMatched?: string;
-      closerMatched?: string;
       openerNarration?: string;
       closerNarration?: string;
     } | null) ?? {};
 
-  // A bookend: the lip-synced video if it completed, else the resized silent clip
-  // with its VO muxed on (so it still has the agent's voice, just no mouth-sync).
+  // A bookend: the lip-synced video if it completed, else the raw clip with its
+  // (padded) VO muxed on — still the agent's voice, just no mouth-sync.
   const bookend = async (
     done: boolean,
     lipUrl: string | undefined,
     rawUrl: string,
-    matchedUrl: string | undefined,
     narrUrl: string | undefined,
   ): Promise<Buffer> => {
     if (done && lipUrl) return fetchBuffer(lipUrl);
-    const clipBuf = await fetchBuffer(matchedUrl || rawUrl);
+    const clipBuf = await fetchBuffer(rawUrl);
     const narrBuf = narrUrl ? await fetchBuffer(narrUrl).catch(() => null) : null;
     if (!narrBuf) return clipBuf;
     return assembleMontage({
@@ -334,8 +351,8 @@ export async function advanceLipsync(
   };
 
   const [openerVidBuf, closerVidBuf] = await Promise.all([
-    bookend(openerDone, lo.videoUrl, openerUrl, seg2.openerMatched, seg2.openerNarration),
-    bookend(closerDone, lc.videoUrl, closerUrl, seg2.closerMatched, seg2.closerNarration),
+    bookend(openerDone, lo.videoUrl, openerUrl, seg2.openerNarration),
+    bookend(closerDone, lc.videoUrl, closerUrl, seg2.closerNarration),
   ]);
 
   // Room VO montage (silent room clips sized to the room narration + VO muxed).
