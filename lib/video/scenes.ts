@@ -147,14 +147,17 @@ async function renderScene(
     ]);
     return;
   }
-  // Silent: synthesize a stereo null track of the same duration.
+  // Silent: synthesize a stereo null track of the same duration. This segment is
+  // only ever fed to HeyGen lipsync (which fully re-renders the video), so its
+  // encode quality is irrelevant — use ultrafast + a high CRF to keep the stitch
+  // FAST (the stitch time is what blows the serverless function budget).
   await ff([
     "-y", "-i", inPath,
     "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
     "-t", durSec, "-vf", vf,
     "-map", "0:v:0", "-map", "1:a:0",
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
-    "-c:a", "aac", "-b:a", "192k", "-ar", "44100", outPath,
+    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outPath,
   ]);
 }
 
