@@ -50,15 +50,14 @@ export interface AssemblableReel {
   facts: ReelListingFacts;
   featureCallouts: string[];
   trackId: string | null;
-  /** Hype narration lines (joined for one TTS) and the cloned voice. */
+  /** Per-clip narration, 1:1 with clips: [openerBeat, roomBeats…, closerBeat]. */
   beats?: string[] | null;
   voiceId?: string | null;
-  /** The single lipsync job id, set once the lipsync has fired. */
-  lipsync?: string | null;
-  /** Burn captions onto the reel (default true). */
+  /** Bookend lipsync ids (opener/closer), set once stage B has fired them. */
+  lipOpener?: string | null;
+  lipCloser?: string | null;
+  /** Burn captions onto the reel (default off). */
   captions?: boolean | null;
-  /** Hosted cloned-voice narration (authoritative voice for the music mux). */
-  narration?: string | null;
 }
 
 const OVERLAY_SHOW_MS = 1600;
@@ -76,19 +75,19 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
   if (!isHypeReel(reel.heygen_video_id)) return "processing";
   const { accents } = decodeReelJobs(reel.heygen_video_id!);
   try {
-    const fullScript =
-      (reel.beats ?? []).map((b) => b?.trim()).filter(Boolean).join(" ") ||
-      "Check out this incredible home.";
+    const beats = (reel.beats ?? []).map((b) => (b ?? "").trim());
 
-    // Shared core: poll clips → stitch → TTS → one lipsync → lip-synced URL.
+    // Bookend-lipsync core: lipsync the opener + closer, VO the rooms, stitch the
+    // body (all voice baked in). Hype then adds music + overlays over it.
     const res = await advanceLipsync(supabase, {
       videoId: reel.id,
       userId: reel.user_id,
       clipIds: accents,
-      fullScript,
+      beats,
       voiceId: reel.voiceId ?? null,
-      lipsync: reel.lipsync ?? null,
-      captions: reel.captions ?? true,
+      lipOpener: reel.lipOpener ?? null,
+      lipCloser: reel.lipCloser ?? null,
+      captions: reel.captions ?? false,
     });
     if (res.status === "processing") return "processing";
     if (res.status === "failed") {
@@ -96,20 +95,14 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       return "failed";
     }
 
-    // Ready — claim the final pass: add the MUSIC bed (ducked under the voice)
-    // + animated overlays onto the lip-synced reel. This is the only thing that
-    // differs from the cinematic walkthrough.
-    const { data: claimed } = await supabase
-      .from("videos").update({ status: "submitting" })
-      .eq("id", reel.id).eq("status", "processing").select("id");
-    if (!claimed || claimed.length === 0) return "processing";
-
+    // Ready — the body has all voice baked in and the row is already claimed
+    // (submitting). Final pass: add the MUSIC bed (ducked under the body's voice)
+    // + animated overlays. No re-claim.
     const storage = adminConfigured ? createAdminClient() : supabase;
     const track = getTrack(reel.trackId);
-    const [lipBuf, musicBuf, narrBuf] = await Promise.all([
+    const [bodyBuf, musicBuf] = await Promise.all([
       fetchBuffer(res.videoUrl),
       readFile(resolve(track.file)),
-      reel.narration ? fetchBuffer(reel.narration) : Promise.resolve(null),
     ]);
     const grid = beatTimesMs(track.bpm, track.beatOffsetMs, HYPE_REEL_TARGET_MS);
     const overlays = overlaysFromListing({
@@ -119,14 +112,10 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       showDurMs: OVERLAY_SHOW_MS,
     });
     const assembled = await assembleMontage({
-      // Voice = the explicit narration track (authoritative). Only fall back to
-      // the clip's own audio (keepAudio) if we somehow have no narration.
-      scenes: [{ kind: "video", videoBuf: lipBuf, durationMs: FULL_MS, keepAudio: !narrBuf }],
-      audio: {
-        music: musicBuf,
-        duckUnderSceneAudio: true,
-        ...(narrBuf ? { narration: narrBuf } : {}),
-      },
+      // The body already carries the voice (bookend lipsync + room VO); keep it
+      // and duck the music under it.
+      scenes: [{ kind: "video", videoBuf: bodyBuf, durationMs: FULL_MS, keepAudio: true }],
+      audio: { music: musicBuf, duckUnderSceneAudio: true },
       overlays,
     });
 

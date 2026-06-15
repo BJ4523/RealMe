@@ -6,9 +6,7 @@ import {
   advanceLipsync,
   fetchBuffer,
   uploadThumbnailFromVideo,
-  FULL_MS,
 } from "@/lib/video/assemble";
-import { assembleMontage } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
 
@@ -51,14 +49,13 @@ interface AssemblableVideo {
   id: string;
   user_id: string;
   script: string | null;
-  /** Narration lines per beat (opener, each room, closer) — joined for one TTS. */
+  /** Per-clip narration, 1:1 with clips: [openerBeat, roomBeats…, closerBeat]. */
   beats?: string[] | null;
-  /** The single lipsync job id (whole montage), set once the lipsync has fired. */
-  lipsync?: string | null;
-  /** Burn captions onto the reel (default true). */
+  /** Bookend lipsync ids (opener/closer), set once stage B has fired them. */
+  lipOpener?: string | null;
+  lipCloser?: string | null;
+  /** Burn captions onto the reel (default off). */
   captions?: boolean | null;
-  /** Hosted cloned-voice narration (authoritative audio for the final mux). */
-  narration?: string | null;
   heygen_video_id: string | null;
   /** Real listing photo URLs — the faithful backbone of the montage. */
   photos: string[];
@@ -88,20 +85,19 @@ export async function assembleCinematicVideo(
   }
 
   try {
-    const fullScript =
-      (video.beats ?? []).map((b) => b?.trim()).filter(Boolean).join(" ") ||
-      video.script?.trim() ||
-      "Welcome to this beautiful home.";
+    const beats = (video.beats ?? []).map((b) => (b ?? "").trim());
 
-    // Shared core: poll clips → stitch → TTS → one lipsync → lip-synced URL.
+    // Bookend-lipsync core: lipsync the opener + closer clips, VO the rooms, and
+    // stitch into one body with all audio baked in.
     const res = await advanceLipsync(supabase, {
       videoId: video.id,
       userId: video.user_id,
       clipIds: rooms,
-      fullScript,
+      beats,
       voiceId,
-      lipsync: video.lipsync ?? null,
-      captions: video.captions ?? true,
+      lipOpener: video.lipOpener ?? null,
+      lipCloser: video.lipCloser ?? null,
+      captions: video.captions ?? false,
     });
     if (res.status === "processing") return "processing";
     if (res.status === "failed") {
@@ -112,28 +108,10 @@ export async function assembleCinematicVideo(
       return "failed";
     }
 
-    // Ready — claim the final, then re-host the lip-synced video as the result.
-    // (Cinematic needs no extra pass; the lipsync output IS the finished reel.)
-    const { data: claimed } = await supabase
-      .from("videos")
-      .update({ status: "submitting" })
-      .eq("id", video.id)
-      .eq("status", "processing")
-      .select("id");
-    if (!claimed || claimed.length === 0) return "processing";
-
-    // Mux the cloned-voice narration over the lip-synced visuals. We do NOT rely
-    // on the lipsync output's own audio track (it can come back silent — the
-    // "no voice" bug); the narration is the authoritative voice. Falls back to
-    // re-hosting as-is only if we somehow have no narration.
-    const lipBuf = await fetchBuffer(res.videoUrl);
-    const narrBuf = video.narration ? await fetchBuffer(video.narration) : null;
-    const assembled = narrBuf
-      ? await assembleMontage({
-          scenes: [{ kind: "video", videoBuf: lipBuf, durationMs: FULL_MS }],
-          audio: { narration: narrBuf },
-        })
-      : lipBuf;
+    // Ready — the body already has all audio (bookend lipsync + room VO) and the
+    // row is already claimed (submitting). Cinematic needs no extra pass: just
+    // re-host the body as the finished reel. No re-claim.
+    const assembled = await fetchBuffer(res.videoUrl);
     const storage = adminConfigured ? createAdminClient() : supabase;
     const path = `${video.user_id}/${video.id}.mp4`;
     const up = await storage.storage

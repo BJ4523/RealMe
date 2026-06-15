@@ -665,9 +665,9 @@ export async function pollVideoStatus(
     const seg = video.script_segments as {
       hypeReel?: { featureCallouts?: string[]; trackId?: string };
       beats?: string[];
-      lipsync?: string;
+      lipOpener?: string;
+      lipCloser?: string;
       captions?: boolean;
-      narration?: string;
     } | null;
     const meta = seg?.hypeReel;
     const { data: avReel } = await supabase
@@ -684,9 +684,9 @@ export async function pollVideoStatus(
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
-      lipsync: seg?.lipsync ?? null,
-      captions: seg?.captions ?? true,
-      narration: seg?.narration ?? null,
+      lipOpener: seg?.lipOpener ?? null,
+      lipCloser: seg?.lipCloser ?? null,
+      captions: seg?.captions ?? false,
       voiceId: avReel?.voice_id ?? null,
     });
     const { data: latest } = await supabase
@@ -714,14 +714,15 @@ export async function pollVideoStatus(
         script: video.script,
         beats:
           (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipsync:
-          (video.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
+        lipOpener:
+          (video.script_segments as { lipOpener?: string } | null)?.lipOpener ??
+          null,
+        lipCloser:
+          (video.script_segments as { lipCloser?: string } | null)?.lipCloser ??
+          null,
         captions:
           (video.script_segments as { captions?: boolean } | null)?.captions ??
-          true,
-        narration:
-          (video.script_segments as { narration?: string } | null)?.narration ??
-          null,
+          false,
         heygen_video_id: video.heygen_video_id,
         photos,
       },
@@ -796,12 +797,18 @@ export async function retryVideo(
   if (!isCinematic(video.heygen_video_id) && !isHypeReel(video.heygen_video_id)) {
     return null;
   }
-  // Clear any prior lipsync/narration so Stage B re-fires fresh — a retry after a
-  // FAILED lipsync (e.g. the duration-mismatch bug) must re-stitch, not re-poll
-  // the dead lipsync id. Keep beats/hypeReel/captions. Clips are untouched (no
-  // new clip credits).
+  // Clear prior lipsync/VO state so a retry re-fires the bookend lipsyncs fresh
+  // (don't re-poll dead ids). Keep beats/hypeReel/captions. Clips untouched.
   const seg = (video.script_segments as Record<string, unknown> | null) ?? {};
-  const { lipsync: _l, narration: _n, ...keepSeg } = seg;
+  const {
+    lipsync: _l,
+    narration: _n,
+    lipOpener: _lo,
+    lipCloser: _lc,
+    roomNarration: _rn,
+    roomPerClipMs: _rp,
+    ...keepSeg
+  } = seg;
   // Reset and return immediately — the client's poll loop drives the assembly,
   // so the UI flips to the "generating" state right away (no inline wait here).
   const { data: latest } = await supabase

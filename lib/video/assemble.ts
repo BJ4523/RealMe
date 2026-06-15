@@ -69,44 +69,69 @@ export async function uploadThumbnailFromVideo(
   }
 }
 
+/** Re-host a (temporary) audio URL in our bucket and return a 24h signed URL. */
+async function hostAudio(
+  storage: Storage,
+  url: string,
+  path: string,
+): Promise<string> {
+  try {
+    const buf = await fetchBuffer(url);
+    const up = await storage.storage
+      .from("video-cache")
+      .upload(path, buf, { contentType: "audio/mpeg", upsert: true });
+    if (up.error) return url;
+    const { data } = await storage.storage
+      .from("video-cache")
+      .createSignedUrl(path, 60 * 60 * 24);
+    return data?.signedUrl ?? url;
+  } catch {
+    return url;
+  }
+}
+
 export type LipsyncResult =
   | { status: "processing" }
   | { status: "failed"; error: string }
-  // `lipsynced: false` = Path A fallback (VO over the silent cinematic montage;
-  // the lipsync couldn't process the clips). The final mux is the same either way.
+  // The lip-synced/VO BODY: [opener][rooms][closer] stitched with all audio baked
+  // in. `lipsynced` is true if at least one bookend actually lip-synced. Caller
+  // does the final pass (cinematic: re-host; hype: + music + overlays). Status is
+  // left at `submitting` (claimed) so the caller finishes without re-claiming.
   | { status: "ready"; videoUrl: string; lipsynced: boolean };
 
 /**
- * The shared core of BOTH video paths (cinematic walkthrough + hype reel). Given
- * the silent cinematic_avatar clip ids and the full narration script, it drives
- * the one-pass lip-sync pipeline and returns the finished lip-synced video URL:
+ * Assemble the lip-synced BODY. HeyGen lipsync needs a detectable speaker, which
+ * the room-walk clips lack (they fail "no speaker detected"), but the
+ * face-to-camera OPENER and CLOSER do lip-sync. So we lipsync the two bookend
+ * clips INDIVIDUALLY (each to its own beat), voice-over the room clips, then
+ * stitch [opener][rooms][closer] into one body with all audio baked in.
  *
+ * State machine over script_segments {lipOpener, lipCloser, roomNarration, roomPerClipMs}:
  *   A) poll the silent clips
- *   B) stitch them into one montage, host it, TTS the script, fire ONE
- *      Lipsync-Precision job over the whole thing (persists the id to
- *      script_segments.lipsync)
- *   C) poll the lipsync → the lip-synced video URL
+ *   B) per-beat TTS → fire opener + closer lipsync, host the room VO, persist ids
+ *   C) poll both bookend lipsyncs → stitch opener + room-VO montage + closer → body
  *
- * Callers then do their own final pass on the returned URL (cinematic: re-host
- * as-is; hype reel: add the music bed + overlays). Self-locking via
- * processing→submitting so concurrent polls/cron don't double-fire.
+ * Per-bookend fallback: if a bookend lipsync fails (e.g. duration mismatch), that
+ * clip plays silent with its voice-over instead, so the reel still completes.
  */
 export async function advanceLipsync(
   supabase: Db,
   opts: {
     videoId: string;
     userId: string;
+    /** [opener, room1, …, closer] in playback order. */
     clipIds: string[];
-    fullScript: string;
+    /** Per-clip narration, 1:1 with clipIds: [openerBeat, roomBeats…, closerBeat]. */
+    beats: string[];
     voiceId: string | null;
-    /** Current lipsync id from script_segments (null until stage B fires it). */
-    lipsync: string | null;
-    /** Burn captions onto the output (default true). */
     captions?: boolean;
+    /** Bookend lipsync ids from script_segments (null until stage B fires them). */
+    lipOpener: string | null;
+    lipCloser: string | null;
   },
 ): Promise<LipsyncResult> {
-  const { videoId, userId, clipIds, voiceId } = opts;
-  const vId = voiceId ?? DEFAULT_VOICE_ID;
+  const { videoId, userId, clipIds, beats } = opts;
+  const vId = opts.voiceId ?? DEFAULT_VOICE_ID;
   const storage = adminConfigured ? createAdminClient() : supabase;
 
   // STAGE A — the silent cinematic_avatar clips.
@@ -123,74 +148,64 @@ export async function advanceLipsync(
   const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
   if (clipUrls.length !== clipIds.length) return { status: "processing" };
 
-  // STAGE B — stitch the silent clips, host them, TTS, lipsync the whole montage.
-  if (!opts.lipsync) {
-    const { data: claimedB } = await supabase
+  const last = clipIds.length - 1;
+  const openerUrl = clipUrls[0];
+  const closerUrl = clipUrls[last];
+  const roomUrls = clipUrls.slice(1, last);
+  const openerBeat =
+    (beats[0] || "Welcome — come take a look at this home.").trim();
+  const closerBeat =
+    (beats[last] || "Reach out today to come see it in person.").trim();
+  const roomBeats = beats
+    .slice(1, last)
+    .map((b) => (b || "").trim())
+    .filter(Boolean);
+
+  // STAGE B — TTS each beat, fire the two bookend lipsyncs, host the room VO.
+  if (!opts.lipOpener) {
+    const { data: claimed } = await supabase
       .from("videos")
       .update({ status: "submitting" })
       .eq("id", videoId)
       .eq("status", "processing")
       .select("id");
-    if (!claimedB || claimedB.length === 0) return { status: "processing" };
+    if (!claimed || claimed.length === 0) return { status: "processing" };
 
-    // TTS FIRST so we know the narration length, then build the silent montage to
-    // MATCH it (each clip trimmed/held to narration ÷ clipCount). Lipsync requires
-    // the video and audio durations to be within ~15% — a natural-length montage
-    // (e.g. 28s) vs a short narration (e.g. 12s) is rejected outright.
-    const audio = await generateSpeech(opts.fullScript, vId);
-    const perClipMs = Math.max(
-      1500,
-      Math.round(((audio.duration || 20) / clipUrls.length) * 1000),
-    );
+    const [openerAudio, closerAudio, roomAudio] = await Promise.all([
+      generateSpeech(openerBeat, vId),
+      generateSpeech(closerBeat, vId),
+      roomUrls.length
+        ? generateSpeech(roomBeats.join(" ") || "Take a look through this home.", vId)
+        : Promise.resolve(null),
+    ]);
 
-    const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
-    const silent = await assembleMontage({
-      scenes: clipBufs.map((buf) => ({
-        kind: "video",
-        videoBuf: buf,
-        durationMs: perClipMs,
-      })),
-      audio: {},
-    });
-    const silentPath = `${userId}/${videoId}-silent.mp4`;
-    const upS = await storage.storage
-      .from("video-cache")
-      .upload(silentPath, silent, { contentType: "video/mp4", upsert: true });
-    if (upS.error) throw new Error(`silent upload failed: ${upS.error.message}`);
-    const { data: silentSigned } = await storage.storage
-      .from("video-cache")
-      .createSignedUrl(silentPath, 60 * 60 * 24);
-    if (!silentSigned?.signedUrl) throw new Error("silent sign failed");
+    const [openerLs, closerLs] = await Promise.all([
+      createLipsync({
+        videoUrl: openerUrl,
+        audioUrl: openerAudio.audioUrl,
+        enableCaption: opts.captions ?? false,
+      }),
+      createLipsync({
+        videoUrl: closerUrl,
+        audioUrl: closerAudio.audioUrl,
+        enableCaption: opts.captions ?? false,
+      }),
+    ]);
 
-    // Persist the narration so the FINAL mux can use it as the authoritative
-    // voice track. The HeyGen lipsync output's own audio track is unreliable
-    // (it can come back silent), which is why a reel could end up "music only".
-    // Re-host the TTS bytes in our bucket so the Stage-C poll (minutes later)
-    // still has a valid URL.
-    let narrationUrl = audio.audioUrl;
-    try {
-      const narrBuf = await fetchBuffer(audio.audioUrl);
-      const narrPath = `${userId}/${videoId}-narration`;
-      const upN = await storage.storage
-        .from("video-cache")
-        .upload(narrPath, narrBuf, { contentType: "audio/mpeg", upsert: true });
-      if (!upN.error) {
-        const { data: ns } = await storage.storage
-          .from("video-cache")
-          .createSignedUrl(narrPath, 60 * 60 * 24);
-        if (ns?.signedUrl) narrationUrl = ns.signedUrl;
-      }
-    } catch {
-      /* fall back to the raw TTS url */
+    let roomNarration: string | null = null;
+    let roomPerClipMs = 0;
+    if (roomUrls.length && roomAudio) {
+      roomNarration = await hostAudio(
+        storage,
+        roomAudio.audioUrl,
+        `${userId}/${videoId}-rooms`,
+      );
+      roomPerClipMs = Math.max(
+        1500,
+        Math.round(((roomAudio.duration || roomUrls.length * 4) / roomUrls.length) * 1000),
+      );
     }
 
-    const { lipsyncId } = await createLipsync({
-      videoUrl: silentSigned.signedUrl,
-      audioUrl: audio.audioUrl,
-      enableCaption: opts.captions ?? true,
-    });
-
-    // Merge lipsync id + narration url into script_segments (preserve the rest).
     const { data: row } = await supabase
       .from("videos")
       .select("script_segments")
@@ -203,32 +218,91 @@ export async function advanceLipsync(
         status: "processing",
         script_segments: {
           ...seg,
-          lipsync: lipsyncId,
-          narration: narrationUrl,
+          lipOpener: openerLs.lipsyncId,
+          lipCloser: closerLs.lipsyncId,
+          roomNarration,
+          roomPerClipMs,
         } as never,
       })
       .eq("id", videoId);
     return { status: "processing" };
   }
 
-  // STAGE C — poll the single lipsync job.
-  const ls = await getLipsyncStatus(opts.lipsync);
-  if (ls.status === "failed") {
-    // PATH A FALLBACK (per the build spec): lipsync can't always process a
-    // cinematic walkthrough — e.g. "no speaker detected" when the agent isn't
-    // front-facing, or heavy motion. Rather than fail the whole reel, fall back
-    // to VO-over-cinematic: use the silent montage as the visual and let the
-    // caller mux the narration (+ music) over it. The agent is still in the
-    // scene with their cloned voice — just without mouth lip-sync.
-    const silentPath = `${userId}/${videoId}-silent.mp4`;
-    const { data: signed } = await storage.storage
-      .from("video-cache")
-      .createSignedUrl(silentPath, 60 * 60 * 24);
-    if (signed?.signedUrl) {
-      return { status: "ready", videoUrl: signed.signedUrl, lipsynced: false };
-    }
-    return { status: "failed", error: ls.error ?? "Lipsync failed." };
+  // STAGE C — poll both bookend lipsyncs; once both resolve, stitch the body.
+  const [lo, lc] = await Promise.all([
+    getLipsyncStatus(opts.lipOpener),
+    getLipsyncStatus(opts.lipCloser ?? opts.lipOpener),
+  ]);
+  if (lo.status === "processing" || lc.status === "processing") {
+    return { status: "processing" };
   }
-  if (ls.status !== "completed" || !ls.videoUrl) return { status: "processing" };
-  return { status: "ready", videoUrl: ls.videoUrl, lipsynced: true };
+  const openerDone = lo.status === "completed" && !!lo.videoUrl;
+  const closerDone = lc.status === "completed" && !!lc.videoUrl;
+
+  // Claim the heavy stitch so concurrent polls don't double-run it. We keep the
+  // `submitting` lock through to the caller's final upload (no re-claim there).
+  const { data: claimedC } = await supabase
+    .from("videos")
+    .update({ status: "submitting" })
+    .eq("id", videoId)
+    .eq("status", "processing")
+    .select("id");
+  if (!claimedC || claimedC.length === 0) return { status: "processing" };
+
+  const { data: row2 } = await supabase
+    .from("videos")
+    .select("script_segments")
+    .eq("id", videoId)
+    .maybeSingle();
+  const seg2 =
+    (row2?.script_segments as {
+      roomNarration?: string;
+      roomPerClipMs?: number;
+    } | null) ?? {};
+
+  const openerVidBuf = await fetchBuffer(openerDone ? lo.videoUrl! : openerUrl);
+  const closerVidBuf = await fetchBuffer(closerDone ? lc.videoUrl! : closerUrl);
+
+  // Room VO montage (silent room clips sized to the room narration + VO muxed).
+  let roomBodyBuf: Buffer | null = null;
+  if (roomUrls.length) {
+    const roomBufs = await Promise.all(roomUrls.map(fetchBuffer));
+    const roomNarrBuf = seg2.roomNarration
+      ? await fetchBuffer(seg2.roomNarration).catch(() => null)
+      : null;
+    roomBodyBuf = await assembleMontage({
+      scenes: roomBufs.map((b) => ({
+        kind: "video" as const,
+        videoBuf: b,
+        durationMs: seg2.roomPerClipMs || 4000,
+      })),
+      audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
+    });
+  }
+
+  // Stitch [opener][rooms][closer] — each keeps its own baked audio.
+  const bodyScenes = [
+    { kind: "video" as const, videoBuf: openerVidBuf, durationMs: FULL_MS, keepAudio: true },
+    ...(roomBodyBuf
+      ? [{ kind: "video" as const, videoBuf: roomBodyBuf, durationMs: FULL_MS, keepAudio: true }]
+      : []),
+    { kind: "video" as const, videoBuf: closerVidBuf, durationMs: FULL_MS, keepAudio: true },
+  ];
+  const body = await assembleMontage({ scenes: bodyScenes, audio: {} });
+
+  const bodyPath = `${userId}/${videoId}-body.mp4`;
+  const up = await storage.storage
+    .from("video-cache")
+    .upload(bodyPath, body, { contentType: "video/mp4", upsert: true });
+  if (up.error) throw new Error(`body upload failed: ${up.error.message}`);
+  const { data: signed } = await storage.storage
+    .from("video-cache")
+    .createSignedUrl(bodyPath, 60 * 60 * 24);
+  if (!signed?.signedUrl) throw new Error("body sign failed");
+
+  return {
+    status: "ready",
+    videoUrl: signed.signedUrl,
+    lipsynced: openerDone || closerDone,
+  };
 }

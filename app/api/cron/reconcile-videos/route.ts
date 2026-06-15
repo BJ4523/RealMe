@@ -111,12 +111,12 @@ export async function GET(request: NextRequest) {
         user_id: v.user_id,
         script: v.script,
         beats: (v.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipsync:
-          (v.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
+        lipOpener:
+          (v.script_segments as { lipOpener?: string } | null)?.lipOpener ?? null,
+        lipCloser:
+          (v.script_segments as { lipCloser?: string } | null)?.lipCloser ?? null,
         captions:
-          (v.script_segments as { captions?: boolean } | null)?.captions ?? true,
-        narration:
-          (v.script_segments as { narration?: string } | null)?.narration ?? null,
+          (v.script_segments as { captions?: boolean } | null)?.captions ?? false,
         heygen_video_id: v.heygen_video_id,
         photos,
       },
@@ -153,9 +153,9 @@ export async function GET(request: NextRequest) {
     const seg = v.script_segments as {
       hypeReel?: { featureCallouts?: string[]; trackId?: string };
       beats?: string[];
-      lipsync?: string;
+      lipOpener?: string;
+      lipCloser?: string;
       captions?: boolean;
-      narration?: string;
     } | null;
     const meta = seg?.hypeReel;
     const { data: avReel } = await supabase
@@ -180,9 +180,9 @@ export async function GET(request: NextRequest) {
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
-      lipsync: seg?.lipsync ?? null,
-      captions: seg?.captions ?? true,
-      narration: seg?.narration ?? null,
+      lipOpener: seg?.lipOpener ?? null,
+      lipCloser: seg?.lipCloser ?? null,
+      captions: seg?.captions ?? false,
       voiceId: avReel?.voice_id ?? null,
     });
     if (result === "completed") reelsAssembled++;
