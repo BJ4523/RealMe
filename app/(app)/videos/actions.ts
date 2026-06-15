@@ -758,6 +758,39 @@ export async function pollVideoStatus(
   return video;
 }
 
+/**
+ * Retry a FAILED cinematic/hype reel by REUSING its already-rendered clips —
+ * just reset it to `processing` (clear the error) so the poll/cron re-drives the
+ * assembly from where it left off (re-stitch, or resume at the lipsync if that
+ * already fired). No new clip generation, so no extra HeyGen clip credits. This
+ * is the recovery path for transient assembly failures (e.g. ENOSPC). Returns
+ * the refreshed row. Falls back to a no-op if the clips themselves are gone.
+ */
+export async function retryVideo(
+  videoId: string,
+): Promise<Tables<"videos"> | null> {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("videos")
+    .select("heygen_video_id")
+    .eq("id", videoId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!video) return null;
+  // Only the clip-based reels can resume from existing clips.
+  if (!isCinematic(video.heygen_video_id) && !isHypeReel(video.heygen_video_id)) {
+    return null;
+  }
+  await supabase
+    .from("videos")
+    .update({ status: "processing", error: null })
+    .eq("id", videoId)
+    .eq("user_id", userId);
+  revalidatePath(`/videos/${videoId}`);
+  return pollVideoStatus(videoId);
+}
+
 /** Delete a video (RLS scopes it to the owner). Used to clean up test/junk reels.
  * The client handles navigation/refresh (no redirect here). */
 export async function deleteVideo(videoId: string) {

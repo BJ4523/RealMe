@@ -20,6 +20,7 @@ import {
   updateScript,
   pollVideoStatus,
   rewriteOpeningPitch,
+  retryVideo,
 } from "@/app/(app)/videos/actions";
 import type { Tables } from "@/lib/types/database";
 import { WARDROBES } from "@/lib/video/wardrobe";
@@ -112,6 +113,15 @@ export function VideoDetail({
         setScript(pitch);
         toast.success("Pitch rewritten");
       }
+    });
+  }
+
+  // Retry a failed reel by reusing the already-rendered clips (no new credits).
+  function handleRetry() {
+    startTransition(async () => {
+      setVideo((v) => ({ ...v, status: "processing", error: null }));
+      const latest = await retryVideo(video.id);
+      if (latest) setVideo(latest);
     });
   }
 
@@ -443,23 +453,33 @@ export function VideoDetail({
         </div>
       )}
 
-      {/* Retry on failure */}
+      {/* Retry on failure. Primary path REUSES the rendered clips (no new clip
+          credits) — fixes transient assembly failures like ENOSPC. "Start over"
+          regenerates from scratch (type-aware) if the clips themselves failed. */}
       {video.status === "failed" ? (
-        <div className="flex flex-col gap-3">
-          <Textarea
-            value={script}
-            onChange={(e) => setScript(e.target.value)}
-            rows={6}
-            className="rounded-2xl"
-          />
-          <div className="flex justify-end">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            The clips are saved — Retry finishes the video without re-rendering them.
+          </p>
+          <div className="flex flex-wrap justify-end gap-3">
             <Button
-              onClick={handleCinematic}
+              onClick={() =>
+                video.heygen_video_id?.startsWith("reel:")
+                  ? handleHypeReel()
+                  : handleCinematic()
+              }
               disabled={pending || !cinematicReady}
               className="rounded-full"
-              variant="outline"
+              variant="ghost"
             >
-              <RotateCcw className="size-4" /> Try again
+              Start over
+            </Button>
+            <Button
+              onClick={handleRetry}
+              disabled={pending}
+              className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
+            >
+              <RotateCcw className="size-4" /> {pending ? "Retrying…" : "Retry"}
             </Button>
           </div>
         </div>
