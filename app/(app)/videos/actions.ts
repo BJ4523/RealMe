@@ -379,9 +379,23 @@ function resolveLook(
 }
 
 /**
+ * Estimate a clip's length from its spoken narration (~2.5 words/sec) and clamp
+ * to HeyGen's 4–15s cinematic_avatar range. Sizing each clip to its OWN beat is
+ * what keeps the bookend lip-sync robust for any script: the clip and its
+ * narration match, so HeyGen accepts the lipsync (the assembler only has to
+ * pad/speed-fit the small residual). Over-long beats cap at 15s and the assembler
+ * speed-fits the narration into them.
+ */
+function estClipSec(text: string): number {
+  const words = (text || "").trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(15, Math.max(4, Math.round(words / 2.5)));
+}
+
+/**
  * Fire the silent cinematic_avatar beat clips shared by BOTH video paths:
- * exterior opener + one room clip per photo + exterior closer, all the real twin
- * in the chosen outfit. Returns the clip ids in playback order.
+ * exterior opener + one room clip per photo + backyard closer, all the real twin
+ * in the chosen outfit. Each clip's duration is DYNAMIC to its beat narration
+ * (`beats` is 1:1 with the clips). Returns the clip ids in playback order.
  */
 async function fireBeatClips(opts: {
   lookId: string;
@@ -391,18 +405,18 @@ async function fireBeatClips(opts: {
   /** Closer reference — the BACKYARD photo (falls back to the exterior). */
   backyard?: string;
   roomPhotos: string[];
-  openerSec?: number;
-  roomSec?: number;
-  closerSec?: number;
+  /** Per-clip narration: [openerBeat, roomBeats…, closerBeat]. */
+  beats: string[];
 }): Promise<string[]> {
-  const { lookId, wardrobe, listing, exterior, roomPhotos } = opts;
+  const { lookId, wardrobe, listing, exterior, roomPhotos, beats } = opts;
   const backyard = opts.backyard || exterior;
+  const closerBeat = beats[beats.length - 1] ?? "";
   const [opener, rooms, closer] = await Promise.all([
     generateCinematicClip({
       avatarLookId: lookId,
       referenceUrl: exterior,
       prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
-      duration: opts.openerSec ?? 10,
+      duration: estClipSec(beats[0] ?? ""),
     }),
     Promise.all(
       roomPhotos.map((url, i) =>
@@ -410,7 +424,7 @@ async function fireBeatClips(opts: {
           avatarLookId: lookId,
           referenceUrl: url,
           prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-          duration: opts.roomSec ?? 10,
+          duration: estClipSec(beats[i + 1] ?? ""),
         }),
       ),
     ),
@@ -418,7 +432,7 @@ async function fireBeatClips(opts: {
       avatarLookId: lookId,
       referenceUrl: backyard,
       prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
-      duration: opts.closerSec ?? 8,
+      duration: estClipSec(closerBeat),
     }),
   ]);
   return [opener.jobId, ...rooms.map((j) => j.jobId), closer.jobId];
@@ -495,12 +509,19 @@ export async function submitCinematicVideo(
     const roomLines = beatLinesForRooms(roomScript, roomPhotos.length);
     const cta = hook.outro?.trim() || "Reach out today to see it in person.";
 
-    // Clips and their per-beat scripts share one order: [opener, ...rooms, closer].
-    // Closer bookend = the backyard: use the LAST photo (listings usually end on
-    // an outdoor/backyard/pool shot), distinct from the front-exterior opener.
-    const backyard = photos[photos.length - 1] ?? exterior;
-    const allClips = await fireBeatClips({ lookId, wardrobe, listing, exterior, backyard, roomPhotos });
+    // Beats first, so each clip can be sized to its OWN narration. Order is
+    // [opener, ...rooms, closer]. Closer bookend = the backyard (last photo).
     const beats = [openingPitch, ...roomLines, cta];
+    const backyard = photos[photos.length - 1] ?? exterior;
+    const allClips = await fireBeatClips({
+      lookId,
+      wardrobe,
+      listing,
+      exterior,
+      backyard,
+      roomPhotos,
+      beats,
+    });
 
     await supabase
       .from("videos")
@@ -568,7 +589,7 @@ export async function submitHypeReelVideo(
       .filter(Boolean) as string[];
     const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
     const backyard = photos[photos.length - 1] ?? hero; // closer = backyard
-    // Shorter clips for the punchy hype-reel rhythm.
+    // Clips sized dynamically to each beat (bookends lip-sync; rooms VO).
     const allClips = await fireBeatClips({
       lookId,
       wardrobe,
@@ -576,9 +597,7 @@ export async function submitHypeReelVideo(
       exterior: hero,
       backyard,
       roomPhotos,
-      openerSec: 6,
-      roomSec: 8,
-      closerSec: 6,
+      beats,
     });
 
     await supabase.from("videos").update({
