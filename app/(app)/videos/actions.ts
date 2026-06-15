@@ -290,11 +290,12 @@ function cinematicPrompt(
 }
 
 /**
- * Motion brief for the EXTERIOR opener/closer Seedance shot: the agent standing
- * confidently in front of the house (recreated from the exterior photo),
- * presenter energy. Same engine as the room walk so the shots cut together, and
- * part of the SAME single lip-sync pass — so the agent must be face-to-camera and
- * actively speaking here too (the opener pitch / closing CTA gets lip-synced).
+ * Motion brief for the EXTERIOR opener/closer Seedance shot — the LIP-SYNC ANCHOR.
+ * Unlike the room walkthroughs (which read as voice-over over cinematic motion),
+ * these front-of-house shots hold a clear, front-facing, actively-speaking face so
+ * HeyGen lipsync detects a speaker and syncs the mouth on these beats. Without at
+ * least one detectable speaking face in the montage, lipsync errors ("no speaker
+ * detected") and the whole reel falls back to voice-over-only.
  */
 function cinematicExteriorPrompt(
   listing: Tables<"listings"> | null,
@@ -314,17 +315,21 @@ function cinematicExteriorPrompt(
     "closing shots — they must match, do not invent or rearrange the yard.",
     `In front of ${place}, a confident, charismatic real-estate agent ${wardrobe}`,
     kind === "intro"
-      ? "addresses the camera directly with warm, engaging presenter energy — a natural welcoming gesture toward the home, as if greeting a buyer."
-      : "gives a warm, inviting close to the camera with an open gesture toward the home.",
-    // Opener/closer is the natural piece-to-camera pitch (it's lip-synced), so the
-    // agent mostly addresses the camera here — a gesture to the home is fine.
-    "The agent primarily addresses the camera, face clearly visible and well-lit,",
-    "speaking warmly to the viewer, with a natural gesture toward the home.",
-    // Single subject, cinematic camera.
+      ? "OPENS facing the camera directly and SPEAKING a warm, welcoming greeting to the viewer, with a brief gesture toward the home."
+      : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the home.",
+    // LIP-SYNC ANCHOR: this opener/closer shot must hold a clear, detectable
+    // speaking face so HeyGen lipsync can sync the mouth on this beat (the room
+    // walkthroughs are voice-over only). Frame the face large, centered, lit.
+    "Frame as a flattering MEDIUM CLOSE-UP — the agent's head and shoulders large",
+    "and centered, FACE FULLY VISIBLE and in sharp focus, eyes to the lens,",
+    "well-lit. The agent is ACTIVELY TALKING to the camera, mouth moving naturally",
+    "as if mid-sentence, for the ENTIRE shot. Keep the face toward camera the whole",
+    "time — never turn away, walk out of frame, or let anything obscure the face.",
+    // Single subject, cinematic camera that keeps the face framed.
     "EXACTLY ONE person in frame — the agent, alone. No other people, bystanders,",
     "background figures or crowds.",
-    "Camera: a slow, smooth cinematic push-in on a gimbal, the agent full-body then",
-    "settling to a confident medium shot; steady, premium, magazine-quality.",
+    "Camera: a slow, subtle push-in on a gimbal that keeps the agent's face",
+    "centered and clearly framed throughout; steady, premium, magazine-quality.",
     `The SAME person in the SAME outfit (${wardrobe}) — consistent throughout.`,
   ].join(" ");
 }
