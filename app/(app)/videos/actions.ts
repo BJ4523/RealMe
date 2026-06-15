@@ -807,6 +807,10 @@ export async function retryVideo(
     lipCloser: _lc,
     roomNarration: _rn,
     roomPerClipMs: _rp,
+    openerMatched: _om,
+    closerMatched: _cm,
+    openerNarration: _on,
+    closerNarration: _cn,
     ...keepSeg
   } = seg;
   // Reset and return immediately — the client's poll loop drives the assembly,

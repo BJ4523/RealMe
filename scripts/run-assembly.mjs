@@ -32,7 +32,7 @@ console.log(`target ${v.id}  status=${v.status}  kind=${isHypeReel(v.heygen_vide
 // reset the lock so the assembler can re-claim it.
 {
   const seg = v.script_segments || {};
-  const { lipsync, narration, lipOpener, lipCloser, roomNarration, roomPerClipMs, ...keep } = seg;
+  const { lipsync, narration, lipOpener, lipCloser, roomNarration, roomPerClipMs, openerMatched, closerMatched, openerNarration, closerNarration, ...keep } = seg;
   await sb
     .from("videos")
     .update({ status: "processing", error: null, script_segments: keep })

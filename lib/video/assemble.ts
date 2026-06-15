@@ -90,6 +90,42 @@ async function hostAudio(
   }
 }
 
+/**
+ * Trim/freeze-pad a clip to ~`durSec` seconds and re-host it. HeyGen lipsync
+ * rejects video/audio length mismatches over ~15%, and a raw bookend clip rarely
+ * matches its beat narration — so we resize the clip to the audio before lipsync.
+ */
+async function matchClipToAudio(
+  storage: Storage,
+  clipUrl: string,
+  durSec: number,
+  path: string,
+): Promise<string> {
+  try {
+    const buf = await fetchBuffer(clipUrl);
+    const matched = await assembleMontage({
+      scenes: [
+        {
+          kind: "video" as const,
+          videoBuf: buf,
+          durationMs: Math.max(1500, Math.round((durSec || 4) * 1000)),
+        },
+      ],
+      audio: {},
+    });
+    const up = await storage.storage
+      .from("video-cache")
+      .upload(path, matched, { contentType: "video/mp4", upsert: true });
+    if (up.error) return clipUrl;
+    const { data } = await storage.storage
+      .from("video-cache")
+      .createSignedUrl(path, 60 * 60 * 24);
+    return data?.signedUrl ?? clipUrl;
+  } catch {
+    return clipUrl;
+  }
+}
+
 export type LipsyncResult =
   | { status: "processing" }
   | { status: "failed"; error: string }
@@ -179,14 +215,24 @@ export async function advanceLipsync(
         : Promise.resolve(null),
     ]);
 
+    // Resize each bookend clip to its beat audio, and host the beat audio (the
+    // authoritative VO + the fallback if lipsync fails).
+    const [openerMatched, closerMatched, openerNarration, closerNarration] =
+      await Promise.all([
+        matchClipToAudio(storage, openerUrl, openerAudio.duration, `${userId}/${videoId}-openerc.mp4`),
+        matchClipToAudio(storage, closerUrl, closerAudio.duration, `${userId}/${videoId}-closerc.mp4`),
+        hostAudio(storage, openerAudio.audioUrl, `${userId}/${videoId}-openera`),
+        hostAudio(storage, closerAudio.audioUrl, `${userId}/${videoId}-closera`),
+      ]);
+
     const [openerLs, closerLs] = await Promise.all([
       createLipsync({
-        videoUrl: openerUrl,
+        videoUrl: openerMatched,
         audioUrl: openerAudio.audioUrl,
         enableCaption: opts.captions ?? false,
       }),
       createLipsync({
-        videoUrl: closerUrl,
+        videoUrl: closerMatched,
         audioUrl: closerAudio.audioUrl,
         enableCaption: opts.captions ?? false,
       }),
@@ -220,6 +266,10 @@ export async function advanceLipsync(
           ...seg,
           lipOpener: openerLs.lipsyncId,
           lipCloser: closerLs.lipsyncId,
+          openerMatched,
+          closerMatched,
+          openerNarration,
+          closerNarration,
           roomNarration,
           roomPerClipMs,
         } as never,
@@ -258,10 +308,35 @@ export async function advanceLipsync(
     (row2?.script_segments as {
       roomNarration?: string;
       roomPerClipMs?: number;
+      openerMatched?: string;
+      closerMatched?: string;
+      openerNarration?: string;
+      closerNarration?: string;
     } | null) ?? {};
 
-  const openerVidBuf = await fetchBuffer(openerDone ? lo.videoUrl! : openerUrl);
-  const closerVidBuf = await fetchBuffer(closerDone ? lc.videoUrl! : closerUrl);
+  // A bookend: the lip-synced video if it completed, else the resized silent clip
+  // with its VO muxed on (so it still has the agent's voice, just no mouth-sync).
+  const bookend = async (
+    done: boolean,
+    lipUrl: string | undefined,
+    rawUrl: string,
+    matchedUrl: string | undefined,
+    narrUrl: string | undefined,
+  ): Promise<Buffer> => {
+    if (done && lipUrl) return fetchBuffer(lipUrl);
+    const clipBuf = await fetchBuffer(matchedUrl || rawUrl);
+    const narrBuf = narrUrl ? await fetchBuffer(narrUrl).catch(() => null) : null;
+    if (!narrBuf) return clipBuf;
+    return assembleMontage({
+      scenes: [{ kind: "video" as const, videoBuf: clipBuf, durationMs: FULL_MS }],
+      audio: { narration: narrBuf },
+    });
+  };
+
+  const [openerVidBuf, closerVidBuf] = await Promise.all([
+    bookend(openerDone, lo.videoUrl, openerUrl, seg2.openerMatched, seg2.openerNarration),
+    bookend(closerDone, lc.videoUrl, closerUrl, seg2.closerMatched, seg2.closerNarration),
+  ]);
 
   // Room VO montage (silent room clips sized to the room narration + VO muxed).
   let roomBodyBuf: Buffer | null = null;

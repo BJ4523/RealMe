@@ -90,6 +90,16 @@ function supportsDrawtext(): Promise<boolean> {
   return drawtextSupport;
 }
 
+/** Whether a media file has at least one audio stream (parses ffmpeg probe). */
+function hasAudioStream(path: string): Promise<boolean> {
+  if (!ffmpegPath) return Promise.resolve(false);
+  return new Promise((resolve) =>
+    execFile(ffmpegPath as string, ["-i", path], (_e, _so, stderr) => {
+      resolve(/Stream #\d+:\d+.*: Audio:/.test(stderr || ""));
+    }),
+  );
+}
+
 /** Read a media file's duration (ms) by parsing ffmpeg's probe output. */
 function probeDurationMs(path: string): Promise<number> {
   if (!ffmpegPath) return Promise.resolve(0);
@@ -131,11 +141,12 @@ async function renderScene(
   const vf =
     "scale=720:1280:force_original_aspect_ratio=decrease," +
     "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30";
-  if (scene.keepAudio) {
-    // Keep the clip's own audio (e.g. host voice-over). Use amix with a silent
-    // source so clips lacking an audio track still produce a stereo segment.
-    // normalize=0 is CRITICAL: amix's default normalization scales output by
-    // 1/inputs, which silently halved the host voice.
+  if (scene.keepAudio && (await hasAudioStream(inPath))) {
+    // Keep the clip's own audio (e.g. host voice-over). amix with a silent source
+    // (normalize=0 — the default scales by 1/inputs and halves the voice). Only
+    // taken when the input actually HAS an audio stream; otherwise we fall through
+    // to the silent render below (a lip-sync output without audio would otherwise
+    // crash on the [0:a:0] reference).
     await ff([
       "-y", "-i", inPath,
       "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
