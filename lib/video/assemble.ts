@@ -11,7 +11,7 @@ import { DEFAULT_VOICE_ID } from "@/lib/heygen/client";
 import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { createLipsync, getLipsyncStatus } from "@/lib/heygen/lipsync";
 import { generateSpeech } from "@/lib/heygen/voice";
-import { assembleMontage } from "@/lib/video/scenes";
+import { assembleMontage, sweepStaleTmp } from "@/lib/video/scenes";
 
 type Db = SupabaseClient<Database>;
 type Storage = Db | ReturnType<typeof createAdminClient>;
@@ -38,6 +38,7 @@ export async function uploadThumbnailFromVideo(
   videoId: string,
 ): Promise<string | null> {
   if (!ffmpegPath) return null;
+  await sweepStaleTmp();
   const dir = await mkdtemp(join(tmpdir(), "thumb-"));
   try {
     const inPath = join(dir, "in.mp4");

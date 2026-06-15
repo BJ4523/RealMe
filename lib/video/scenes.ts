@@ -1,11 +1,45 @@
 import "server-only";
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { kenBurnsFilter, type KenBurnsMotion } from "./kenburns";
 import { buildOverlayFilter, type Overlay } from "./overlay";
+
+/**
+ * Reclaim /tmp leaked by assembly runs that were KILLED before their cleanup ran
+ * (Vercel functions are killed on timeout/cancel, and Fluid Compute REUSES the
+ * instance — so leftover temp dirs accumulate across requests until ENOSPC).
+ * Best-effort; only removes dirs older than the function time limit, so it can't
+ * delete a concurrent live run's working dir.
+ */
+export async function sweepStaleTmp(
+  prefixes: string[] = ["montage-", "thumb-"],
+  maxAgeMs = 6 * 60 * 1000,
+): Promise<void> {
+  try {
+    const base = tmpdir();
+    const now = Date.now();
+    const entries = await readdir(base);
+    await Promise.all(
+      entries.map(async (name) => {
+        if (!prefixes.some((p) => name.startsWith(p))) return;
+        const full = join(base, name);
+        try {
+          const s = await stat(full);
+          if (now - s.mtimeMs > maxAgeMs) {
+            await rm(full, { recursive: true, force: true });
+          }
+        } catch {
+          /* ignore */
+        }
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
 
 const FPS = 30; // dimensions are hardcoded in filter strings (minifier-safe)
 const FONT = resolve("assets/fonts/HypeReel.ttf");
@@ -135,14 +169,18 @@ export async function assembleMontage(opts: {
   overlays?: Overlay[];
 }): Promise<Buffer> {
   if (opts.scenes.length === 0) throw new Error("no scenes to assemble");
+  // Reclaim any /tmp leaked by killed prior runs before we start writing.
+  await sweepStaleTmp();
   const dir = await mkdtemp(join(tmpdir(), "montage-"));
   try {
     // 1) Render each scene to seg{i}.mp4 (all 720x1280/30fps, stereo audio).
     const segPaths: string[] = [];
+    const inPaths: string[] = [];
     for (let i = 0; i < opts.scenes.length; i++) {
       const s = opts.scenes[i];
       const inPath = join(dir, `in${i}`);
       await writeFile(inPath, s.kind === "photo" ? s.imageBuf : s.videoBuf);
+      inPaths.push(inPath);
       const seg = join(dir, `seg${i}.mp4`);
       await renderScene(s, inPath, seg);
       segPaths.push(seg);
@@ -156,6 +194,11 @@ export async function assembleMontage(opts: {
       "-y", "-f", "concat", "-safe", "0", "-i", listPath,
       "-c", "copy", concatV,
     ]);
+    // Free the source inputs now (the final pass only needs concatV) to keep the
+    // peak /tmp footprint down on the small serverless disk.
+    await Promise.all(
+      inPaths.map((p) => rm(p, { force: true }).catch(() => {})),
+    );
 
     // 3) Final pass: overlays + audio. Overlays need the `drawtext` filter, which
     // the Vercel ffmpeg-static binary lacks — drop them there so the render still
