@@ -782,13 +782,17 @@ export async function retryVideo(
   if (!isCinematic(video.heygen_video_id) && !isHypeReel(video.heygen_video_id)) {
     return null;
   }
-  await supabase
+  // Reset and return immediately — the client's poll loop drives the assembly,
+  // so the UI flips to the "generating" state right away (no inline wait here).
+  const { data: latest } = await supabase
     .from("videos")
     .update({ status: "processing", error: null })
     .eq("id", videoId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("*")
+    .single();
   revalidatePath(`/videos/${videoId}`);
-  return pollVideoStatus(videoId);
+  return latest ?? null;
 }
 
 /** Delete a video (RLS scopes it to the owner). Used to clean up test/junk reels.

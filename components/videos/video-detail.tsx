@@ -117,18 +117,20 @@ export function VideoDetail({
   }
 
   // Retry a failed reel by reusing the already-rendered clips (no new credits).
+  // Flip to the generating UI IMMEDIATELY (urgent update, outside the transition)
+  // so it doesn't wait on the server round-trip; the poll loop drives the rest.
   function handleRetry() {
+    setVideo((v) => ({ ...v, status: "processing", error: null }));
     startTransition(async () => {
-      setVideo((v) => ({ ...v, status: "processing", error: null }));
       const latest = await retryVideo(video.id);
       if (latest) setVideo(latest);
     });
   }
 
   function handleCinematic() {
+    setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      setVideo((v) => ({ ...v, status: "submitting" }));
       await submitCinematicVideo(video.id, outfitId, roomCount, captions);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
@@ -136,9 +138,9 @@ export function VideoDetail({
   }
 
   function handleHypeReel() {
+    setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      setVideo((v) => ({ ...v, status: "submitting" }));
       await submitHypeReelVideo(video.id, trackId, outfitId, captions);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);

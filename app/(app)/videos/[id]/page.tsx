@@ -9,6 +9,12 @@ import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 import { TRACKS } from "@/lib/video/music/tracks";
 
+// The page-poll server action (pollVideoStatus) runs the heavy ffmpeg stitch +
+// lipsync inline. Give it the full window so Stage B finishes in one invocation
+// instead of hitting the default timeout (504) and looping. Pro honors 300s;
+// Hobby caps lower, which is why unattended completion really needs the cron.
+export const maxDuration = 300;
+
 export default async function VideoPage({
   params,
 }: {

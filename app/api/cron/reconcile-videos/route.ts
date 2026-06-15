@@ -7,6 +7,9 @@ import { assembleHypeReel, isHypeReel } from "@/lib/video/hypereel";
 import { listingPhotos } from "@/lib/format";
 import { env } from "@/lib/env";
 
+// The cron drives the same heavy ffmpeg stitch + lipsync; give it the full window.
+export const maxDuration = 300;
+
 /**
  * Self-heals videos AND avatars stuck in `processing` (e.g. a missed webhook, or
  * digital-twin training that finished/failed with no callback). Protected by
