@@ -75,3 +75,21 @@ export const WARDROBES: WardrobeOption[] = [
 export function wardrobePrompt(id: string | null | undefined): string {
   return WARDROBES.find((w) => w.id === id)?.prompt ?? WARDROBES[0].prompt;
 }
+
+/** True for dress-style outfits with no tuckable shirt (tuck clause omitted). */
+const NO_TUCK_OUTFITS = new Set(["w-sheath"]);
+
+/**
+ * Explicit shirt-tuck clause, pinned into every shot so Seedance keeps it
+ * consistent across the independently-generated clips (it otherwise varies the
+ * tuck shot-to-shot). Empty for dress-style outfits with no tuckable shirt.
+ */
+export function tuckClause(
+  tucked: boolean,
+  outfitId?: string | null,
+): string {
+  if (outfitId && NO_TUCK_OUTFITS.has(outfitId)) return "";
+  return tucked
+    ? "the shirt is neatly tucked in at the waist"
+    : "the shirt is worn untucked, hanging loose over the waistband";
+}

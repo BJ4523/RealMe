@@ -9,6 +9,7 @@ import {
   generateWalkthroughScript,
   generateHypeReelScript,
   generateOpeningPitch,
+  generateRoomNarration,
 } from "@/lib/ai/script";
 import {
   encodeReelJobs,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/video/cinematic";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
-import { wardrobePrompt } from "@/lib/video/wardrobe";
+import { wardrobePrompt, tuckClause } from "@/lib/video/wardrobe";
 import type { Json, Tables } from "@/lib/types/database";
 
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
@@ -339,22 +340,6 @@ function cinematicExteriorPrompt(
  * walkthrough script. Uses its photo-mapped segment lines, then pads from the
  * sentence stream so every room clip has something to lip-sync to.
  */
-function beatLinesForRooms(
-  script: { narration: string; segments: { line: string }[] },
-  count: number,
-): string[] {
-  const fromSegments = script.segments.map((s) => s.line.trim()).filter(Boolean);
-  const sentences = (script.narration.match(/[^.!?]+[.!?]+/g) ?? [])
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const pool = fromSegments.length >= count ? fromSegments : [...fromSegments, ...sentences];
-  const out: string[] = [];
-  for (let i = 0; i < count; i++) {
-    out.push(pool[i] ?? sentences[i % Math.max(1, sentences.length)] ?? "Take a look at this space.");
-  }
-  return out;
-}
-
 /**
  * Cinematic alternative to submitVideo: generate one Seedance "Avatar Shots"
  * clip per listing photo (the verified twin moving through the scene), to be
@@ -370,10 +355,12 @@ function beatLinesForRooms(
 function resolveLook(
   avatar: Tables<"avatars">,
   outfitId?: string,
+  tucked: boolean = true,
 ): { lookId: string; wardrobe: string } {
+  const tuck = tuckClause(tucked, outfitId);
   return {
     lookId: avatar.heygen_avatar_id!,
-    wardrobe: wardrobePrompt(outfitId),
+    wardrobe: tuck ? `${wardrobePrompt(outfitId)}, with ${tuck}` : wardrobePrompt(outfitId),
   };
 }
 
@@ -442,6 +429,7 @@ export async function submitCinematicVideo(
   outfitId?: string,
   roomCount?: number,
   captions: boolean = false,
+  tucked: boolean = true,
 ) {
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
@@ -497,15 +485,17 @@ export async function submitCinematicVideo(
     // their own voice, lip-synced. Beats = exterior opener + each room +
     // exterior closer. Here we just fire the (silent) clips and store the
     // per-beat scripts; the assembler does TTS + lipsync + stitch.
-    const { lookId, wardrobe } = resolveLook(avatar, outfitId);
+    const { lookId, wardrobe } = resolveLook(avatar, outfitId, tucked);
     const exterior = photos[0];
     const openingPitch =
       video.script?.trim() || "Welcome — let me show you this beautiful home.";
-    const [hook, roomScript] = await Promise.all([
+    // Room narration is VISION-based: Claude looks at each room photo and writes
+    // that room's line, so the agent talks about the actual space on screen (no
+    // text written by the user). The opening pitch (front) + CTA bookend it.
+    const [hook, roomLines] = await Promise.all([
       generateHypeReelScript(listing as Tables<"listings">),
-      generateWalkthroughScript(listing as Tables<"listings">),
+      generateRoomNarration(roomPhotos, listing as Tables<"listings">),
     ]);
-    const roomLines = beatLinesForRooms(roomScript, roomPhotos.length);
     const cta = hook.outro?.trim() || "Reach out today to see it in person.";
 
     // Beats first, so each clip can be sized to its OWN narration. Order is
@@ -545,6 +535,7 @@ export async function submitHypeReelVideo(
   trackId?: string,
   outfitId?: string,
   captions: boolean = false,
+  tucked: boolean = true,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -581,12 +572,17 @@ export async function submitHypeReelVideo(
     // SAME pipeline as the cinematic walkthrough (cinematic_avatar + Lipsync-
     // Precision → the twin TALKING in their own voice), just with MUSIC built in.
     // Punchy short script so it lands ~15s.
-    const { lookId, wardrobe } = resolveLook(avatar, outfitId);
-    const script = await generateHypeReelScript(listing as Tables<"listings">);
-    const beats = [script.intro, ...script.featureCallouts.slice(0, 2), script.outro]
+    const { lookId, wardrobe } = resolveLook(avatar, outfitId, tucked);
+    const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
+    // Same vision-based room narration as cinematic — the agent talks about each
+    // actual room — bookended by the punchy hype intro + outro.
+    const [script, roomLines] = await Promise.all([
+      generateHypeReelScript(listing as Tables<"listings">),
+      generateRoomNarration(roomPhotos, listing as Tables<"listings">),
+    ]);
+    const beats = [script.intro, ...roomLines, script.outro]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
-    const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
     const backyard = photos[photos.length - 1] ?? hero; // closer = backyard
     // Clips sized dynamically to each beat (bookends lip-sync; rooms VO).
     const allClips = await fireBeatClips({

@@ -124,6 +124,67 @@ function templatedScript(listing: Listing): WalkthroughScript {
   return { narration: lines.join(" "), segments };
 }
 
+function roomLineFallback(i: number, listing: Listing): string {
+  const features = (listing.features ?? []).filter(Boolean);
+  if (features[i]) return `And right here — ${features[i]}.`;
+  return "Come on through and take a look at this space.";
+}
+
+/**
+ * Vision-based per-room narration: Claude LOOKS at each room photo and writes the
+ * one warm sentence the agent would say to camera while walking through THAT room
+ * — naming the space and a specific visible detail. This is what lets the reel
+ * "talk about the specific rooms" with NO text written by the user. Returns one
+ * line per photo (1:1 with the room clips). Falls back to listing-derived lines
+ * without an API key or on any per-photo error, so the flow never blocks.
+ */
+export async function generateRoomNarration(
+  roomPhotoUrls: string[],
+  listing: Listing,
+): Promise<string[]> {
+  if (!env.anthropicApiKey || roomPhotoUrls.length === 0) {
+    return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing));
+  }
+  const client = new Anthropic({ apiKey: env.anthropicApiKey });
+  const place = listing.address ? ` at ${listing.address}` : "";
+  return Promise.all(
+    roomPhotoUrls.map(async (url, i) => {
+      try {
+        const msg = await client.messages.create({
+          model: "claude-opus-4-8",
+          max_tokens: 120,
+          system:
+            "You are a charismatic real-estate agent giving an on-camera walking tour. " +
+            "Looking ONLY at this one room photo, write ONE warm, natural spoken sentence " +
+            "(8-18 words) you'd say to camera while walking through it: name the room or " +
+            "space and call out one specific detail you can SEE. No preamble, no quotes, " +
+            "just the sentence. Never mention anything not visible in the photo.",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", source: { type: "url", url } },
+                {
+                  type: "text",
+                  text: `Room ${i + 1} of ${roomPhotoUrls.length}${place}.`,
+                },
+              ],
+            },
+          ],
+        });
+        const block = msg.content.find((c) => c.type === "text");
+        const line =
+          block && "text" in block
+            ? block.text.trim().replace(/^["']+|["']+$/g, "")
+            : "";
+        return line || roomLineFallback(i, listing);
+      } catch {
+        return roomLineFallback(i, listing);
+      }
+    }),
+  );
+}
+
 const OpeningPitchSchema = z.object({
   pitch: z
     .string()

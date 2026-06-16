@@ -59,6 +59,7 @@ export function VideoDetail({
   const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
   const [roomCount, setRoomCount] = useState(2);
   const [captions, setCaptions] = useState(false);
+  const [tucked, setTucked] = useState(true);
   const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [rewriting, startRewrite] = useTransition();
@@ -131,7 +132,7 @@ export function VideoDetail({
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      await submitCinematicVideo(video.id, outfitId, roomCount, captions);
+      await submitCinematicVideo(video.id, outfitId, roomCount, captions, tucked);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -141,7 +142,7 @@ export function VideoDetail({
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      await submitHypeReelVideo(video.id, trackId, outfitId, captions);
+      await submitHypeReelVideo(video.id, trackId, outfitId, captions, tucked);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -298,6 +299,20 @@ export function VideoDetail({
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Shirt tuck — pinned into every shot so it stays consistent. */}
+                  <button
+                    type="button"
+                    onClick={() => setTucked((t) => !t)}
+                    aria-pressed={tucked}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+                      tucked
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background text-muted-foreground"
+                    }`}
+                    title="Whether the agent's shirt is tucked in or worn untucked"
+                  >
+                    Shirt {tucked ? "tucked" : "untucked"}
+                  </button>
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <span>Rooms</span>
                     <Select
