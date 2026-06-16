@@ -273,7 +273,7 @@ export function VideoDetail({
               </p>
             );
           })()}
-          {photos.length >= 2 && (
+          {photos.length >= 1 && (
             <PhotoReorder videoId={video.id} photos={photos} />
           )}
           <div className="flex flex-col gap-4">

@@ -179,13 +179,13 @@ export async function rewriteOpeningPitch(
 }
 
 /**
- * Persist a new photo ORDER for the video's listing. Photo order IS the tour
- * sequence: the first photo is the opening (front exterior) clip, the last is the
- * closing clip, and the interiors between become the room walk. Reorders the
- * listing's photo objects (captions preserved) to match the given URL order; any
- * URL not listed is appended so nothing is dropped.
+ * Authoritatively SET the video listing's photos to exactly `orderedUrls`, in
+ * order. Photo order IS the tour sequence: first = opening (front exterior) clip,
+ * last = closing clip, interiors between = the room walk. This one action powers
+ * reorder, delete (URLs left out are dropped) AND add (new URLs become fresh photo
+ * entries). Captions are preserved for URLs that already existed.
  */
-export async function reorderListingPhotos(
+export async function saveListingPhotos(
   videoId: string,
   orderedUrls: string[],
 ): Promise<{ ok?: boolean; error?: string }> {
@@ -204,17 +204,16 @@ export async function reorderListingPhotos(
     .eq("user_id", userId)
     .maybeSingle();
   if (!listing) return { error: "Listing not found." };
+  if (orderedUrls.length === 0) return { error: "Keep at least one photo." };
 
-  const current = listingPhotos(listing.photos);
-  const byUrl = new Map(current.map((p) => [p.url, p]));
-  const reordered = [
-    ...orderedUrls.map((u) => byUrl.get(u)).filter(Boolean),
-    ...current.filter((p) => !orderedUrls.includes(p.url)),
-  ];
+  const byUrl = new Map(listingPhotos(listing.photos).map((p) => [p.url, p]));
+  // Exactly the given URLs, in order — keep existing photo objects (captions),
+  // create bare entries for newly-added URLs, drop anything not listed.
+  const photos = orderedUrls.map((u) => byUrl.get(u) ?? { url: u });
 
   const { error } = await supabase
     .from("listings")
-    .update({ photos: reordered as unknown as Json })
+    .update({ photos: photos as unknown as Json })
     .eq("id", video.listing_id)
     .eq("user_id", userId);
   if (error) return { error: error.message };
