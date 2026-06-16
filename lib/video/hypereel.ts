@@ -9,8 +9,6 @@ import {
 } from "@/lib/video/assemble";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { assembleMontage, HYPE_REEL_TARGET_MS } from "@/lib/video/scenes";
-import { beatTimesMs } from "@/lib/video/music/beats";
-import { overlaysFromListing } from "@/lib/video/overlay";
 import { getTrack } from "@/lib/video/music/tracks";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -59,7 +57,6 @@ export interface AssemblableReel {
   captions?: boolean | null;
 }
 
-const OVERLAY_SHOW_MS = 1600;
 
 /**
  * Hype Reel = the SAME cinematic_avatar + Lipsync-Precision pipeline as the
@@ -102,19 +99,13 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       fetchBuffer(res.videoUrl),
       readFile(resolve(track.file)),
     ]);
-    const grid = beatTimesMs(track.bpm, track.beatOffsetMs, HYPE_REEL_TARGET_MS);
-    const overlays = overlaysFromListing({
-      ...reel.facts,
-      featureCallouts: reel.featureCallouts,
-      beatGrid: grid,
-      showDurMs: OVERLAY_SHOW_MS,
-    });
+    // No burned-in text overlays — the agent is talking on camera, so the reel
+    // reads clean like a real tour (no "JUST LISTED" / price chrome).
     const assembled = await assembleMontage({
-      // The body already carries the voice (bookend lipsync + room VO); keep it
-      // and duck the music under it.
+      // The body already carries the voice (per-clip lipsync); keep it and duck
+      // the music under it.
       scenes: [{ kind: "video", videoBuf: bodyBuf, durationMs: FULL_MS, keepAudio: true }],
       audio: { music: musicBuf, duckUnderSceneAudio: true },
-      overlays,
     });
 
     const path = `${reel.user_id}/${reel.id}.mp4`;
