@@ -318,6 +318,11 @@ function cinematicPrompt(
     `Inside that recreated room of ${place}, a charismatic real-estate agent ${wardrobe}`,
     "gives a walking tour TO CAMERA — moving through the room while facing the lens,",
     "presenting and gesturing to its features like a host walking backward leading you in.",
+    // Being FILMED by a videographer — NOT a phone selfie. Both hands free to present.
+    "The agent is being professionally FILMED by a separate camera operator — this is",
+    "NOT a selfie: both hands are FREE to gesture and present, and the agent is NOT",
+    "holding a phone, camera, microphone or any device, and no arm is extended toward",
+    "the lens. Authentic, natural, social-native energy — not a glossy commercial.",
     // EVERY clip is lip-synced now, so the agent's face must stay camera-visible the
     // whole shot (HeyGen lipsync needs a detectable speaking face). Walking is great,
     // but keep the face toward the camera and actively talking throughout.
@@ -362,6 +367,10 @@ function cinematicExteriorPrompt(
     kind === "intro"
       ? "OPENS facing the camera directly and SPEAKING a warm, welcoming greeting to the viewer, with a brief gesture toward the home."
       : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the backyard.",
+    // Being FILMED by a videographer — NOT a phone selfie. Both hands free.
+    "The agent is being professionally FILMED by a separate camera operator — NOT a",
+    "selfie: both hands are FREE to gesture, the agent is NOT holding a phone, camera",
+    "or any device, and no arm is extended toward the lens.",
     // LIP-SYNC ANCHOR: this opener/closer shot must hold a clear, detectable
     // speaking face so HeyGen lipsync can sync the mouth on this beat (the room
     // walkthroughs are voice-over only). Frame the face large, centered, lit.
