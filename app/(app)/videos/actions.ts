@@ -178,6 +178,50 @@ export async function rewriteOpeningPitch(
   return { pitch };
 }
 
+/**
+ * Persist a new photo ORDER for the video's listing. Photo order IS the tour
+ * sequence: the first photo is the opening (front exterior) clip, the last is the
+ * closing clip, and the interiors between become the room walk. Reorders the
+ * listing's photo objects (captions preserved) to match the given URL order; any
+ * URL not listed is appended so nothing is dropped.
+ */
+export async function reorderListingPhotos(
+  videoId: string,
+  orderedUrls: string[],
+): Promise<{ ok?: boolean; error?: string }> {
+  const { userId } = await requireUser();
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("videos")
+    .select("listing_id")
+    .eq("id", videoId)
+    .maybeSingle();
+  if (!video?.listing_id) return { error: "No listing for this video." };
+  const { data: listing } = await supabase
+    .from("listings")
+    .select("photos")
+    .eq("id", video.listing_id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!listing) return { error: "Listing not found." };
+
+  const current = listingPhotos(listing.photos);
+  const byUrl = new Map(current.map((p) => [p.url, p]));
+  const reordered = [
+    ...orderedUrls.map((u) => byUrl.get(u)).filter(Boolean),
+    ...current.filter((p) => !orderedUrls.includes(p.url)),
+  ];
+
+  const { error } = await supabase
+    .from("listings")
+    .update({ photos: reordered as unknown as Json })
+    .eq("id", video.listing_id)
+    .eq("user_id", userId);
+  if (error) return { error: error.message };
+  revalidatePath(`/videos/${videoId}`);
+  return { ok: true };
+}
+
 
 /**
  * Step 2 — submit the (possibly edited) script to HeyGen.

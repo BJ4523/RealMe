@@ -8,6 +8,7 @@ import { DeleteVideoButton } from "@/components/videos/delete-video-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 import { TRACKS } from "@/lib/video/music/tracks";
+import { listingPhotos } from "@/lib/format";
 
 // The page-poll server action (pollVideoStatus) runs the heavy ffmpeg stitch +
 // lipsync inline. Give it the full window so Stage B finishes in one invocation
@@ -26,13 +27,14 @@ export default async function VideoPage({
 
   const { data: video } = await supabase
     .from("videos")
-    .select("*, listings(address)")
+    .select("*, listings(address, photos)")
     .eq("id", id)
     .maybeSingle();
   if (!video) notFound();
 
   const { listings, ...videoRow } = video;
-  const listing = listings as { address: string } | null;
+  const listing = listings as { address: string; photos: unknown } | null;
+  const photos = listingPhotos(listing?.photos);
 
   // Cinematic mode needs a consent-verified digital twin — check the active one.
   const { data: avatar } = await supabase
@@ -77,6 +79,7 @@ export default async function VideoPage({
         initialVideo={videoRow}
         cinematicReady={cinematicReady}
         hasTwin={isTwin}
+        photos={photos}
         tracks={TRACKS.map((t) => ({
           id: t.id,
           title: t.title,

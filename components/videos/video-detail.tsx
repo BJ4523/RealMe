@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "./status-badge";
+import { PhotoReorder } from "./photo-reorder";
 
 type Video = Tables<"videos">;
 
@@ -43,6 +44,7 @@ export function VideoDetail({
   initialVideo,
   cinematicReady = false,
   hasTwin = false,
+  photos = [],
   tracks = [],
 }: {
   initialVideo: Video;
@@ -50,6 +52,8 @@ export function VideoDetail({
   cinematicReady?: boolean;
   /** True when the active avatar is a ready digital twin (consent may still be pending). */
   hasTwin?: boolean;
+  /** Listing photos in tour order (first = opener, last = closer) — reorderable. */
+  photos?: { url: string; caption?: string }[];
   /** Hype Reel music tracks the agent can pick from. */
   tracks?: { id: string; title: string; previewUrl: string }[];
 }) {
@@ -264,6 +268,9 @@ export function VideoDetail({
               </p>
             );
           })()}
+          {photos.length >= 2 && (
+            <PhotoReorder videoId={video.id} photos={photos} />
+          )}
           <div className="flex flex-col gap-4">
             {cinematicReady ? (
               <>
