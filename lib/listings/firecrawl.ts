@@ -11,6 +11,14 @@ import type { ListingDraft } from "./provider";
  */
 const ENDPOINT = "https://api.firecrawl.dev/v2/scrape";
 
+// Below this much page text, the site served a bot-block/consent stub (a real
+// listing page is thousands of chars). We distrust extraction from such pages —
+// the LLM hallucinates placeholder data when there's nothing real to read.
+const MIN_PAGE_CHARS = 600;
+
+/** Obvious LLM-placeholder addresses to reject even if a page sneaks through. */
+const PLACEHOLDER_ADDRESS = /\b123\s+main\s+st/i;
+
 const LISTING_SCHEMA = {
   type: "object",
   properties: {
@@ -54,17 +62,42 @@ interface FirecrawlListing {
 }
 
 /**
- * One Firecrawl extraction attempt. With `useActions`, it scrolls the page to
- * lazy-load the FULL photo gallery (Zillow et al. load most images only on
- * scroll) — but that browser automation sometimes trips Firecrawl's proxy with
- * ERR_TUNNEL_CONNECTION_FAILED. So the caller tries WITH actions first, then
- * falls back to a plain render (fewer photos, but reliable). Returns null on any
- * non-success so the caller can fall through.
+ * Pull the FULL photo gallery from the page's raw HTML. The portals lazy-load
+ * most gallery images via JS (so a rendered scrape sees only ~5), but they also
+ * embed every full-resolution URL in the server HTML — we just have to pick the
+ * gallery size and skip the "similar homes" thumbnails (other sizes). Order of
+ * first appearance = gallery order; dedup by photo id. Empty for unknown hosts
+ * (caller falls back to the LLM-extracted photos).
  */
-async function requestExtraction(
+function extractGalleryFromHtml(html: string): string[] {
+  const collect = (re: RegExp): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) {
+      const key = m[1] ?? m[0];
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(m[0]);
+      }
+    }
+    return out;
+  };
+  // Zillow — full-res gallery size (cc_ft_1536); dedup by photo id.
+  const zillow = collect(
+    /https:\/\/photos\.zillowstatic\.com\/fp\/([a-f0-9]+)-cc_ft_1536\.jpg/g,
+  );
+  if (zillow.length) return zillow;
+  // Redfin — listing photo CDN.
+  const redfin = collect(/https:\/\/ssl\.cdn-redfin\.com\/photo\/[^\s"'<>\\]+?\.jpg/g);
+  if (redfin.length) return redfin;
+  return [];
+}
+
+/** One Firecrawl scrape: raw HTML (for the full gallery) + markdown + LLM JSON. */
+async function fetchScrape(
   url: string,
-  useActions: boolean,
-): Promise<FirecrawlListing | null> {
+): Promise<{ json: FirecrawlListing | null; html: string; mdLen: number } | null> {
   let res: Response;
   try {
     res = await fetch(ENDPOINT, {
@@ -76,26 +109,16 @@ async function requestExtraction(
       body: JSON.stringify({
         url,
         onlyMainContent: false,
-        waitFor: useActions ? 4000 : 6000,
-        ...(useActions
-          ? {
-              actions: [
-                { type: "wait", milliseconds: 1500 },
-                { type: "scroll", direction: "down" },
-                { type: "scroll", direction: "down" },
-                { type: "scroll", direction: "down" },
-                { type: "wait", milliseconds: 1500 },
-              ],
-            }
-          : {}),
+        waitFor: 6000,
         formats: [
+          "rawHtml",
+          "markdown",
           {
             type: "json",
             schema: LISTING_SCHEMA,
             prompt:
-              "Extract the real estate listing details. For photos, collect EVERY " +
-              "image URL in the property's photo gallery/carousel — all of them, in " +
-              "order, full-resolution, not just the first/hero image.",
+              "Extract the real estate listing details (address, price, beds, baths, " +
+              "sqft, description, features). Photos optional.",
           },
         ],
       }),
@@ -106,11 +129,19 @@ async function requestExtraction(
   if (!res.ok) return null;
   const body = (await res.json().catch(() => null)) as {
     success?: boolean;
-    data?: { json?: FirecrawlListing; extract?: FirecrawlListing };
+    data?: {
+      rawHtml?: string;
+      markdown?: string;
+      json?: FirecrawlListing;
+      extract?: FirecrawlListing;
+    };
   } | null;
   if (!body?.success) return null;
-  const data = body?.data?.json ?? body?.data?.extract;
-  return data && typeof data === "object" ? data : null;
+  return {
+    json: body.data?.json ?? body.data?.extract ?? null,
+    html: body.data?.rawHtml ?? "",
+    mdLen: (body.data?.markdown ?? "").length,
+  };
 }
 
 export async function scrapeListingViaFirecrawl(
@@ -118,22 +149,25 @@ export async function scrapeListingViaFirecrawl(
 ): Promise<Partial<ListingDraft> | null> {
   if (!env.firecrawlApiKey) return null;
 
-  // Rich attempt first (scrolls to load the whole gallery). If it yields nothing
-  // — e.g. the scroll actions trip Firecrawl's proxy (ERR_TUNNEL_CONNECTION_FAILED)
-  // — fall back to a plain render, which is reliable but returns fewer photos.
-  // Far better to import the listing with 5 photos than to fail outright.
-  const rich = await requestExtraction(url, true);
-  const data =
-    rich && Array.isArray(rich.photos) && rich.photos.length > 0
-      ? rich
-      : (await requestExtraction(url, false)) ?? rich;
-  if (!data || typeof data !== "object") return null;
+  // One reliable request (no flaky scroll-actions): the raw HTML carries the WHOLE
+  // gallery, the LLM JSON carries the metadata. Retry once on Firecrawl hiccups.
+  const r = (await fetchScrape(url)) ?? (await fetchScrape(url));
+  if (!r) return null;
+  // A blocked/bot-walled page (e.g. Realtor.com) returns a tiny stub, and the LLM
+  // then HALLUCINATES placeholders ("123 Main St"). Reject thin pages outright.
+  if (r.mdLen < MIN_PAGE_CHARS) return null;
+  const data = r.json ?? {};
+  if (data.address && PLACEHOLDER_ADDRESS.test(data.address)) return null;
 
-  const photos = Array.isArray(data.photos)
-    ? data.photos
-        .filter((u): u is string => typeof u === "string" && u.length > 0)
-        .map((u, order) => ({ url: u, order }))
+  // Full gallery from the HTML; fall back to the LLM photos for unknown hosts.
+  const gallery = extractGalleryFromHtml(r.html);
+  const llmPhotos = Array.isArray(data.photos)
+    ? data.photos.filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
     : [];
+  const urls = gallery.length >= llmPhotos.length ? gallery : llmPhotos;
+  if (urls.length === 0 && !data.address) return null;
+
+  const photos = urls.map((u, order) => ({ url: u, order }));
 
   const draft: Partial<ListingDraft> = {
     address: data.address,

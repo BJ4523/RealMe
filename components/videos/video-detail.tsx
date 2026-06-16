@@ -65,6 +65,11 @@ export function VideoDetail({
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
   const [previewing, setPreviewing] = useState(false);
+
+  // Rooms come from the INTERIOR photos (between the opening + closing shots), so
+  // never offer more rooms than the listing actually has photos for.
+  const maxRooms = Math.min(8, Math.max(1, photos.length - 2));
+  const effRooms = Math.min(roomCount, maxRooms);
   const [pending, startTransition] = useTransition();
   const [rewriting, startRewrite] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -136,7 +141,7 @@ export function VideoDetail({
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      await submitCinematicVideo(video.id, outfitId, roomCount, captions, tucked);
+      await submitCinematicVideo(video.id, outfitId, effRooms, captions, tucked);
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -323,7 +328,7 @@ export function VideoDetail({
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <span>Rooms</span>
                     <Select
-                      value={String(roomCount)}
+                      value={String(effRooms)}
                       onValueChange={(v) => setRoomCount(Number(v))}
                     >
                       <SelectTrigger
@@ -334,7 +339,7 @@ export function VideoDetail({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                        {Array.from({ length: maxRooms }, (_, i) => i + 1).map((n) => (
                           <SelectItem key={n} value={String(n)}>
                             {n}
                           </SelectItem>
