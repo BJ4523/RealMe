@@ -5,6 +5,10 @@ import * as z from "zod";
 import { env } from "@/lib/env";
 import type { Tables } from "@/lib/types/database";
 
+// Model for all script/narration generation. These are short-copy + single-image
+// caption tasks — Haiku 4.5 handles them well at ~10-15x lower cost than Opus.
+const SCRIPT_MODEL = "claude-haiku-4-5";
+
 const ScriptSchema = z.object({
   narration: z
     .string()
@@ -42,7 +46,7 @@ export async function generateWalkthroughScript(
 
   try {
     const message = await client.messages.parse({
-      model: "claude-opus-4-8",
+      model: SCRIPT_MODEL,
       max_tokens: 2000,
       system:
         "You are a real estate agent narrating a short walkthrough video of your own listing, on camera. " +
@@ -151,7 +155,7 @@ export async function generateRoomNarration(
     roomPhotoUrls.map(async (url, i) => {
       try {
         const msg = await client.messages.create({
-          model: "claude-opus-4-8",
+          model: SCRIPT_MODEL,
           max_tokens: 120,
           system:
             "You are a charismatic real-estate agent giving an on-camera walking tour. " +
@@ -235,7 +239,7 @@ export async function generateOpeningPitch(listing: Listing): Promise<string> {
   try {
     const client = new Anthropic({ apiKey: env.anthropicApiKey });
     const message = await client.messages.parse({
-      model: "claude-opus-4-8",
+      model: SCRIPT_MODEL,
       max_tokens: 600,
       system:
         "You are a real-estate agent recording the OPENING of a listing reel, " +
@@ -317,7 +321,7 @@ export async function generateHypeReelScript(
   const client = new Anthropic({ apiKey: env.anthropicApiKey });
   try {
     const message = await client.messages.parse({
-      model: "claude-opus-4-8",
+      model: SCRIPT_MODEL,
       max_tokens: 800,
       system:
         "You are a real-estate agent hosting a fast, high-energy social hype reel of your listing. " +
