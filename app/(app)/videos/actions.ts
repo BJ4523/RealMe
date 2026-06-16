@@ -10,6 +10,7 @@ import {
   generateHypeReelScript,
   generateOpeningPitch,
   generateRoomNarration,
+  type ReelStyle,
 } from "@/lib/ai/script";
 import {
   encodeReelJobs,
@@ -487,6 +488,7 @@ export async function submitCinematicVideo(
   roomCount?: number,
   captions: boolean = false,
   tucked: boolean = true,
+  style: ReelStyle = "classic",
 ) {
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
@@ -545,16 +547,23 @@ export async function submitCinematicVideo(
     // per-beat scripts; the assembler does TTS + lipsync + stitch.
     const { lookId, wardrobe } = resolveLook(avatar, outfitId, tucked);
     const exterior = photos[0];
+    // Gen-Z mode regenerates the opener in-style (the editable pitch is the classic
+    // voice); classic uses the user's edited pitch.
     const openingPitch =
-      video.script?.trim() || "Welcome — let me show you this beautiful home.";
+      style === "genz"
+        ? await generateOpeningPitch(listing as Tables<"listings">, "genz")
+        : video.script?.trim() || "Welcome — let me show you this beautiful home.";
     // Room narration is VISION-based: Claude looks at each room photo and writes
     // that room's line, so the agent talks about the actual space on screen (no
     // text written by the user). The opening pitch (front) + CTA bookend it.
     const [hook, roomLines] = await Promise.all([
       generateHypeReelScript(listing as Tables<"listings">),
-      generateRoomNarration(roomPhotos, listing as Tables<"listings">, openingPitch),
+      generateRoomNarration(roomPhotos, listing as Tables<"listings">, openingPitch, style),
     ]);
-    const cta = hook.outro?.trim() || "Reach out today to see it in person.";
+    const cta =
+      style === "genz"
+        ? "Okay this one is straight-up elite — DM me right now before it's gone!"
+        : hook.outro?.trim() || "Reach out today to see it in person.";
 
     // Beats first, so each clip can be sized to its OWN narration. Order is
     // [opener, ...rooms, closer]. Closer bookend = the backyard (last photo).
@@ -594,6 +603,7 @@ export async function submitHypeReelVideo(
   outfitId?: string,
   captions: boolean = false,
   tucked: boolean = true,
+  style: ReelStyle = "classic",
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -638,12 +648,22 @@ export async function submitHypeReelVideo(
     // Same vision-based room narration as cinematic — the agent talks about each
     // actual room — bookended by the punchy hype intro + outro.
     const script = await generateHypeReelScript(listing as Tables<"listings">);
+    // Keep the hype intro PUNCHY (~5s) — a short Gen-Z hook, not the full ~20s pitch.
+    const intro =
+      style === "genz"
+        ? "Yo — you are NOT ready for this house. Watch this."
+        : script.intro;
+    const outro =
+      style === "genz"
+        ? "This one's NOT staying on the market — DM me, let's go!"
+        : script.outro;
     const roomLines = await generateRoomNarration(
       roomPhotos,
       listing as Tables<"listings">,
-      script.intro,
+      intro,
+      style,
     );
-    const beats = [script.intro, ...roomLines, script.outro]
+    const beats = [intro, ...roomLines, outro]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
     const backyard = photos[photos.length - 1] ?? hero; // closer = backyard

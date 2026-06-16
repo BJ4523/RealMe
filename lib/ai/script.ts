@@ -128,6 +128,9 @@ function templatedScript(listing: Listing): WalkthroughScript {
   return { narration: lines.join(" "), segments };
 }
 
+/** Reel narration voice: the polished default, or a hyped Gen-Z social style. */
+export type ReelStyle = "classic" | "genz";
+
 // Varied fallback openers so even the no-API-key path doesn't repeat one line.
 const FALLBACK_OPENERS = [
   "Step into",
@@ -139,9 +142,20 @@ const FALLBACK_OPENERS = [
   "Right this way to",
   "Don't miss",
 ];
-function roomLineFallback(i: number, listing: Listing): string {
+const GENZ_FALLBACK_OPENERS = [
+  "Okay this is giving",
+  "Not me obsessed with",
+  "Lowkey can't even with",
+  "No cap, look at",
+  "This is straight-up elite —",
+  "Tell me why",
+  "We need to talk about",
+  "It's the",
+];
+function roomLineFallback(i: number, listing: Listing, style: ReelStyle): string {
   const features = (listing.features ?? []).filter(Boolean);
-  const opener = FALLBACK_OPENERS[i % FALLBACK_OPENERS.length];
+  const openers = style === "genz" ? GENZ_FALLBACK_OPENERS : FALLBACK_OPENERS;
+  const opener = openers[i % openers.length];
   if (features[i]) return `${opener} ${features[i]}.`;
   return `${opener} this space.`;
 }
@@ -168,9 +182,10 @@ export async function generateRoomNarration(
   roomPhotoUrls: string[],
   listing: Listing,
   opener?: string,
+  style: ReelStyle = "classic",
 ): Promise<string[]> {
   if (!env.anthropicApiKey || roomPhotoUrls.length === 0) {
-    return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing));
+    return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing, style));
   }
   const place = listing.address ? ` at ${listing.address}` : "";
   // Interleave a label before each image so Claude maps lines → photos by order.
@@ -194,18 +209,29 @@ export async function generateRoomNarration(
 
   try {
     const client = new Anthropic({ apiKey: env.anthropicApiKey });
+    const system =
+      style === "genz"
+        ? "You are a HYPED, enthusiastic Gen-Z real-estate creator filming a home tour " +
+          "for TikTok/Reels. For each room photo, write ONE short, high-energy spoken " +
+          "line (8-16 words) gassing up the space with natural Gen-Z slang — e.g. " +
+          "'boujee', \"it's giving [vibe]\", 'no cap', 'obsessed', 'lowkey/highkey', " +
+          "'ate', 'understood the assignment', 'elite', 'unreal', 'main-character energy'. " +
+          "Name the room + a visible detail. CRITICAL — every line DISTINCT: vary the " +
+          "slang and openings, NEVER reuse the same slang word twice, don't repeat " +
+          "features. No greetings or call-to-action. Only what's visible. Authentic hype, " +
+          "not cringe — like a real young agent who's genuinely losing it over this place."
+        : "You are a charismatic real-estate agent filming a walking home tour. For each " +
+          "room photo, write ONE short, natural, spoken line (8-16 words): name the space " +
+          "and call out ONE specific detail you can SEE. " +
+          "CRITICAL — every line must be DISTINCT: never start two lines the same way " +
+          "(absolutely NO repeating 'This stunning…'), do NOT reuse the same adjective " +
+          "across lines (vary beyond 'stunning/gorgeous/soaring'), and don't repeat the " +
+          "same feature twice even for similar rooms. No greetings and no call-to-action " +
+          "(those are separate) — just tour the rooms. Only mention what is visible.";
     const msg = await client.messages.parse({
       model: SCRIPT_MODEL,
       max_tokens: 1200,
-      system:
-        "You are a charismatic real-estate agent filming a walking home tour. For each " +
-        "room photo, write ONE short, natural, spoken line (8-16 words): name the space " +
-        "and call out ONE specific detail you can SEE. " +
-        "CRITICAL — every line must be DISTINCT: never start two lines the same way " +
-        "(absolutely NO repeating 'This stunning…'), do NOT reuse the same adjective " +
-        "across lines (vary beyond 'stunning/gorgeous/soaring'), and don't repeat the " +
-        "same feature twice even for similar rooms. No greetings and no call-to-action " +
-        "(those are separate) — just tour the rooms. Only mention what is visible.",
+      system,
       messages: [{ role: "user", content }],
       output_config: { format: zodOutputFormat(RoomLinesSchema) },
     });
@@ -213,9 +239,9 @@ export async function generateRoomNarration(
       .map((l) => l.trim().replace(/^["']+|["']+$/g, ""))
       .filter(Boolean);
     // Pad/truncate to exactly one line per photo.
-    return roomPhotoUrls.map((_, i) => lines[i] || roomLineFallback(i, listing));
+    return roomPhotoUrls.map((_, i) => lines[i] || roomLineFallback(i, listing, style));
   } catch {
-    return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing));
+    return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing, style));
   }
 }
 
@@ -264,16 +290,32 @@ function clampToBudget(text: string, maxWords = MAX_WORDS): string {
  * keyed; templated fallback else. Always clamped to the word budget so it can't
  * run past ~20s.
  */
-export async function generateOpeningPitch(listing: Listing): Promise<string> {
-  if (!env.anthropicApiKey) return clampToBudget(templatedOpeningPitch(listing));
+export async function generateOpeningPitch(
+  listing: Listing,
+  style: ReelStyle = "classic",
+): Promise<string> {
+  if (!env.anthropicApiKey)
+    return clampToBudget(templatedOpeningPitch(listing, style));
   try {
     const client = new Anthropic({ apiKey: env.anthropicApiKey });
+    const persona =
+      style === "genz"
+        ? "You are a HYPED Gen-Z real-estate creator recording the OPENING of a viral " +
+          "TikTok/Reels home tour, on camera in front of the house. Talk with huge " +
+          "energy and natural Gen-Z slang (e.g. 'no cap', \"it's giving\", 'boujee', " +
+          "'obsessed', 'elite', 'this is NOT a drill') while still naming the real stats."
+        : "You are a real-estate agent recording the OPENING of a listing reel, " +
+          "on camera, standing in front of the house.";
+    const ctaExample =
+      style === "genz"
+        ? "'okay DM me RIGHT now, this one's not gonna last'"
+        : "'DM me to see it this weekend'";
     const message = await client.messages.parse({
       model: SCRIPT_MODEL,
       max_tokens: 600,
       system:
-        "You are a real-estate agent recording the OPENING of a listing reel, " +
-        "on camera, standing in front of the house. Write ONLY what you SAY out " +
+        persona +
+        " Write ONLY what you SAY out " +
         `loud — calibrated to EXACTLY ${OPENING_PITCH_SECONDS} seconds of natural ` +
         `spoken delivery, which is about ${TARGET_WORDS} words. Use the FULL time: ` +
         `aim for ${TARGET_WORDS} words, at LEAST ${TARGET_WORDS - 5} and never more ` +
@@ -281,7 +323,7 @@ export async function generateOpeningPitch(listing: Listing): Promise<string> {
         "but do NOT come in short and choppy either). Include: a warm greeting, the " +
         "property and its headline numbers (beds/baths/sqft/price), a tease of 2-3 " +
         "real highlights or a sentence on the feel of the home, and a punchy call to " +
-        "action (e.g. 'DM me to see it this weekend'). Conversational, confident, " +
+        `action (e.g. ${ctaExample}). Conversational, confident, ` +
         "first person, full flowing sentences. Use ONLY the facts provided — never " +
         "invent rooms, finishes, or numbers. Count your words and fill the budget.",
       messages: [{ role: "user", content: JSON.stringify(listingForPrompt(listing)) }],
@@ -294,7 +336,7 @@ export async function generateOpeningPitch(listing: Listing): Promise<string> {
   }
 }
 
-function templatedOpeningPitch(listing: Listing): string {
+function templatedOpeningPitch(listing: Listing, style: ReelStyle = "classic"): string {
   const place = [listing.address, listing.city].filter(Boolean).join(", ");
   const city = listing.city?.trim();
   const price = listing.price
@@ -311,6 +353,18 @@ function templatedOpeningPitch(listing: Listing): string {
   // Built to land at the full ~20s (~50 words) even when a listing has no
   // features — evergreen, always-true lines fill the budget without inventing
   // specifics. clampToBudget keeps it under the hard ceiling.
+  if (style === "genz") {
+    return [
+      `Okay you NEED to see ${place || "this home"}, no cap.`,
+      `This place${city ? ` in ${city}` : ""} is straight-up giving main-character energy.`,
+      feature ? `The ${feature.toLowerCase()}? Obsessed.` : "It's lowkey unreal inside.",
+      specs ? `We're talking ${specs}.` : "The layout absolutely ate.",
+      price ? `Priced at ${price}.` : "",
+      "DM me right now — this one is NOT gonna last.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
   return [
     `Hi, I'm so excited to show you ${place || "this home"}.`,
     `This home${city ? ` in ${city}` : ""} feels special the moment you step inside.`,

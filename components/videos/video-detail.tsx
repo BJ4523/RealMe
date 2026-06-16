@@ -64,6 +64,7 @@ export function VideoDetail({
   const [roomCount, setRoomCount] = useState(2);
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
+  const [genz, setGenz] = useState(false);
   const [previewing, setPreviewing] = useState(false);
 
   // Rooms come from the INTERIOR photos (between the opening + closing shots), so
@@ -141,7 +142,14 @@ export function VideoDetail({
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      await submitCinematicVideo(video.id, outfitId, effRooms, captions, tucked);
+      await submitCinematicVideo(
+        video.id,
+        outfitId,
+        effRooms,
+        captions,
+        tucked,
+        genz ? "genz" : "classic",
+      );
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -151,7 +159,14 @@ export function VideoDetail({
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      await submitHypeReelVideo(video.id, trackId, outfitId, captions, tucked);
+      await submitHypeReelVideo(
+        video.id,
+        trackId,
+        outfitId,
+        captions,
+        tucked,
+        genz ? "genz" : "classic",
+      );
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -324,6 +339,20 @@ export function VideoDetail({
                     title="Whether the agent's shirt is tucked in or worn untucked"
                   >
                     Shirt {tucked ? "tucked" : "untucked"}
+                  </button>
+                  {/* Gen-Z voice — hyped, slang-heavy narration. */}
+                  <button
+                    type="button"
+                    onClick={() => setGenz((g) => !g)}
+                    aria-pressed={genz}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+                      genz
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background text-muted-foreground"
+                    }`}
+                    title="Hyped Gen-Z narration with slang (boujee, it's giving, no cap…)"
+                  >
+                    {genz ? "Gen Z 🔥" : "Classic voice"}
                   </button>
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <span>Rooms</span>
