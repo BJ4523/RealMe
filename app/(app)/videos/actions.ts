@@ -310,14 +310,18 @@ function cinematicPrompt(
   const move = moves[index % moves.length];
   const place = listing?.address ? `the home at ${listing.address}` : "this home";
   return [
-    "Photorealistic vertical 9:16 cinematic real-estate walkthrough, premium",
-    "launch-film look — warm natural light, shallow depth of field, gentle grain.",
+    "High-energy vertical 9:16 real-estate WALKING TOUR filmed on a smooth gimbal that",
+    "follows the agent — BRIGHT, clean natural daylight, crisp and sharp with EVERYTHING",
+    "in focus, true-to-life color. NOT a moody cinematic film: no shallow-depth background",
+    "blur, no film grain, no heavy color grade. Polished but real, like a top agent's viral",
+    "social home tour.",
     // FIDELITY FIRST: faithfully recreate the EXACT room in the reference image.
     "Recreate the room in the reference image accurately: the same layout, furniture,",
     "wall colors, flooring, windows, fixtures and finishes. Do NOT invent or rearrange.",
-    `Inside that recreated room of ${place}, a charismatic real-estate agent ${wardrobe}`,
-    "gives a walking tour TO CAMERA — moving through the room while facing the lens,",
-    "presenting and gesturing to its features like a host walking backward leading you in.",
+    `Inside that recreated room of ${place}, a charismatic, confident, ANIMATED real-estate agent ${wardrobe}`,
+    "gives an enthusiastic walking tour TO CAMERA — moving through the room while facing the",
+    "lens, gesturing energetically and presenting its features like a host walking backward",
+    "leading you in. Expressive, upbeat, high-energy.",
     // Being FILMED by a videographer — NOT a phone selfie. Both hands free to present.
     "The agent is being professionally FILMED by a separate camera operator — this is",
     "NOT a selfie: both hands are FREE to gesture and present, and the agent is NOT",
@@ -359,11 +363,12 @@ function cinematicExteriorPrompt(
       ? "Recreate the house FRONT EXTERIOR in the reference image EXACTLY and faithfully: the same architecture, materials, roof, windows, and the front yard — lawn, landscaping, walkway and driveway, in the same positions. Do not invent or rearrange."
       : "Recreate the BACKYARD / rear outdoor space in the reference image EXACTLY and faithfully: the same patio or deck, yard and landscaping, pool or fire-pit if present, fencing and structures, in the same positions. Do not invent or rearrange.";
   return [
-    "Premium cinematic vertical 9:16 real-estate hero shot, the look of a polished",
-    "luxury listing launch film — warm golden-hour light, shallow depth of field,",
-    "rich filmic color, gentle film grain.",
+    "Bright, crisp, high-energy vertical 9:16 real-estate tour shot filmed on a smooth",
+    "gimbal — clean natural daylight, sharp with everything in focus, true-to-life color.",
+    "NOT a moody cinematic film: no shallow-depth blur, no film grain, no heavy grade.",
+    "Polished but real, like a top agent's viral social tour.",
     scene,
-    `${kind === "intro" ? `In front of ${place}` : `In the backyard of ${place}`}, a confident, charismatic real-estate agent ${wardrobe}`,
+    `${kind === "intro" ? `In front of ${place}` : `In the backyard of ${place}`}, a confident, charismatic, ANIMATED real-estate agent ${wardrobe}`,
     kind === "intro"
       ? "OPENS facing the camera directly and SPEAKING a warm, welcoming greeting to the viewer, with a brief gesture toward the home."
       : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the backyard.",
