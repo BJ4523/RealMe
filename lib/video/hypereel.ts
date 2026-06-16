@@ -59,11 +59,10 @@ export interface AssemblableReel {
 
 
 /**
- * Hype Reel = the SAME cinematic_avatar + Lipsync-Precision pipeline as the
- * cinematic walkthrough (the twin talking in their own voice, lip-synced), with
- * MUSIC ducked under the voice + animated overlays. One-pass: stitch the silent
- * clips, host them, TTS the hype script, lipsync the whole montage, then add the
- * music bed + overlays.
+ * Hype Reel = the SAME shared pipeline as the cinematic walkthrough
+ * (fireBeatClips + advanceLipsync → the twin walking and talking in their own
+ * voice, lip-synced per clip). The ONLY differences: its own punchy script
+ * (beats) and a MUSIC bed ducked under the voice in the final pass.
  */
 export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Promise<
   "processing" | "completed" | "failed"
@@ -91,8 +90,8 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
     }
 
     // Ready — the body has all voice baked in and the row is already claimed
-    // (submitting). Final pass: add the MUSIC bed (ducked under the body's voice)
-    // + animated overlays. No re-claim.
+    // (submitting). Final pass: add the MUSIC bed, ducked under the body's voice.
+    // No re-claim.
     const storage = adminConfigured ? createAdminClient() : supabase;
     const track = getTrack(reel.trackId);
     const [bodyBuf, musicBuf] = await Promise.all([
