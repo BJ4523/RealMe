@@ -552,7 +552,7 @@ export async function submitCinematicVideo(
     // text written by the user). The opening pitch (front) + CTA bookend it.
     const [hook, roomLines] = await Promise.all([
       generateHypeReelScript(listing as Tables<"listings">),
-      generateRoomNarration(roomPhotos, listing as Tables<"listings">),
+      generateRoomNarration(roomPhotos, listing as Tables<"listings">, openingPitch),
     ]);
     const cta = hook.outro?.trim() || "Reach out today to see it in person.";
 
@@ -637,10 +637,12 @@ export async function submitHypeReelVideo(
       .slice(0, HYPE_REEL_ROOMS);
     // Same vision-based room narration as cinematic — the agent talks about each
     // actual room — bookended by the punchy hype intro + outro.
-    const [script, roomLines] = await Promise.all([
-      generateHypeReelScript(listing as Tables<"listings">),
-      generateRoomNarration(roomPhotos, listing as Tables<"listings">),
-    ]);
+    const script = await generateHypeReelScript(listing as Tables<"listings">);
+    const roomLines = await generateRoomNarration(
+      roomPhotos,
+      listing as Tables<"listings">,
+      script.intro,
+    );
     const beats = [script.intro, ...roomLines, script.outro]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];

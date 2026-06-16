@@ -30,6 +30,9 @@ export async function createLipsync(input: {
         // precision = avatar-inference lip-sync (high quality); re-animates the
         // speaker's mouth to match the audio. "speed" is the cheaper/rougher mode.
         mode: "precision",
+        // Preserve the source clip's resolution + bitrate (the cinematic clips are
+        // 1080p) instead of letting lipsync downscale the output.
+        keep_the_same_format: true,
         // Let the clip stretch/trim to the narration length so the mouth and
         // voice line up end-to-end.
         enable_dynamic_duration: true,

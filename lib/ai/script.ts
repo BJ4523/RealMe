@@ -128,65 +128,95 @@ function templatedScript(listing: Listing): WalkthroughScript {
   return { narration: lines.join(" "), segments };
 }
 
+// Varied fallback openers so even the no-API-key path doesn't repeat one line.
+const FALLBACK_OPENERS = [
+  "Step into",
+  "Over here you've got",
+  "Now check out",
+  "And just through here,",
+  "Look at",
+  "Let's move into",
+  "Right this way to",
+  "Don't miss",
+];
 function roomLineFallback(i: number, listing: Listing): string {
   const features = (listing.features ?? []).filter(Boolean);
-  if (features[i]) return `And right here — ${features[i]}.`;
-  return "Come on through and take a look at this space.";
+  const opener = FALLBACK_OPENERS[i % FALLBACK_OPENERS.length];
+  if (features[i]) return `${opener} ${features[i]}.`;
+  return `${opener} this space.`;
 }
 
+const RoomLinesSchema = z.object({
+  lines: z
+    .array(z.string())
+    .describe(
+      "One spoken narration line per room photo, in the SAME order as the photos. " +
+        "Each line MUST be distinct from the others.",
+    ),
+});
+
 /**
- * Vision-based per-room narration: Claude LOOKS at each room photo and writes the
- * one warm sentence the agent would say to camera while walking through THAT room
- * — naming the space and a specific visible detail. This is what lets the reel
- * "talk about the specific rooms" with NO text written by the user. Returns one
- * line per photo (1:1 with the room clips). Falls back to listing-derived lines
- * without an API key or on any per-photo error, so the flow never blocks.
+ * Vision-based per-room narration generated in ONE coherent pass: Claude sees ALL
+ * the room photos together (in order) and writes a connected walking-tour line for
+ * each — naming the space and a visible detail. Generating them together (not one
+ * call per photo) is what kills the redundancy: it can vary every opening and
+ * adjective and avoid repeating near-duplicate rooms. Returns one line per photo
+ * (padded/truncated to match). `opener` is the intro line, passed so the room
+ * lines don't echo the greeting. Falls back to varied lines without a key / on error.
  */
 export async function generateRoomNarration(
   roomPhotoUrls: string[],
   listing: Listing,
+  opener?: string,
 ): Promise<string[]> {
   if (!env.anthropicApiKey || roomPhotoUrls.length === 0) {
     return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing));
   }
-  const client = new Anthropic({ apiKey: env.anthropicApiKey });
   const place = listing.address ? ` at ${listing.address}` : "";
-  return Promise.all(
-    roomPhotoUrls.map(async (url, i) => {
-      try {
-        const msg = await client.messages.create({
-          model: SCRIPT_MODEL,
-          max_tokens: 120,
-          system:
-            "You are a charismatic real-estate agent giving an on-camera walking tour. " +
-            "Looking ONLY at this one room photo, write ONE warm, natural spoken sentence " +
-            "(8-18 words) you'd say to camera while walking through it: name the room or " +
-            "space and call out one specific detail you can SEE. No preamble, no quotes, " +
-            "just the sentence. Never mention anything not visible in the photo.",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "image", source: { type: "url", url } },
-                {
-                  type: "text",
-                  text: `Room ${i + 1} of ${roomPhotoUrls.length}${place}.`,
-                },
-              ],
-            },
-          ],
-        });
-        const block = msg.content.find((c) => c.type === "text");
-        const line =
-          block && "text" in block
-            ? block.text.trim().replace(/^["']+|["']+$/g, "")
-            : "";
-        return line || roomLineFallback(i, listing);
-      } catch {
-        return roomLineFallback(i, listing);
-      }
-    }),
-  );
+  // Interleave a label before each image so Claude maps lines → photos by order.
+  type Block =
+    | { type: "text"; text: string }
+    | { type: "image"; source: { type: "url"; url: string } };
+  const content: Block[] = [
+    {
+      type: "text",
+      text:
+        `You are filming a walking home tour${place}. Here are the ${roomPhotoUrls.length} ` +
+        `rooms IN ORDER. Write ONE spoken line per room (8-16 words) — what the agent ` +
+        `says walking into THAT room.` +
+        (opener ? ` The intro already said: "${opener}" — do NOT echo it.` : ""),
+    },
+  ];
+  roomPhotoUrls.forEach((url, i) => {
+    content.push({ type: "text", text: `Room ${i + 1}:` });
+    content.push({ type: "image", source: { type: "url", url } });
+  });
+
+  try {
+    const client = new Anthropic({ apiKey: env.anthropicApiKey });
+    const msg = await client.messages.parse({
+      model: SCRIPT_MODEL,
+      max_tokens: 1200,
+      system:
+        "You are a charismatic real-estate agent filming a walking home tour. For each " +
+        "room photo, write ONE short, natural, spoken line (8-16 words): name the space " +
+        "and call out ONE specific detail you can SEE. " +
+        "CRITICAL — every line must be DISTINCT: never start two lines the same way " +
+        "(absolutely NO repeating 'This stunning…'), do NOT reuse the same adjective " +
+        "across lines (vary beyond 'stunning/gorgeous/soaring'), and don't repeat the " +
+        "same feature twice even for similar rooms. No greetings and no call-to-action " +
+        "(those are separate) — just tour the rooms. Only mention what is visible.",
+      messages: [{ role: "user", content }],
+      output_config: { format: zodOutputFormat(RoomLinesSchema) },
+    });
+    const lines = (msg.parsed_output?.lines ?? [])
+      .map((l) => l.trim().replace(/^["']+|["']+$/g, ""))
+      .filter(Boolean);
+    // Pad/truncate to exactly one line per photo.
+    return roomPhotoUrls.map((_, i) => lines[i] || roomLineFallback(i, listing));
+  } catch {
+    return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing));
+  }
 }
 
 const OpeningPitchSchema = z.object({

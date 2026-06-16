@@ -30,7 +30,7 @@ export async function generateCinematicClip(input: {
     avatar_id: [input.avatarLookId],
     prompt: input.prompt,
     duration: Math.min(15, Math.max(4, input.duration ?? 10)),
-    resolution: "720p",
+    resolution: "1080p",
     aspect_ratio: "9:16",
   };
   if (input.referenceUrl) {

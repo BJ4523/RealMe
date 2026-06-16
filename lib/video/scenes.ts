@@ -131,16 +131,16 @@ async function renderScene(
     ]);
     return;
   }
-  // video scene: normalize to 720x1280/30fps, trim to duration. Every segment
+  // video scene: normalize to 1080x1920/30fps, trim to duration. Every segment
   // carries a stereo audio track (real for host scenes, silent otherwise) so the
   // concat demuxer sees a uniform layout.
   // Dimensions are HARDCODED (not `${W}:${H}`) on purpose: the Next 16 production
   // minifier corrupts a filter built from consecutive `${W}:${H}` interpolations,
-  // dropping the trailing literal (-> "scale=720:1280pad..." which ffmpeg rejects).
+  // dropping the trailing literal (-> "scale=1080:1920pad..." which ffmpeg rejects).
   // A plain literal survives minification (same pattern as lib/video/stitch.ts).
   const vf =
-    "scale=720:1280:force_original_aspect_ratio=decrease," +
-    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30";
+    "scale=1080:1920:force_original_aspect_ratio=decrease," +
+    "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30";
   if (scene.keepAudio && (await hasAudioStream(inPath))) {
     // Keep the clip's own audio (e.g. host voice-over). amix with a silent source
     // (normalize=0 — the default scales by 1/inputs and halves the voice). Only
@@ -172,7 +172,7 @@ async function renderScene(
       "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
       "-vf", vf,
       "-map", "0:v:0", "-map", "1:a:0", "-shortest",
-      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-pix_fmt", "yuv420p",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outPath,
     ]);
     return;
@@ -183,7 +183,7 @@ async function renderScene(
     "-t", durSec,
     "-vf", `${vf},tpad=stop_mode=clone:stop_duration=3600`,
     "-map", "0:v:0", "-map", "1:a:0",
-    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-pix_fmt", "yuv420p",
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outPath,
   ]);
 }
