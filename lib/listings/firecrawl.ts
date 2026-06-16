@@ -53,11 +53,18 @@ interface FirecrawlListing {
   photos?: string[];
 }
 
-export async function scrapeListingViaFirecrawl(
+/**
+ * One Firecrawl extraction attempt. With `useActions`, it scrolls the page to
+ * lazy-load the FULL photo gallery (Zillow et al. load most images only on
+ * scroll) — but that browser automation sometimes trips Firecrawl's proxy with
+ * ERR_TUNNEL_CONNECTION_FAILED. So the caller tries WITH actions first, then
+ * falls back to a plain render (fewer photos, but reliable). Returns null on any
+ * non-success so the caller can fall through.
+ */
+async function requestExtraction(
   url: string,
-): Promise<Partial<ListingDraft> | null> {
-  if (!env.firecrawlApiKey) return null;
-
+  useActions: boolean,
+): Promise<FirecrawlListing | null> {
   let res: Response;
   try {
     res = await fetch(ENDPOINT, {
@@ -68,18 +75,19 @@ export async function scrapeListingViaFirecrawl(
       },
       body: JSON.stringify({
         url,
-        // Include the WHOLE page (galleries live outside the "main" content), and
-        // wait + scroll so lazy-loaded photo galleries actually render before we
-        // extract — listing sites load most images only as you scroll.
         onlyMainContent: false,
-        waitFor: 4000,
-        actions: [
-          { type: "wait", milliseconds: 1500 },
-          { type: "scroll", direction: "down" },
-          { type: "scroll", direction: "down" },
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1500 },
-        ],
+        waitFor: useActions ? 4000 : 6000,
+        ...(useActions
+          ? {
+              actions: [
+                { type: "wait", milliseconds: 1500 },
+                { type: "scroll", direction: "down" },
+                { type: "scroll", direction: "down" },
+                { type: "scroll", direction: "down" },
+                { type: "wait", milliseconds: 1500 },
+              ],
+            }
+          : {}),
         formats: [
           {
             type: "json",
@@ -96,11 +104,29 @@ export async function scrapeListingViaFirecrawl(
     return null;
   }
   if (!res.ok) return null;
-
   const body = (await res.json().catch(() => null)) as {
+    success?: boolean;
     data?: { json?: FirecrawlListing; extract?: FirecrawlListing };
   } | null;
+  if (!body?.success) return null;
   const data = body?.data?.json ?? body?.data?.extract;
+  return data && typeof data === "object" ? data : null;
+}
+
+export async function scrapeListingViaFirecrawl(
+  url: string,
+): Promise<Partial<ListingDraft> | null> {
+  if (!env.firecrawlApiKey) return null;
+
+  // Rich attempt first (scrolls to load the whole gallery). If it yields nothing
+  // — e.g. the scroll actions trip Firecrawl's proxy (ERR_TUNNEL_CONNECTION_FAILED)
+  // — fall back to a plain render, which is reliable but returns fewer photos.
+  // Far better to import the listing with 5 photos than to fail outright.
+  const rich = await requestExtraction(url, true);
+  const data =
+    rich && Array.isArray(rich.photos) && rich.photos.length > 0
+      ? rich
+      : (await requestExtraction(url, false)) ?? rich;
   if (!data || typeof data !== "object") return null;
 
   const photos = Array.isArray(data.photos)
