@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clapperboard, Trash2, ArrowLeft } from "lucide-react";
+import { Trash2, ArrowLeft } from "lucide-react";
+import { GenerateVideoButton } from "@/components/listings/generate-video-button";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatPrice, formatSpecs, listingPhotos } from "@/lib/format";
@@ -81,13 +82,7 @@ export default async function ListingDetailPage({
         </div>
         <form action={generateForListing}>
           <input type="hidden" name="listingId" value={listing.id} />
-          <Button
-            type="submit"
-            size="lg"
-            className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-          >
-            <Clapperboard className="size-5" /> Generate video
-          </Button>
+          <GenerateVideoButton />
         </form>
       </div>
 

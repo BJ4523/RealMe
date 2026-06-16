@@ -64,7 +64,7 @@ export function VideoDetail({
   const [roomCount, setRoomCount] = useState(2);
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
-  const [genz, setGenz] = useState(false);
+  const [mode, setMode] = useState<"cinematic" | "hype" | "genz">("cinematic");
   const [previewing, setPreviewing] = useState(false);
 
   // Rooms come from the INTERIOR photos (between the opening + closing shots), so
@@ -138,35 +138,24 @@ export function VideoDetail({
     });
   }
 
-  function handleCinematic() {
+  function handleGenerate(forceMode?: "cinematic" | "hype" | "genz") {
+    const m = forceMode ?? mode;
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      await submitCinematicVideo(
-        video.id,
-        outfitId,
-        effRooms,
-        captions,
-        tucked,
-        genz ? "genz" : "classic",
-      );
-      const latest = await pollVideoStatus(video.id);
-      if (latest) setVideo(latest);
-    });
-  }
-
-  function handleHypeReel() {
-    setVideo((v) => ({ ...v, status: "submitting" }));
-    startTransition(async () => {
-      await updateScript(video.id, script);
-      await submitHypeReelVideo(
-        video.id,
-        trackId,
-        outfitId,
-        captions,
-        tucked,
-        genz ? "genz" : "classic",
-      );
+      if (m === "hype") {
+        await submitHypeReelVideo(video.id, trackId, outfitId, captions, tucked, "classic");
+      } else {
+        // Cinematic (classic voice) or Gen Z (cinematic walking tour, hyped slang).
+        await submitCinematicVideo(
+          video.id,
+          outfitId,
+          effRooms,
+          captions,
+          tucked,
+          m === "genz" ? "genz" : "classic",
+        );
+      }
       const latest = await pollVideoStatus(video.id);
       if (latest) setVideo(latest);
     });
@@ -340,20 +329,6 @@ export function VideoDetail({
                   >
                     Shirt {tucked ? "tucked" : "untucked"}
                   </button>
-                  {/* Gen-Z voice — hyped, slang-heavy narration. */}
-                  <button
-                    type="button"
-                    onClick={() => setGenz((g) => !g)}
-                    aria-pressed={genz}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
-                      genz
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border bg-background text-muted-foreground"
-                    }`}
-                    title="Hyped Gen-Z narration with slang (boujee, it's giving, no cap…)"
-                  >
-                    {genz ? "Gen Z 🔥" : "Classic voice"}
-                  </button>
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <span>Rooms</span>
                     <Select
@@ -391,8 +366,9 @@ export function VideoDetail({
                     <Captions className="size-4" />
                     Captions {captions ? "on" : "off"}
                   </button>
-                  {tracks.length > 0 ? (
+                  {mode === "hype" && tracks.length > 0 ? (
                     <div className="flex items-center gap-1.5">
+                      <span className="text-sm text-muted-foreground">Music</span>
                       <Button
                         type="button"
                         onClick={togglePreview}
@@ -435,28 +411,53 @@ export function VideoDetail({
                   ) : null}
                 </div>
 
-                {/* Two clearly-labeled outputs from the same settings. */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                {/* Pick ONE mode, then Generate. */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div
+                      role="radiogroup"
+                      aria-label="Video mode"
+                      className="inline-flex rounded-full border border-border bg-background p-1"
+                    >
+                      {(
+                        [
+                          { id: "cinematic", label: "Cinematic" },
+                          { id: "hype", label: "Hype reel" },
+                          { id: "genz", label: "Gen Z 🔥" },
+                        ] as const
+                      ).map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={mode === m.id}
+                          onClick={() => setMode(m.id)}
+                          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                            mode === m.id
+                              ? "bg-foreground text-background"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 px-1 text-xs text-muted-foreground">
+                      {mode === "cinematic"
+                        ? "Faithful walking tour of your photos, polished voice."
+                        : mode === "hype"
+                          ? "Same tour set to music — punchy and social."
+                          : "Walking tour with hyped, Gen-Z slang narration."}
+                    </p>
+                  </div>
                   <Button
-                    onClick={handleCinematic}
-                    disabled={pending || !script.trim()}
-                    size="lg"
-                    variant="outline"
-                    className="rounded-full"
-                    title="Cinematic tour: your twin walking + talking through the home"
-                  >
-                    <Film className="size-5" />
-                    {pending ? "Working…" : "Cinematic walkthrough"}
-                  </Button>
-                  <Button
-                    onClick={handleHypeReel}
+                    onClick={() => handleGenerate()}
                     disabled={pending || !script.trim()}
                     size="lg"
                     className="rounded-full bg-accent text-accent-foreground hover:bg-foreground hover:text-accent"
-                    title="Same tour, set to music — a punchy social hype reel"
                   >
                     <Film className="size-5" />
-                    {pending ? "Working…" : "Hype reel"}
+                    {pending ? "Working…" : "Generate"}
                   </Button>
                 </div>
               </>
@@ -522,9 +523,9 @@ export function VideoDetail({
           <div className="flex flex-wrap justify-end gap-3">
             <Button
               onClick={() =>
-                video.heygen_video_id?.startsWith("reel:")
-                  ? handleHypeReel()
-                  : handleCinematic()
+                handleGenerate(
+                  video.heygen_video_id?.startsWith("reel:") ? "hype" : "cinematic",
+                )
               }
               disabled={pending || !cinematicReady}
               className="rounded-full"

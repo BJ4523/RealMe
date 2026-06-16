@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import {
-  generateWalkthroughScript,
   generateHypeReelScript,
   generateOpeningPitch,
   generateRoomNarration,
@@ -129,15 +128,13 @@ export async function generateForListing(formData: FormData) {
     .single();
   if (error || !video) redirect(`/listings/${listingId}`);
 
-  const script = await generateWalkthroughScript(listing as Tables<"listings">);
+  // The editable box is the ~20s OPENING PITCH (not the full walkthrough — that
+  // was overstuffing it to ~60s). Smaller Claude call → faster redirect too.
+  const pitch = await generateOpeningPitch(listing as Tables<"listings">);
 
   await supabase
     .from("videos")
-    .update({
-      script: script.narration,
-      script_segments: script.segments as unknown as Json,
-      status: "script_ready",
-    })
+    .update({ script: pitch, status: "script_ready" })
     .eq("id", video.id);
 
   revalidatePath("/videos");
