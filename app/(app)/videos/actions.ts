@@ -471,9 +471,10 @@ export async function submitCinematicVideo(
   if (photos.length === 0) {
     return fail("Add listing photos to generate a cinematic walkthrough.");
   }
-  // One AI room per photo (capped by the agent's chosen count): the twin walks
-  // through a faithful recreation of each.
-  const roomPhotos = photos.slice(0, rooms);
+  // Rooms = the INTERIOR photos, between the front-exterior opener (photos[0]) and
+  // the backyard closer (last photo), so each room clip is a distinct actual room —
+  // not a repeat of the bookends. Capped by the agent's chosen count.
+  const roomPhotos = photos.slice(1, Math.max(1, photos.length - 1)).slice(0, rooms);
 
   await supabase.from("videos").update({ status: "submitting" }).eq("id", videoId);
 
@@ -573,7 +574,10 @@ export async function submitHypeReelVideo(
     // Precision → the twin TALKING in their own voice), just with MUSIC built in.
     // Punchy short script so it lands ~15s.
     const { lookId, wardrobe } = resolveLook(avatar, outfitId, tucked);
-    const roomPhotos = photos.slice(0, HYPE_REEL_ROOMS);
+    // Interior rooms only (skip the front-exterior opener + backyard closer).
+    const roomPhotos = photos
+      .slice(1, Math.max(1, photos.length - 1))
+      .slice(0, HYPE_REEL_ROOMS);
     // Same vision-based room narration as cinematic — the agent talks about each
     // actual room — bookended by the punchy hype intro + outro.
     const [script, roomLines] = await Promise.all([
