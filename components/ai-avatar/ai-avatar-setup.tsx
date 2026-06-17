@@ -24,12 +24,22 @@ const VOICE_SCRIPT =
  * UPLOADED or recorded **in-app** (webcam snapshot + mic recording). Both upload
  * to the public bucket, then setupAiAvatar clones the voice + persists.
  */
-export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+export function AiAvatarSetup({
+  ready = false,
+  initialPhotoUrl = null,
+  initialHasVoice = false,
+}: {
+  ready?: boolean;
+  initialPhotoUrl?: string | null;
+  initialHasVoice?: boolean;
+}) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(initialPhotoUrl);
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  const [savedVoice, setSavedVoice] = useState(initialHasVoice);
   const [busy, setBusy] = useState<null | "photo" | "voice" | "save">(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(ready);
+  const voiceReady = !!voiceUrl || savedVoice;
 
   const [camOn, setCamOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
@@ -159,7 +169,10 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
         voiceSampleUrl: voiceUrl ?? undefined,
       });
       if (res?.error) setError(res.error);
-      else setDone(true);
+      else {
+        setDone(true);
+        if (voiceUrl) setSavedVoice(true);
+      }
     } finally {
       setBusy(null);
     }
@@ -214,6 +227,14 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
             {photoUrl ? <Check className="size-4 text-foreground" /> : <ImagePlus className="size-4" />}
             {busy === "photo" ? "Uploading…" : photoUrl ? "Photo ready" : "Agent photo"}
           </div>
+          {photoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoUrl}
+              alt="Agent"
+              className="mb-2 h-28 w-24 rounded-lg border border-border object-cover"
+            />
+          )}
           <div className="flex gap-2">
             <Button type="button" size="sm" variant="outline" className="rounded-full"
               disabled={busy === "photo"} onClick={() => (camOn ? stopTracks() : startCamera())}>
@@ -229,8 +250,14 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
         {/* Voice */}
         <div className="rounded-xl border border-dashed border-border bg-background p-4">
           <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
-            {voiceUrl ? <Check className="size-4 text-foreground" /> : <Mic className="size-4" />}
-            {busy === "voice" ? "Uploading…" : voiceUrl ? "Voice ready" : "Voice clip"}
+            {voiceReady ? <Check className="size-4 text-foreground" /> : <Mic className="size-4" />}
+            {busy === "voice"
+              ? "Uploading…"
+              : voiceUrl
+                ? "Voice ready"
+                : savedVoice
+                  ? "Voice cloned ✓"
+                  : "Voice clip"}
           </div>
           <p className="mb-1 text-xs text-muted-foreground">
             Hit record and read this aloud, naturally:

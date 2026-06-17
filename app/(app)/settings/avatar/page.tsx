@@ -88,7 +88,11 @@ export default async function AvatarSettingsPage() {
       />
 
       <div className="mb-8">
-        <AiAvatarSetup ready={aiReady} />
+        <AiAvatarSetup
+          ready={aiReady}
+          initialPhotoUrl={aiAvatar?.agent_image_url ?? null}
+          initialHasVoice={!!aiAvatar?.el_voice_id}
+        />
       </div>
 
       {current ? (
