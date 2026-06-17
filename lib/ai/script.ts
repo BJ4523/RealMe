@@ -183,10 +183,15 @@ export async function generateRoomNarration(
   listing: Listing,
   opener?: string,
   style: ReelStyle = "classic",
+  targetWords: number = 14,
 ): Promise<string[]> {
   if (!env.anthropicApiKey || roomPhotoUrls.length === 0) {
     return roomPhotoUrls.map((_, i) => roomLineFallback(i, listing, style));
   }
+  // Per-line length controls each room clip's duration (clip ≈ words/2.5 sec),
+  // which is the user's Length picker — shorter words = snappier, longer = detailed.
+  const lo = Math.max(5, targetWords - 3);
+  const hi = targetWords + 4;
   const place = listing.address ? ` at ${listing.address}` : "";
   // Interleave a label before each image so Claude maps lines → photos by order.
   type Block =
@@ -197,8 +202,8 @@ export async function generateRoomNarration(
       type: "text",
       text:
         `You are filming a walking home tour${place}. Here are the ${roomPhotoUrls.length} ` +
-        `rooms IN ORDER. Write ONE spoken line per room (8-16 words) — what the agent ` +
-        `says walking into THAT room.` +
+        `rooms IN ORDER. Write ONE spoken line per room (${lo}-${hi} words) — what the ` +
+        `agent says walking into THAT room.` +
         (opener ? ` The intro already said: "${opener}" — do NOT echo it.` : ""),
     },
   ];
@@ -213,7 +218,7 @@ export async function generateRoomNarration(
       style === "genz"
         ? "You are a HYPED, enthusiastic Gen-Z real-estate creator filming a home tour " +
           "for TikTok/Reels. For each room photo, write ONE short, high-energy spoken " +
-          "line (8-16 words) gassing up the space with natural Gen-Z slang — e.g. " +
+          `line (${lo}-${hi} words) gassing up the space with natural Gen-Z slang — e.g. ` +
           "'boujee', \"it's giving [vibe]\", 'no cap', 'obsessed', 'lowkey/highkey', " +
           "'ate', 'understood the assignment', 'elite', 'unreal', 'main-character energy'. " +
           "Name the room + a visible detail. CRITICAL — every line DISTINCT: vary the " +
@@ -221,8 +226,8 @@ export async function generateRoomNarration(
           "features. No greetings or call-to-action. Only what's visible. Authentic hype, " +
           "not cringe — like a real young agent who's genuinely losing it over this place."
         : "You are a charismatic real-estate agent filming a walking home tour. For each " +
-          "room photo, write ONE short, natural, spoken line (8-16 words): name the space " +
-          "and call out ONE specific detail you can SEE. " +
+          `room photo, write ONE short, natural, spoken line (${lo}-${hi} words): name the ` +
+          "space and call out ONE specific detail you can SEE. " +
           "CRITICAL — every line must be DISTINCT: never start two lines the same way " +
           "(absolutely NO repeating 'This stunning…'), do NOT reuse the same adjective " +
           "across lines (vary beyond 'stunning/gorgeous/soaring'), and don't repeat the " +

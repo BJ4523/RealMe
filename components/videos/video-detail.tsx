@@ -65,12 +65,18 @@ export function VideoDetail({
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
   const [mode, setMode] = useState<"cinematic" | "hype" | "genz">("cinematic");
+  const [length, setLength] = useState<"short" | "standard" | "long">("standard");
   const [previewing, setPreviewing] = useState(false);
 
   // Rooms come from the INTERIOR photos (between the opening + closing shots), so
   // never offer more rooms than the listing actually has photos for.
-  const maxRooms = Math.min(8, Math.max(1, photos.length - 2));
+  const maxRooms = Math.min(12, Math.max(1, photos.length - 2));
   const effRooms = Math.min(roomCount, maxRooms);
+  // Length picker → words per room line → clip seconds (clip ≈ words / 2.5).
+  const roomWords = length === "short" ? 8 : length === "long" ? 22 : 14;
+  const perRoomSec = Math.min(15, Math.max(4, Math.round(roomWords / 2.5)));
+  // Rough total: ~15s opener + rooms + ~4s closer (hype is a fixed ~15s reel).
+  const estSecs = mode === "hype" ? 15 : 15 + effRooms * perRoomSec + 4;
   const [pending, startTransition] = useTransition();
   const [rewriting, startRewrite] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -144,7 +150,15 @@ export function VideoDetail({
     startTransition(async () => {
       await updateScript(video.id, script);
       if (m === "hype") {
-        await submitHypeReelVideo(video.id, trackId, outfitId, captions, tucked, "classic");
+        await submitHypeReelVideo(
+          video.id,
+          trackId,
+          outfitId,
+          captions,
+          tucked,
+          "classic",
+          roomWords,
+        );
       } else {
         // Cinematic (classic voice) or Gen Z (cinematic walking tour, hyped slang).
         await submitCinematicVideo(
@@ -154,6 +168,7 @@ export function VideoDetail({
           captions,
           tucked,
           m === "genz" ? "genz" : "classic",
+          roomWords,
         );
       }
       const latest = await pollVideoStatus(video.id);
@@ -351,6 +366,27 @@ export function VideoDetail({
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Length picker — per-room pacing (drives total duration). */}
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span>Length</span>
+                    <Select
+                      value={length}
+                      onValueChange={(v) => setLength(v as typeof length)}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        aria-label="Video length / pace"
+                        className="w-auto rounded-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="short">Short &amp; snappy</SelectItem>
+                        <SelectItem value="standard">Standard</SelectItem>
+                        <SelectItem value="long">Detailed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {/* Captions toggle (on = burned, muted-friendly). */}
                   <button
                     type="button"
@@ -447,7 +483,8 @@ export function VideoDetail({
                         ? "Faithful walking tour of your photos, polished voice."
                         : mode === "hype"
                           ? "Same tour set to music — punchy and social."
-                          : "Walking tour with hyped, Gen-Z slang narration."}
+                          : "Walking tour with hyped, Gen-Z slang narration."}{" "}
+                      <span className="font-medium text-foreground">≈ {estSecs}s</span>
                     </p>
                   </div>
                   <Button

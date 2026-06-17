@@ -32,7 +32,7 @@ import type { Json, Tables } from "@/lib/types/database";
 
 /** Hard cap on AI room clips per cinematic walkthrough (one Seedance clip per
  * listing photo). The agent picks how many within this; caps cost/render time. */
-const MAX_CINEMATIC_ROOMS = 8;
+const MAX_CINEMATIC_ROOMS = 12;
 const DEFAULT_CINEMATIC_ROOMS = 2;
 /** AI room clips in a Hype Reel's middle tour (between the host bookends). Must
  * match ROOM_PHOTO_SHOTS in lib/video/hypereel.ts (beat-synced durations). */
@@ -486,6 +486,7 @@ export async function submitCinematicVideo(
   captions: boolean = false,
   tucked: boolean = true,
   style: ReelStyle = "classic",
+  roomWords: number = 14,
 ) {
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
@@ -555,7 +556,13 @@ export async function submitCinematicVideo(
     // text written by the user). The opening pitch (front) + CTA bookend it.
     const [hook, roomLines] = await Promise.all([
       generateHypeReelScript(listing as Tables<"listings">),
-      generateRoomNarration(roomPhotos, listing as Tables<"listings">, openingPitch, style),
+      generateRoomNarration(
+        roomPhotos,
+        listing as Tables<"listings">,
+        openingPitch,
+        style,
+        roomWords,
+      ),
     ]);
     const cta =
       style === "genz"
@@ -601,6 +608,7 @@ export async function submitHypeReelVideo(
   captions: boolean = false,
   tucked: boolean = true,
   style: ReelStyle = "classic",
+  roomWords: number = 14,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -659,6 +667,7 @@ export async function submitHypeReelVideo(
       listing as Tables<"listings">,
       intro,
       style,
+      roomWords,
     );
     const beats = [intro, ...roomLines, outro]
       .map((s) => s?.trim())
