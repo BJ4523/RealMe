@@ -27,14 +27,26 @@ type AiAvatar = Tables<"avatars"> & {
  * the resulting EL voice id on the active avatar.
  */
 export async function setupAiAvatar(input: {
-  agentImageUrl: string;
-  voiceSampleUrl: string;
+  agentImageUrl?: string;
+  voiceSampleUrl?: string;
   name?: string;
 }): Promise<{ ok?: boolean; error?: string }> {
   const { userId } = await requireUser();
   const supabase = await createClient();
-  const voiceId = await cloneVoice(input.name ?? "Agent voice", input.voiceSampleUrl);
-  if (!voiceId) return { error: "Voice cloning failed (check the sample + ElevenLabs key)." };
+  // Both optional so each flow can be tested alone — but need at least one.
+  if (!input.agentImageUrl && !input.voiceSampleUrl) {
+    return { error: "Add a photo or a voice clip." };
+  }
+
+  let voiceId: string | null = null;
+  if (input.voiceSampleUrl) {
+    voiceId = await cloneVoice(input.name ?? "Agent voice", input.voiceSampleUrl);
+    if (!voiceId) return { error: "Voice cloning failed (check the sample + ElevenLabs key)." };
+  }
+
+  const fields: Record<string, unknown> = {};
+  if (input.agentImageUrl) fields.agent_image_url = input.agentImageUrl;
+  if (voiceId) fields.el_voice_id = voiceId;
 
   const { data: existing } = await supabase
     .from("avatars")
@@ -42,22 +54,12 @@ export async function setupAiAvatar(input: {
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
-
-  const fields = {
-    agent_image_url: input.agentImageUrl,
-    el_voice_id: voiceId,
-  };
   if (existing) {
     await supabase.from("avatars").update(fields as never).eq("id", existing.id);
   } else {
     await supabase
       .from("avatars")
-      .insert({
-        user_id: userId,
-        is_active: true,
-        status: "ready",
-        ...fields,
-      } as never);
+      .insert({ user_id: userId, is_active: true, status: "ready", ...fields } as never);
   }
   revalidatePath("/settings/avatar");
   return { ok: true };
@@ -89,8 +91,10 @@ export async function submitAiReel(
     return { error };
   };
 
-  if (!avatar?.el_voice_id || !avatar.agent_image_url) {
-    return fail("Set up your AI avatar (photo + voice) first.");
+  // Photo is required (Runway likeness); voice is optional (no voice → silent
+  // Runway-only reel, for testing the video flow alone).
+  if (!avatar?.agent_image_url) {
+    return fail("Add an agent photo (Settings → Avatar) first.");
   }
   const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
   if (photos.length === 0) return fail("Add listing photos first.");

@@ -70,7 +70,7 @@ export async function uploadThumbnailFromVideo(
 }
 
 /** Re-host a (temporary) audio URL in our bucket and return a 24h signed URL. */
-async function hostAudio(
+export async function hostAudio(
   storage: Storage,
   url: string,
   path: string,
@@ -109,7 +109,7 @@ function probeDurSec(path: string): Promise<number> {
  * with trailing silence to the clip's duration when it's shorter. Returns the
  * hosted (possibly padded) audio URL. Leaves longer audio as-is.
  */
-async function padAudioToClip(
+export async function padAudioToClip(
   storage: Storage,
   clipUrl: string,
   audioUrl: string,

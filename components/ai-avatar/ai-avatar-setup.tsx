@@ -150,11 +150,14 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
   }
 
   async function save() {
-    if (!photoUrl || !voiceUrl) return;
+    if (!photoUrl && !voiceUrl) return;
     setError(null);
     setBusy("save");
     try {
-      const res = await setupAiAvatar({ agentImageUrl: photoUrl, voiceSampleUrl: voiceUrl });
+      const res = await setupAiAvatar({
+        agentImageUrl: photoUrl ?? undefined,
+        voiceSampleUrl: voiceUrl ?? undefined,
+      });
       if (res?.error) setError(res.error);
       else setDone(true);
     } finally {
@@ -268,7 +271,7 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
         onChange={(e) => e.target.files?.[0] && uploadBlob(e.target.files[0], "voice", (e.target.files[0].name.split(".").pop() || "mp3"))} />
 
       <Button type="button" onClick={save}
-        disabled={!photoUrl || !voiceUrl || busy === "save"} className="mt-3 w-full rounded-full">
+        disabled={(!photoUrl && !voiceUrl) || busy === "save"} className="mt-3 w-full rounded-full">
         {busy === "save" ? (
           <>
             <Loader2 className="size-4 animate-spin" /> Cloning voice…

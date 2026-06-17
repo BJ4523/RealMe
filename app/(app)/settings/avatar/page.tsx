@@ -67,7 +67,8 @@ export default async function AvatarSettingsPage() {
   const aiAvatar = current as
     | { el_voice_id?: string | null; agent_image_url?: string | null }
     | null;
-  const aiReady = !!(aiAvatar?.el_voice_id && aiAvatar.agent_image_url);
+  // "ready" badge shows once either piece is set up (each flow testable alone).
+  const aiReady = !!(aiAvatar?.agent_image_url || aiAvatar?.el_voice_id);
 
   return (
     <>
