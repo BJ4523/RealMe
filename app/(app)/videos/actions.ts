@@ -782,7 +782,7 @@ export async function pollVideoStatus(
     const seg = video.script_segments as {
       hypeReel?: { featureCallouts?: string[]; trackId?: string };
       beats?: string[];
-      lipsyncs?: string[];
+      lipsync?: string;
       captions?: boolean;
     } | null;
     const meta = seg?.hypeReel;
@@ -800,7 +800,7 @@ export async function pollVideoStatus(
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
-      lipsyncs: seg?.lipsyncs ?? null,
+      lipsync: seg?.lipsync ?? null,
       captions: seg?.captions ?? false,
       voiceId: avReel?.voice_id ?? null,
     });
@@ -829,9 +829,8 @@ export async function pollVideoStatus(
         script: video.script,
         beats:
           (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipsyncs:
-          (video.script_segments as { lipsyncs?: string[] } | null)?.lipsyncs ??
-          null,
+        lipsync:
+          (video.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
         captions:
           (video.script_segments as { captions?: boolean } | null)?.captions ??
           false,
@@ -917,6 +916,8 @@ export async function retryVideo(
     narration: _n,
     lipsyncs: _ls,
     narrations: _ns,
+    montageUrl: _mu,
+    montageNarration: _mn,
     lipOpener: _lo,
     lipCloser: _lc,
     roomNarration: _rn,

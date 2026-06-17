@@ -171,17 +171,17 @@ export type LipsyncResult =
   | { status: "ready"; videoUrl: string; lipsynced: boolean };
 
 /**
- * Assemble the lip-synced BODY. HeyGen lipsync needs a detectable speaker, so each
- * clip is prompted face-to-camera and lip-synced INDIVIDUALLY — a single lipsync
- * over the whole montage fails "no speaker detected" because faceless frames poison
- * detection. The agent walks room-by-room talking to camera; we lipsync every clip
- * to its own beat, then stitch them into one body.
+ * Assemble the lip-synced BODY with ONE continuous voice. The full script is spoken
+ * in a single TTS take (consistent pace — no per-clip speed drift), the silent
+ * face-to-camera clips are stitched into a montage sized to that take, and a SINGLE
+ * lipsync re-animates the speaker across the whole montage (enable_dynamic_duration
+ * absorbs any residual). Falls back to the silent montage + that one voice muxed if
+ * the lipsync can't find a speaker.
  *
- * State over script_segments {lipsyncs: string[], narrations: string[]}:
+ * State over script_segments {lipsync: string, montageUrl, montageNarration}:
  *   A) poll the silent clips
- *   B) per clip: TTS its beat, fit the audio to the raw clip, fire one lipsync
- *   C) poll all lipsyncs → per clip use the lip-synced video (or raw clip + its VO
- *      if that one failed) → stitch into one body.
+ *   B) one TTS of the whole script → stitch silent montage → fire ONE lipsync
+ *   C) poll the lipsync → that's the body (or VO-over-montage fallback).
  */
 export async function advanceLipsync(
   supabase: Db,
@@ -194,13 +194,14 @@ export async function advanceLipsync(
     beats: string[];
     voiceId: string | null;
     captions?: boolean;
-    /** Per-clip lipsync ids from script_segments (null until stage B fires them). */
-    lipsyncs: string[] | null;
+    /** Single whole-montage lipsync id (null until stage B fires it). */
+    lipsync: string | null;
   },
 ): Promise<LipsyncResult> {
   const { videoId, userId, clipIds, beats } = opts;
   const vId = opts.voiceId ?? DEFAULT_VOICE_ID;
   const storage = adminConfigured ? createAdminClient() : supabase;
+  const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length || 1;
 
   // STAGE A — the silent cinematic_avatar clips.
   const clipS = await Promise.all(clipIds.map(getCinematicClipStatus));
@@ -227,9 +228,11 @@ export async function advanceLipsync(
           : "Take a look at this space.")
     ).trim();
 
-  // STAGE B — per clip: TTS its beat, fit the audio to the RAW clip (no clip
-  // re-encode — that kills HeyGen's face detection), fire ONE lipsync per clip.
-  if (!opts.lipsyncs || opts.lipsyncs.length === 0) {
+  // STAGE B — ONE continuous TTS of the WHOLE script; stitch the silent clips sized
+  // to that take; fire ONE lipsync over the whole montage. This gives a single
+  // continuous voice with consistent pace (no per-clip speed drift), and
+  // enable_dynamic_duration absorbs any residual montage↔audio mismatch.
+  if (!opts.lipsync) {
     const { data: claimed } = await supabase
       .from("videos")
       .update({ status: "submitting" })
@@ -238,23 +241,33 @@ export async function advanceLipsync(
       .select("id");
     if (!claimed || claimed.length === 0) return { status: "processing" };
 
-    const perClip = await Promise.all(
-      clipUrls.map(async (clipUrl, i) => {
-        const audio = await generateSpeech(beatFor(i), vId);
-        const narration = await padAudioToClip(
-          storage,
-          clipUrl,
-          audio.audioUrl,
-          `${userId}/${videoId}-n${i}`,
-        );
-        const ls = await createLipsync({
-          videoUrl: clipUrl,
-          audioUrl: narration,
-          enableCaption: opts.captions ?? false,
-        });
-        return { lipsync: ls.lipsyncId, narration };
-      }),
-    );
+    const fullScript = clipIds.map((_, i) => beatFor(i)).join("  ");
+    const { audioUrl, duration: D } = await generateSpeech(fullScript, vId);
+    const totalW = clipIds.reduce((n, _, i) => n + words(beatFor(i)), 0);
+    const clipBufs = await Promise.all(clipUrls.map(fetchBuffer));
+    const montage = await assembleMontage({
+      scenes: clipBufs.map((b, i) => ({
+        kind: "video" as const,
+        videoBuf: b,
+        durationMs: Math.max(1200, Math.round((D * words(beatFor(i))) / totalW) * 1000),
+      })),
+      audio: {},
+    });
+    const montPath = `${userId}/${videoId}-montage.mp4`;
+    const mu = await storage.storage
+      .from("video-cache")
+      .upload(montPath, montage, { contentType: "video/mp4", upsert: true });
+    if (mu.error) throw new Error(`montage upload failed: ${mu.error.message}`);
+    const { data: msigned } = await storage.storage
+      .from("video-cache")
+      .createSignedUrl(montPath, 60 * 60 * 24);
+    if (!msigned?.signedUrl) throw new Error("montage sign failed");
+
+    const ls = await createLipsync({
+      videoUrl: msigned.signedUrl,
+      audioUrl,
+      enableCaption: opts.captions ?? false,
+    });
 
     const { data: row } = await supabase
       .from("videos")
@@ -268,21 +281,19 @@ export async function advanceLipsync(
         status: "processing",
         script_segments: {
           ...seg,
-          lipsyncs: perClip.map((p) => p.lipsync),
-          narrations: perClip.map((p) => p.narration),
+          lipsync: ls.lipsyncId,
+          montageUrl: msigned.signedUrl,
+          montageNarration: audioUrl,
         } as never,
       })
       .eq("id", videoId);
     return { status: "processing" };
   }
 
-  // STAGE C — poll all lipsyncs; once all resolve, stitch the body.
-  const statuses = await Promise.all(opts.lipsyncs.map(getLipsyncStatus));
-  if (statuses.some((s) => s.status === "processing")) {
-    return { status: "processing" };
-  }
+  // STAGE C — poll the single whole-montage lipsync; once done, that's the body.
+  const st = await getLipsyncStatus(opts.lipsync);
+  if (st.status === "processing") return { status: "processing" };
 
-  // Claim the heavy stitch (held through the caller's final upload — no re-claim).
   const { data: claimedC } = await supabase
     .from("videos")
     .update({ status: "submitting" })
@@ -296,37 +307,26 @@ export async function advanceLipsync(
     .select("script_segments")
     .eq("id", videoId)
     .maybeSingle();
-  const narrations =
-    (row2?.script_segments as { narrations?: string[] } | null)?.narrations ?? [];
+  const seg2 =
+    (row2?.script_segments as { montageUrl?: string; montageNarration?: string } | null) ?? {};
 
-  // Each clip: the lip-synced video if it completed, else the raw clip with its
-  // (fitted) VO muxed on — still the agent's voice on that clip, just no mouth-sync.
-  const sceneBufs = await Promise.all(
-    clipUrls.map(async (clipUrl, i) => {
-      const st = statuses[i];
-      if (st && st.status === "completed" && st.videoUrl) {
-        return fetchBuffer(st.videoUrl);
-      }
-      const clipBuf = await fetchBuffer(clipUrl);
-      const narrUrl = narrations[i];
-      const narrBuf = narrUrl ? await fetchBuffer(narrUrl).catch(() => null) : null;
-      if (!narrBuf) return clipBuf;
-      return assembleMontage({
-        scenes: [{ kind: "video" as const, videoBuf: clipBuf, durationMs: FULL_MS }],
-        audio: { narration: narrBuf },
-      });
-    }),
-  );
-
-  const body = await assembleMontage({
-    scenes: sceneBufs.map((b) => ({
-      kind: "video" as const,
-      videoBuf: b,
-      durationMs: FULL_MS,
-      keepAudio: true,
-    })),
-    audio: {},
-  });
+  let body: Buffer;
+  if (st.status === "completed" && st.videoUrl) {
+    body = await fetchBuffer(st.videoUrl);
+  } else {
+    // Lipsync failed (e.g. no speaker across the montage) → fall back to the silent
+    // montage with the one voice muxed over it (continuous VO, just no mouth-sync).
+    const mont = await fetchBuffer(seg2.montageUrl ?? clipUrls[0]);
+    const narr = seg2.montageNarration
+      ? await fetchBuffer(seg2.montageNarration).catch(() => null)
+      : null;
+    body = narr
+      ? await assembleMontage({
+          scenes: [{ kind: "video" as const, videoBuf: mont, durationMs: FULL_MS }],
+          audio: { narration: narr },
+        })
+      : mont;
+  }
 
   const bodyPath = `${userId}/${videoId}-body.mp4`;
   const up = await storage.storage
@@ -341,6 +341,6 @@ export async function advanceLipsync(
   return {
     status: "ready",
     videoUrl: signed.signedUrl,
-    lipsynced: statuses.some((s) => s.status === "completed"),
+    lipsynced: st.status === "completed",
   };
 }
