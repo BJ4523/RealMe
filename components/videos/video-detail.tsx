@@ -508,7 +508,7 @@ export function VideoDetail({
                           ? "Same tour set to music — punchy and social."
                           : mode === "genz"
                             ? "Walking tour with hyped, Gen-Z slang narration."
-                            : "Realistic Runway footage + expressive ElevenLabs voice (no lipsync)."}{" "}
+                            : "Realistic Runway footage + your cloned ElevenLabs voice, lip-synced."}{" "}
                       {mode !== "ai" && (
                         <span className="font-medium text-foreground">≈ {estSecs}s</span>
                       )}
