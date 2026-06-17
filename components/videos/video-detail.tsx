@@ -61,7 +61,11 @@ export function VideoDetail({
   const [script, setScript] = useState(initialVideo.script ?? "");
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? "");
   const [outfitId, setOutfitId] = useState(WARDROBES[0].id);
-  const [roomCount, setRoomCount] = useState(2);
+  // Default to the RECOMMENDED room count = all interior photos (capped at 12);
+  // the dropdown is a manual override.
+  const [roomCount, setRoomCount] = useState(() =>
+    Math.min(12, Math.max(1, photos.length - 2)),
+  );
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
   const [mode, setMode] = useState<"cinematic" | "hype" | "genz">("cinematic");
@@ -75,8 +79,13 @@ export function VideoDetail({
   // Length picker → words per room line → clip seconds (clip ≈ words / 2.5).
   const roomWords = length === "short" ? 8 : length === "long" ? 22 : 14;
   const perRoomSec = Math.min(15, Math.max(4, Math.round(roomWords / 2.5)));
-  // Rough total: ~15s opener + rooms + ~4s closer (hype is a fixed ~15s reel).
-  const estSecs = mode === "hype" ? 15 : 15 + effRooms * perRoomSec + 4;
+  // Rough total: opener + rooms + ~4s closer. Cinematic/Gen-Z open with the ~15s
+  // pitch; Hype opens with a punchy ~5s hook and is floored at 15s.
+  const openerSec = mode === "hype" ? 5 : 15;
+  const estSecs = Math.max(
+    mode === "hype" ? 15 : 0,
+    openerSec + effRooms * perRoomSec + 4,
+  );
   const [pending, startTransition] = useTransition();
   const [rewriting, startRewrite] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,6 +167,7 @@ export function VideoDetail({
           tucked,
           "classic",
           roomWords,
+          effRooms,
         );
       } else {
         // Cinematic (classic voice) or Gen Z (cinematic walking tour, hyped slang).
@@ -361,6 +371,7 @@ export function VideoDetail({
                         {Array.from({ length: maxRooms }, (_, i) => i + 1).map((n) => (
                           <SelectItem key={n} value={String(n)}>
                             {n}
+                            {n === maxRooms ? " · all rooms (recommended)" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>

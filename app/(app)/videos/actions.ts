@@ -609,6 +609,7 @@ export async function submitHypeReelVideo(
   tucked: boolean = true,
   style: ReelStyle = "classic",
   roomWords: number = 14,
+  roomCount: number = HYPE_REEL_ROOMS,
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -646,10 +647,12 @@ export async function submitHypeReelVideo(
     // Precision → the twin TALKING in their own voice), just with MUSIC built in.
     // Punchy short script so it lands ~15s.
     const { lookId, wardrobe } = resolveLook(avatar, outfitId, tucked);
-    // Interior rooms only (skip the front-exterior opener + backyard closer).
+    // Interior rooms only (skip the front-exterior opener + backyard closer),
+    // capped to the chosen room count.
+    const rooms = Math.min(Math.max(1, Math.round(roomCount)), MAX_CINEMATIC_ROOMS);
     const roomPhotos = photos
       .slice(1, Math.max(1, photos.length - 1))
-      .slice(0, HYPE_REEL_ROOMS);
+      .slice(0, rooms);
     // Same vision-based room narration as cinematic — the agent talks about each
     // actual room — bookended by the punchy hype intro + outro.
     const script = await generateHypeReelScript(listing as Tables<"listings">);

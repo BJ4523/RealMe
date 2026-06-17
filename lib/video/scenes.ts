@@ -267,12 +267,11 @@ export async function assembleMontage(opts: {
       }
       const voiceSrc = narrPath ? "[2:a]" : "[0:a]";
 
-      // FIXED length, independent of the song: clamp to HYPE_REEL_TARGET_MS and
-      // fade out at the very end. If the montage is shorter than the target, hold
-      // the last frame (tpad) so the video is always exactly the target length;
-      // the looped music is bounded by the final `-t`.
+      // Length = the body's own length (driven by the Rooms + Length pickers), so
+      // the reel is never truncated. Music loops + trims to it, video fades at the
+      // end. (Floored at a punchy minimum so a 1-room reel still feels like a reel.)
       const realMs = await probeDurationMs(concatV);
-      const targetMs = HYPE_REEL_TARGET_MS;
+      const targetMs = Math.max(realMs, HYPE_REEL_TARGET_MS);
       const Dsec = (targetMs / 1000).toFixed(3);
       const padSec = Math.max(0, (targetMs - realMs) / 1000);
       const vFadeStart = Math.max(0, targetMs / 1000 - 1.0).toFixed(3);

@@ -40,8 +40,9 @@ export function normalizeSpeechText(text: string): string {
 /**
  * Generate narration audio in a given (cloned) voice via HeyGen's standalone
  * TTS. Used for cinematic walkthroughs, where the Seedance clips are silent and
- * the agent's voice is muxed over the stitched footage. Verified live:
- * POST /v1/audio/text_to_speech { voice_id, text } -> { audio_url, duration }.
+ * the agent's voice is muxed over the stitched footage. Uses the v3 starfish
+ * (Fish Audio) engine — much more natural than the old v1 TTS. Verified live:
+ * POST /v3/voices/speech { voice_id, text, speed } -> { audio_url, duration }.
  */
 export async function generateSpeech(
   text: string,
