@@ -316,21 +316,16 @@ function cinematicPrompt(
     // FIDELITY FIRST: faithfully recreate the EXACT room in the reference image.
     "Recreate the room in the reference image accurately: the same layout, furniture,",
     "wall colors, flooring, windows, fixtures and finishes. Do NOT invent or rearrange.",
-    `Inside that recreated room of ${place}, a charismatic, confident, ANIMATED real-estate agent ${wardrobe}`,
-    "gives an enthusiastic walking tour TO CAMERA — moving through the room while facing the",
-    "lens, gesturing energetically and presenting its features like a host walking backward",
-    "leading you in. Expressive, upbeat, high-energy.",
-    // Being FILMED by a videographer — NOT a phone selfie. Both hands free to present.
-    "The agent is being professionally FILMED by a separate camera operator — this is",
-    "NOT a selfie: both hands are FREE to gesture and present, and the agent is NOT",
-    "holding a phone, camera, microphone or any device, and no arm is extended toward",
-    "the lens. Authentic, natural, social-native energy — not a glossy commercial.",
-    // EVERY clip is lip-synced now, so the agent's face must stay camera-visible the
-    // whole shot (HeyGen lipsync needs a detectable speaking face). Walking is great,
-    // but keep the face toward the camera and actively talking throughout.
-    "The agent's FACE stays clearly visible and toward the camera the ENTIRE clip,",
-    "actively speaking to the viewer, mouth moving naturally — well-lit, head and",
-    "shoulders prominent. Never turn fully away, walk out of frame, or hide the face.",
+    `Inside that recreated room of ${place}, a charismatic, confident real-estate agent ${wardrobe}`,
+    "walks through and SHOWS the space — moving naturally, gesturing to its features,",
+    "glancing around the room. This is B-ROLL: the agent is touring/presenting, NOT",
+    "talking to the camera — mouth relaxed and CLOSED, not speaking (the voiceover plays",
+    "over this). Calm, natural, premium.",
+    // Being FILMED by a videographer — NOT a phone selfie. Both hands free.
+    "The agent is being professionally FILMED by a separate camera operator — NOT a",
+    "selfie: both hands free, not holding a phone/camera, no arm extended to the lens.",
+    "Keep the agent in frame throughout (never an empty room); they may look toward the",
+    "space or the camera, but are NOT mid-sentence — no talking-head, no lip movement.",
     // Single subject.
     "EXACTLY ONE person in the scene — the agent, completely alone. No other people,",
     "bystanders, background figures, reflections or photos of other people.",
@@ -800,7 +795,6 @@ export async function pollVideoStatus(
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg?.beats ?? null,
-      lipsync: seg?.lipsync ?? null,
       captions: seg?.captions ?? false,
       voiceId: avReel?.voice_id ?? null,
     });
@@ -829,8 +823,6 @@ export async function pollVideoStatus(
         script: video.script,
         beats:
           (video.script_segments as { beats?: string[] } | null)?.beats ?? null,
-        lipsync:
-          (video.script_segments as { lipsync?: string } | null)?.lipsync ?? null,
         captions:
           (video.script_segments as { captions?: boolean } | null)?.captions ??
           false,

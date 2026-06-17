@@ -51,8 +51,6 @@ interface AssemblableVideo {
   script: string | null;
   /** Per-clip narration, 1:1 with clips: [openerBeat, roomBeats…, closerBeat]. */
   beats?: string[] | null;
-  /** Whole-montage lipsync id, set once stage B has fired it. */
-  lipsync?: string | null;
   /** Burn captions onto the reel (default off). */
   captions?: boolean | null;
   heygen_video_id: string | null;
@@ -94,7 +92,6 @@ export async function assembleCinematicVideo(
       clipIds: rooms,
       beats,
       voiceId,
-      lipsync: video.lipsync ?? null,
       captions: video.captions ?? false,
     });
     if (res.status === "processing") return "processing";

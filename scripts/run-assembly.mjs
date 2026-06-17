@@ -62,7 +62,6 @@ for (let i = 1; i <= 20; i++) {
       featureCallouts: meta?.featureCallouts ?? [],
       trackId: meta?.trackId ?? null,
       beats: seg.beats ?? null,
-      lipsync: seg.lipsync ?? null,
       captions: seg.captions ?? false,
       voiceId: av?.voice_id ?? null,
     });
@@ -70,7 +69,6 @@ for (let i = 1; i <= 20; i++) {
     result = await assembleCinematicVideo(sb, {
       id: v.id, user_id: v.user_id, script: v.script,
       beats: seg.beats ?? null,
-      lipsync: seg.lipsync ?? null,
       captions: seg.captions ?? false,
       heygen_video_id: v.heygen_video_id, photos,
     }, av?.voice_id ?? null);
