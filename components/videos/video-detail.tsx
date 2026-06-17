@@ -17,6 +17,9 @@ import { toast } from "sonner";
 import {
   submitCinematicVideo,
   submitHypeReelVideo,
+} from "@/app/(app)/videos/actions";
+import { submitAiReel } from "@/app/(app)/videos/ai-actions";
+import {
   updateScript,
   pollVideoStatus,
   rewriteOpeningPitch,
@@ -44,6 +47,7 @@ export function VideoDetail({
   initialVideo,
   cinematicReady = false,
   hasTwin = false,
+  aiReady = false,
   photos = [],
   tracks = [],
 }: {
@@ -52,6 +56,8 @@ export function VideoDetail({
   cinematicReady?: boolean;
   /** True when the active avatar is a ready digital twin (consent may still be pending). */
   hasTwin?: boolean;
+  /** True when the AI avatar (Runway photo + ElevenLabs voice) is set up. */
+  aiReady?: boolean;
   /** Listing photos in tour order (first = opener, last = closer) — reorderable. */
   photos?: { url: string; caption?: string }[];
   /** Hype Reel music tracks the agent can pick from. */
@@ -68,7 +74,9 @@ export function VideoDetail({
   );
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
-  const [mode, setMode] = useState<"cinematic" | "hype" | "genz">("cinematic");
+  const [mode, setMode] = useState<"cinematic" | "hype" | "genz" | "ai">(
+    "cinematic",
+  );
   const [length, setLength] = useState<"short" | "standard" | "long">("standard");
   const [previewing, setPreviewing] = useState(false);
 
@@ -153,12 +161,15 @@ export function VideoDetail({
     });
   }
 
-  function handleGenerate(forceMode?: "cinematic" | "hype" | "genz") {
+  function handleGenerate(forceMode?: "cinematic" | "hype" | "genz" | "ai") {
     const m = forceMode ?? mode;
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      if (m === "hype") {
+      if (m === "ai") {
+        // Runway + ElevenLabs pipeline (real footage + expressive VO, no lipsync).
+        await submitAiReel(video.id, { roomCount: effRooms, style: "classic" });
+      } else if (m === "hype") {
         await submitHypeReelVideo(
           video.id,
           trackId,
@@ -471,7 +482,8 @@ export function VideoDetail({
                           { id: "cinematic", label: "Cinematic" },
                           { id: "hype", label: "Hype reel" },
                           { id: "genz", label: "Gen Z 🔥" },
-                        ] as const
+                          ...(aiReady ? [{ id: "ai", label: "AI ✨" }] : []),
+                        ] as { id: "cinematic" | "hype" | "genz" | "ai"; label: string }[]
                       ).map((m) => (
                         <button
                           key={m.id}
@@ -494,8 +506,12 @@ export function VideoDetail({
                         ? "Faithful walking tour of your photos, polished voice."
                         : mode === "hype"
                           ? "Same tour set to music — punchy and social."
-                          : "Walking tour with hyped, Gen-Z slang narration."}{" "}
-                      <span className="font-medium text-foreground">≈ {estSecs}s</span>
+                          : mode === "genz"
+                            ? "Walking tour with hyped, Gen-Z slang narration."
+                            : "Realistic Runway footage + expressive ElevenLabs voice (no lipsync)."}{" "}
+                      {mode !== "ai" && (
+                        <span className="font-medium text-foreground">≈ {estSecs}s</span>
+                      )}
                     </p>
                   </div>
                   <Button

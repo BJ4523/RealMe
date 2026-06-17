@@ -7,6 +7,7 @@ import { getTwinConsentStatus, isConsentVerified } from "@/lib/heygen/avatar";
 import { deleteAvatar } from "@/app/(app)/onboarding/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { AvatarUploader } from "@/components/avatar/avatar-uploader";
+import { AiAvatarSetup } from "@/components/ai-avatar/ai-avatar-setup";
 import { ConsentButton } from "@/components/avatar/consent-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -63,6 +64,11 @@ export default async function AvatarSettingsPage() {
     videoUrl = signed?.signedUrl ?? null;
   }
 
+  const aiAvatar = current as
+    | { el_voice_id?: string | null; agent_image_url?: string | null }
+    | null;
+  const aiReady = !!(aiAvatar?.el_voice_id && aiAvatar.agent_image_url);
+
   return (
     <>
       <Link
@@ -79,6 +85,10 @@ export default async function AvatarSettingsPage() {
             : "Record or upload one short clip of yourself — we build a digital twin that looks and sounds like you."
         }
       />
+
+      <div className="mb-8">
+        <AiAvatarSetup ready={aiReady} />
+      </div>
 
       {current ? (
         <Card className="mb-8 rounded-3xl">

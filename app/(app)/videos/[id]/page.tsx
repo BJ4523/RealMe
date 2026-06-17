@@ -39,10 +39,12 @@ export default async function VideoPage({
   // Cinematic mode needs a consent-verified digital twin — check the active one.
   const { data: avatar } = await supabase
     .from("avatars")
-    .select("heygen_avatar_id, heygen_asset_id, status")
+    .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
+  const aiAv = avatar as { el_voice_id?: string | null; agent_image_url?: string | null } | null;
+  const aiReady = !!(aiAv?.el_voice_id && aiAv.agent_image_url);
   const isTwin = !!(
     avatar?.status === "ready" &&
     avatar.heygen_asset_id &&
@@ -79,6 +81,7 @@ export default async function VideoPage({
         initialVideo={videoRow}
         cinematicReady={cinematicReady}
         hasTwin={isTwin}
+        aiReady={aiReady}
         photos={photos}
         tracks={TRACKS.map((t) => ({
           id: t.id,
