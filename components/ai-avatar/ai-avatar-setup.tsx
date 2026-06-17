@@ -206,7 +206,7 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
           <div className="flex gap-2">
             <Button type="button" size="sm" variant="outline" className="rounded-full"
               disabled={busy === "photo"} onClick={() => (camOn ? stopTracks() : startCamera())}>
-              <Camera className="size-4" /> Record
+              <Camera className="size-4" /> Take picture
             </Button>
             <Button type="button" size="sm" variant="ghost" className="rounded-full"
               disabled={busy === "photo"} onClick={() => photoRef.current?.click()}>
