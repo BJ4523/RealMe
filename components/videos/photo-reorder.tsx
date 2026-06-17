@@ -1,8 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { GripVertical, Home, Flag, Loader2, X, Plus } from "lucide-react";
+import { GripVertical, Home, Flag, Loader2, X, Plus, Check } from "lucide-react";
 import { saveTourOrder } from "@/app/(app)/videos/actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type Photo = { url: string; caption?: string };
 
@@ -10,27 +19,27 @@ type Photo = { url: string; caption?: string };
  * Drag-and-drop reorder + delete + add for THIS video's tour order — an ordered
  * selection drawn from the listing's photos. Photo order IS the tour sequence:
  * first = opening (front exterior), last = closing shot, interiors between = the
- * room walk. Delete removes a photo from the tour (back into the listing pool);
- * "Add" pulls any listing photo not currently in the tour. Persists to the VIDEO
- * (the listing's full photo set is never mutated). Native HTML5 DnD.
+ * room walk. "Add" opens a modal of the listing's photos to pull from (a photo may
+ * appear more than once). Persists to the VIDEO; the listing's photo set is never
+ * mutated. Native HTML5 DnD.
  */
 export function PhotoReorder({
   videoId,
   photos: initial,
-  available: initialAvailable = [],
+  listingPool = [],
 }: {
   videoId: string;
   photos: Photo[];
-  available?: Photo[];
+  listingPool?: Photo[];
 }) {
   const [photos, setPhotos] = useState<Photo[]>(initial);
-  const [available, setAvailable] = useState<Photo[]>(initialAvailable);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
-  const [picking, setPicking] = useState(false);
+  const [open, setOpen] = useState(false);
   const [saving, startSave] = useTransition();
 
   const last = photos.length - 1;
+  const countInTour = (url: string) => photos.filter((p) => p.url === url).length;
 
   function persist(next: Photo[]) {
     setPhotos(next);
@@ -49,15 +58,11 @@ export function PhotoReorder({
 
   function remove(i: number) {
     if (photos.length <= 1) return; // keep at least one
-    const removed = photos[i];
-    setAvailable((a) => [removed, ...a]); // back into the pool
     persist(photos.filter((_, idx) => idx !== i));
   }
 
-  function addFromPool(p: Photo) {
-    setAvailable((a) => a.filter((x) => x.url !== p.url));
-    persist([...photos, p]);
-    if (available.length <= 1) setPicking(false);
+  function add(p: Photo) {
+    persist([...photos, { url: p.url, caption: p.caption }]);
   }
 
   return (
@@ -85,7 +90,7 @@ export function PhotoReorder({
       <ol className="flex gap-2 overflow-x-auto pb-1">
         {photos.map((p, i) => (
           <li
-            key={p.url}
+            key={`${p.url}-${i}`}
             draggable
             onDragStart={() => setDragIdx(i)}
             onDragEnter={() => setOverIdx(i)}
@@ -139,55 +144,76 @@ export function PhotoReorder({
           </li>
         ))}
 
-        {/* Add-from-listing tile (only when the listing has more photos) */}
-        {available.length > 0 && (
-          <li className="shrink-0">
-            <button
-              type="button"
-              onClick={() => setPicking((v) => !v)}
-              aria-label="Add a photo from your listing"
-              className={`flex h-24 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed transition ${
-                picking
-                  ? "border-foreground text-foreground"
-                  : "border-border bg-background text-muted-foreground hover:border-foreground hover:text-foreground"
-              }`}
-            >
-              <Plus className="size-4" />
-              <span className="text-[10px]">Add</span>
-            </button>
-          </li>
-        )}
+        {/* Add-from-listing tile → opens the picker modal */}
+        <li className="shrink-0">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Add a photo from your listing"
+            className="flex h-24 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-background text-muted-foreground transition hover:border-foreground hover:text-foreground"
+          >
+            <Plus className="size-4" />
+            <span className="text-[10px]">Add</span>
+          </button>
+        </li>
       </ol>
 
-      {/* Picker: listing photos not currently in the tour */}
-      {picking && available.length > 0 && (
-        <div className="mt-3 rounded-xl border border-border bg-background p-2">
-          <p className="mb-2 text-xs text-muted-foreground">
-            Tap a listing photo to add it to the tour:
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {available.map((p) => (
-              <button
-                key={p.url}
-                type="button"
-                onClick={() => addFromPool(p)}
-                className="relative shrink-0 rounded-lg ring-foreground transition hover:ring-2"
-                title="Add to tour"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.url}
-                  alt={p.caption ?? "Listing photo"}
-                  className="h-16 w-14 rounded-lg border border-border object-cover"
-                />
-                <span className="absolute inset-0 grid place-items-center rounded-lg bg-foreground/0 text-background opacity-0 transition hover:bg-foreground/30 hover:opacity-100">
-                  <Plus className="size-4" />
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add from your listing photos</DialogTitle>
+            <DialogDescription>
+              Tap a photo to add it to the tour. You can add the same photo more than
+              once (e.g. feature a room at the start and the end).
+            </DialogDescription>
+          </DialogHeader>
+
+          {listingPool.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              This listing has no photos yet. Add photos to the listing first.
+            </p>
+          ) : (
+            <div className="grid max-h-[55vh] grid-cols-3 gap-2 overflow-y-auto p-1 sm:grid-cols-4">
+              {listingPool.map((p) => {
+                const n = countInTour(p.url);
+                return (
+                  <button
+                    key={p.url}
+                    type="button"
+                    onClick={() => add(p)}
+                    className="group relative aspect-[3/4] overflow-hidden rounded-lg border border-border ring-foreground transition hover:ring-2"
+                    title={n ? `In tour ×${n} — tap to add again` : "Add to tour"}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.url}
+                      alt={p.caption ?? "Listing photo"}
+                      className="size-full object-cover"
+                    />
+                    {n > 0 && (
+                      <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-foreground/85 px-1.5 py-0.5 text-[10px] font-medium text-background">
+                        <Check className="size-2.5" /> {n > 1 ? `×${n}` : "In tour"}
+                      </span>
+                    )}
+                    <span className="absolute inset-0 grid place-items-center bg-foreground/0 text-background opacity-0 transition group-hover:bg-foreground/30 group-hover:opacity-100">
+                      <Plus className="size-5" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <DialogFooter>
+            <span className="mr-auto self-center text-xs text-muted-foreground">
+              {photos.length} photo{photos.length === 1 ? "" : "s"} in tour
+            </span>
+            <Button type="button" onClick={() => setOpen(false)} className="rounded-full">
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

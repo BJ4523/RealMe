@@ -40,7 +40,6 @@ export default async function VideoPage({
   const byUrl = new Map(pool.map((p) => [p.url, p]));
   const tourUrls = tourPhotosFor(videoRow.script_segments, listing?.photos);
   const photos = tourUrls.map((u) => byUrl.get(u) ?? { url: u });
-  const availablePhotos = pool.filter((p) => !tourUrls.includes(p.url));
 
   // Cinematic mode needs a consent-verified digital twin — check the active one.
   const { data: avatar } = await supabase
@@ -90,7 +89,7 @@ export default async function VideoPage({
         hasTwin={isTwin}
         aiReady={aiReady}
         photos={photos}
-        availablePhotos={availablePhotos}
+        listingPool={pool}
         tracks={TRACKS.map((t) => ({
           id: t.id,
           title: t.title,

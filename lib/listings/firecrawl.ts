@@ -83,10 +83,22 @@ function extractGalleryFromHtml(html: string): string[] {
     }
     return out;
   };
-  // Zillow — full-res gallery size (cc_ft_1536); dedup by photo id.
-  const zillow = collect(
-    /https:\/\/photos\.zillowstatic\.com\/fp\/([a-f0-9]+)-cc_ft_1536\.jpg/g,
-  );
+  // Zillow — gallery photos are embedded at MANY sizes (cc_ft_384/576/768/960/
+  // 1152/1536, uncropped_*, webp). Match any size, dedup by photo id, and normalize
+  // to full-res (cc_ft_1536 is a universal CDN transform). Matching only one size
+  // misses most of the gallery — falling back to the LLM's ~3-5 photos.
+  const zillowIds = new Set<string>();
+  const zillow: string[] = [];
+  const zre =
+    /photos\.zillowstatic\.com\/fp\/([a-f0-9]{12,})-[a-z0-9_]+\.(?:jpg|jpeg|webp|png)/gi;
+  let zm: RegExpExecArray | null;
+  while ((zm = zre.exec(html))) {
+    const id = zm[1];
+    if (!zillowIds.has(id)) {
+      zillowIds.add(id);
+      zillow.push(`https://photos.zillowstatic.com/fp/${id}-cc_ft_1536.jpg`);
+    }
+  }
   if (zillow.length) return zillow;
   // Redfin — listing photo CDN.
   const redfin = collect(/https:\/\/ssl\.cdn-redfin\.com\/photo\/[^\s"'<>\\]+?\.jpg/g);

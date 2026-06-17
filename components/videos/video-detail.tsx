@@ -49,7 +49,7 @@ export function VideoDetail({
   hasTwin = false,
   aiReady = false,
   photos = [],
-  availablePhotos = [],
+  listingPool = [],
   tracks = [],
 }: {
   initialVideo: Video;
@@ -61,8 +61,8 @@ export function VideoDetail({
   aiReady?: boolean;
   /** This video's tour order (first = opener, last = closer) — reorderable. */
   photos?: { url: string; caption?: string }[];
-  /** Listing photos NOT in the tour — the pool the "Add" picker draws from. */
-  availablePhotos?: { url: string; caption?: string }[];
+  /** The listing's full photo pool — the "Add" modal draws from this. */
+  listingPool?: { url: string; caption?: string }[];
   /** Hype Reel music tracks the agent can pick from. */
   tracks?: { id: string; title: string; previewUrl: string }[];
 }) {
@@ -317,7 +317,7 @@ export function VideoDetail({
             );
           })()}
           {photos.length >= 1 && (
-            <PhotoReorder videoId={video.id} photos={photos} available={availablePhotos} />
+            <PhotoReorder videoId={video.id} photos={photos} listingPool={listingPool} />
           )}
           <div className="flex flex-col gap-4">
             {cinematicReady ? (
