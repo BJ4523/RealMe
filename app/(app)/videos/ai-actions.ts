@@ -40,8 +40,11 @@ export async function setupAiAvatar(input: {
 
   let voiceId: string | null = null;
   if (input.voiceSampleUrl) {
-    voiceId = await cloneVoice(input.name ?? "Agent voice", input.voiceSampleUrl);
-    if (!voiceId) return { error: "Voice cloning failed (check the sample + ElevenLabs key)." };
+    try {
+      voiceId = await cloneVoice(input.name ?? "Agent voice", input.voiceSampleUrl);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Voice cloning failed." };
+    }
   }
 
   const fields: Record<string, unknown> = {};

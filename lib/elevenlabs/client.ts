@@ -65,21 +65,28 @@ export async function speak(
  * ElevenLabs voice_id to store on the avatar. Null on failure so onboarding can
  * fall back. (Onboarding "voice upload" path.)
  */
-export async function cloneVoice(
-  name: string,
-  sampleUrl: string,
-): Promise<string | null> {
+export async function cloneVoice(name: string, sampleUrl: string): Promise<string> {
+  const sample = await fetch(sampleUrl);
+  if (!sample.ok) throw new Error(`Couldn't fetch the voice sample (${sample.status}).`);
+  const buf = Buffer.from(await sample.arrayBuffer());
+  const ct = sample.headers.get("content-type") || "audio/webm";
+  const ext = /mp4|m4a/.test(ct) ? "m4a" : /mpeg|mp3/.test(ct) ? "mp3" : /wav/.test(ct) ? "wav" : "webm";
+  // A named File gives the multipart upload a proper filename/type.
+  const file = new File([buf], `voice-sample.${ext}`, { type: ct });
   try {
-    const sample = await fetch(sampleUrl);
-    if (!sample.ok) return null;
-    const blob = await sample.blob();
     const created = await client().voices.ivc.create({
       name,
-      files: [blob],
+      files: [file],
       removeBackgroundNoise: true,
     });
-    return created.voiceId ?? null;
-  } catch {
-    return null;
+    if (!created.voiceId) throw new Error("no voice id returned");
+    return created.voiceId;
+  } catch (e) {
+    // Surface ElevenLabs' real message (e.g. missing permission / plan).
+    const msg =
+      (e as { body?: { detail?: { message?: string } } })?.body?.detail?.message ??
+      (e as Error)?.message ??
+      "voice clone failed";
+    throw new Error(`ElevenLabs: ${msg}`);
   }
 }
