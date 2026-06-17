@@ -7,8 +7,16 @@ import { Button } from "@/components/ui/button";
 import { setupAiAvatar } from "@/app/(app)/videos/ai-actions";
 
 const BUCKET = "listing-photos"; // public bucket → Runway/ElevenLabs can fetch
-const safe = (n: string) =>
-  n.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
+
+// A natural ~30s paragraph to read aloud — varied sounds + an upbeat real-estate
+// cadence give ElevenLabs a strong, on-brand voice clone.
+const VOICE_SCRIPT =
+  "Hey everyone, thanks so much for stopping by — I'm really excited to show you " +
+  "around today! This home has incredible natural light, beautiful open spaces, and " +
+  "all the little details that make a place feel special. Whether you're cooking in " +
+  "the kitchen, relaxing in the living room, or unwinding out back, there's something " +
+  "here for everyone. If you love what you see, reach out and let's set up a private " +
+  "tour — I'd love to help you find your dream home.";
 
 /**
  * One-time setup for the Runway + ElevenLabs pipeline. The agent's reference
@@ -221,6 +229,16 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
             {voiceUrl ? <Check className="size-4 text-foreground" /> : <Mic className="size-4" />}
             {busy === "voice" ? "Uploading…" : voiceUrl ? "Voice ready" : "Voice clip"}
           </div>
+          <p className="mb-1 text-xs text-muted-foreground">
+            Hit record and read this aloud, naturally:
+          </p>
+          <blockquote
+            className={`mb-2 max-h-28 overflow-y-auto rounded-lg border-l-2 p-2 text-xs italic ${
+              micOn ? "border-foreground bg-muted/60" : "border-border bg-muted/30"
+            }`}
+          >
+            {VOICE_SCRIPT}
+          </blockquote>
           <div className="flex items-center gap-2">
             {micOn ? (
               <Button type="button" size="sm" className="rounded-full" onClick={stopMic}>
@@ -237,6 +255,10 @@ export function AiAvatarSetup({ ready = false }: { ready?: boolean }) {
               Upload
             </Button>
           </div>
+          {voiceUrl && !micOn && (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <audio src={voiceUrl} controls className="mt-2 w-full" />
+          )}
         </div>
       </div>
 
