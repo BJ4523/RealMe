@@ -8,7 +8,7 @@ import { DeleteVideoButton } from "@/components/videos/delete-video-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { VideoDetail } from "@/components/videos/video-detail";
 import { TRACKS } from "@/lib/video/music/tracks";
-import { listingPhotos } from "@/lib/format";
+import { listingPhotos, tourPhotosFor } from "@/lib/format";
 
 // The page-poll server action (pollVideoStatus) runs the heavy ffmpeg stitch +
 // lipsync inline. Give it the full window so Stage B finishes in one invocation
@@ -34,7 +34,13 @@ export default async function VideoPage({
 
   const { listings, ...videoRow } = video;
   const listing = listings as { address: string; photos: unknown } | null;
-  const photos = listingPhotos(listing?.photos);
+  // The listing's photos are the pool; THIS video's tour is a saved ordered subset
+  // (script_segments.tourPhotos), defaulting to all photos. "Add" draws from the rest.
+  const pool = listingPhotos(listing?.photos);
+  const byUrl = new Map(pool.map((p) => [p.url, p]));
+  const tourUrls = tourPhotosFor(videoRow.script_segments, listing?.photos);
+  const photos = tourUrls.map((u) => byUrl.get(u) ?? { url: u });
+  const availablePhotos = pool.filter((p) => !tourUrls.includes(p.url));
 
   // Cinematic mode needs a consent-verified digital twin — check the active one.
   const { data: avatar } = await supabase
@@ -84,6 +90,7 @@ export default async function VideoPage({
         hasTwin={isTwin}
         aiReady={aiReady}
         photos={photos}
+        availablePhotos={availablePhotos}
         tracks={TRACKS.map((t) => ({
           id: t.id,
           title: t.title,

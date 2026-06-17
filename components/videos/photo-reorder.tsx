@@ -1,45 +1,41 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { GripVertical, Home, Flag, Loader2, X, ImagePlus } from "lucide-react";
-import { saveListingPhotos } from "@/app/(app)/videos/actions";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useTransition } from "react";
+import { GripVertical, Home, Flag, Loader2, X, Plus } from "lucide-react";
+import { saveTourOrder } from "@/app/(app)/videos/actions";
 
 type Photo = { url: string; caption?: string };
 
-const BUCKET = "listing-photos";
-const safeName = (n: string) =>
-  n.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
-
 /**
- * Drag-and-drop reorder + delete + add for the listing photos used in video
- * generation. Photo order IS the tour sequence: first = opening (front exterior),
- * last = closing shot, interiors between = the room walk. Every change persists to
- * the listing (authoritative set), so the next Generate uses it. Native HTML5 DnD;
- * new photos upload straight to the public listing-photos bucket.
+ * Drag-and-drop reorder + delete + add for THIS video's tour order — an ordered
+ * selection drawn from the listing's photos. Photo order IS the tour sequence:
+ * first = opening (front exterior), last = closing shot, interiors between = the
+ * room walk. Delete removes a photo from the tour (back into the listing pool);
+ * "Add" pulls any listing photo not currently in the tour. Persists to the VIDEO
+ * (the listing's full photo set is never mutated). Native HTML5 DnD.
  */
 export function PhotoReorder({
   videoId,
   photos: initial,
+  available: initialAvailable = [],
 }: {
   videoId: string;
   photos: Photo[];
+  available?: Photo[];
 }) {
   const [photos, setPhotos] = useState<Photo[]>(initial);
+  const [available, setAvailable] = useState<Photo[]>(initialAvailable);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [saving, startSave] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const last = photos.length - 1;
 
   function persist(next: Photo[]) {
     setPhotos(next);
     startSave(async () => {
-      const res = await saveListingPhotos(videoId, next.map((p) => p.url));
-      if (res?.error) setError(res.error);
+      await saveTourOrder(videoId, next.map((p) => p.url));
     });
   }
 
@@ -53,39 +49,15 @@ export function PhotoReorder({
 
   function remove(i: number) {
     if (photos.length <= 1) return; // keep at least one
+    const removed = photos[i];
+    setAvailable((a) => [removed, ...a]); // back into the pool
     persist(photos.filter((_, idx) => idx !== i));
   }
 
-  async function addFiles(files: FileList | null) {
-    if (!files || files.length === 0 || uploading) return;
-    setError(null);
-    setUploading(true);
-    const supabase = createClient();
-    const added: Photo[] = [];
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not signed in");
-      for (const file of Array.from(files)) {
-        if (!file.type.startsWith("image/")) continue;
-        const path = `${user.id}/uploads/${crypto.randomUUID()}-${safeName(file.name)}`;
-        const { error: upErr } = await supabase.storage
-          .from(BUCKET)
-          .upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) {
-          setError(upErr.message);
-          continue;
-        }
-        added.push({ url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl });
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-      if (added.length) persist([...photos, ...added]);
-    }
+  function addFromPool(p: Photo) {
+    setAvailable((a) => a.filter((x) => x.url !== p.url));
+    persist([...photos, p]);
+    if (available.length <= 1) setPicking(false);
   }
 
   return (
@@ -93,13 +65,12 @@ export function PhotoReorder({
       <div className="mb-2 flex items-center justify-between">
         <div className="text-sm font-medium">Tour order</div>
         <div className="text-xs text-muted-foreground">
-          {saving || uploading ? (
+          {saving ? (
             <span className="inline-flex items-center gap-1">
-              <Loader2 className="size-3 animate-spin" />
-              {uploading ? "Uploading…" : "Saving…"}
+              <Loader2 className="size-3 animate-spin" /> Saving…
             </span>
           ) : (
-            "Drag to reorder · hover to delete · add your own"
+            "Drag to reorder · hover to delete · add from your listing"
           )}
         </div>
       </div>
@@ -147,8 +118,8 @@ export function PhotoReorder({
               <button
                 type="button"
                 onClick={() => remove(i)}
-                aria-label={`Delete photo ${i + 1}`}
-                title="Delete photo"
+                aria-label={`Remove photo ${i + 1} from tour`}
+                title="Remove from tour"
                 className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-background/90 text-foreground opacity-0 shadow transition-opacity hover:bg-destructive hover:text-white group-hover:opacity-100"
               >
                 <X className="size-3" />
@@ -168,40 +139,55 @@ export function PhotoReorder({
           </li>
         ))}
 
-        {/* Add-photos tile */}
-        <li className="shrink-0">
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              void addFiles(e.dataTransfer.files);
-            }}
-            aria-label="Add photos"
-            className="flex h-24 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-background text-muted-foreground transition hover:border-foreground hover:text-foreground"
-          >
-            {uploading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <>
-                <ImagePlus className="size-4" />
-                <span className="text-[10px]">Add</span>
-              </>
-            )}
-          </button>
-        </li>
+        {/* Add-from-listing tile (only when the listing has more photos) */}
+        {available.length > 0 && (
+          <li className="shrink-0">
+            <button
+              type="button"
+              onClick={() => setPicking((v) => !v)}
+              aria-label="Add a photo from your listing"
+              className={`flex h-24 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed transition ${
+                picking
+                  ? "border-foreground text-foreground"
+                  : "border-border bg-background text-muted-foreground hover:border-foreground hover:text-foreground"
+              }`}
+            >
+              <Plus className="size-4" />
+              <span className="text-[10px]">Add</span>
+            </button>
+          </li>
+        )}
       </ol>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => void addFiles(e.target.files)}
-      />
-      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+
+      {/* Picker: listing photos not currently in the tour */}
+      {picking && available.length > 0 && (
+        <div className="mt-3 rounded-xl border border-border bg-background p-2">
+          <p className="mb-2 text-xs text-muted-foreground">
+            Tap a listing photo to add it to the tour:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {available.map((p) => (
+              <button
+                key={p.url}
+                type="button"
+                onClick={() => addFromPool(p)}
+                className="relative shrink-0 rounded-lg ring-foreground transition hover:ring-2"
+                title="Add to tour"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.url}
+                  alt={p.caption ?? "Listing photo"}
+                  className="h-16 w-14 rounded-lg border border-border object-cover"
+                />
+                <span className="absolute inset-0 grid place-items-center rounded-lg bg-foreground/0 text-background opacity-0 transition hover:bg-foreground/30 hover:opacity-100">
+                  <Plus className="size-4" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

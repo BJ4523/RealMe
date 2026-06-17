@@ -27,7 +27,7 @@ import {
 } from "@/lib/video/cinematic";
 import { assembleAiReel, isAiReel } from "@/lib/video/ai-reel";
 import { isMock } from "@/lib/heygen/client";
-import { listingPhotos } from "@/lib/format";
+import { listingPhotos, tourPhotosFor } from "@/lib/format";
 import { wardrobePrompt, tuckClause } from "@/lib/video/wardrobe";
 import type { Json, Tables } from "@/lib/types/database";
 
@@ -178,42 +178,32 @@ export async function rewriteOpeningPitch(
 }
 
 /**
- * Authoritatively SET the video listing's photos to exactly `orderedUrls`, in
- * order. Photo order IS the tour sequence: first = opening (front exterior) clip,
- * last = closing clip, interiors between = the room walk. This one action powers
- * reorder, delete (URLs left out are dropped) AND add (new URLs become fresh photo
- * entries). Captions are preserved for URLs that already existed.
+ * Save THIS video's tour order — an ordered selection drawn from the listing's
+ * photos. Photo order IS the tour sequence: first = opening (front exterior) clip,
+ * last = closing clip, interiors between = the room walk. Stored on the VIDEO
+ * (`script_segments.tourPhotos`), NOT the listing — so the listing keeps its full
+ * photo pool, deleting just removes a photo from this tour, and "add" pulls back any
+ * listing photo. The generate flow reads this order (falling back to all photos).
  */
-export async function saveListingPhotos(
+export async function saveTourOrder(
   videoId: string,
   orderedUrls: string[],
 ): Promise<{ ok?: boolean; error?: string }> {
   const { userId } = await requireUser();
   const supabase = await createClient();
+  if (orderedUrls.length === 0) return { error: "Keep at least one photo." };
   const { data: video } = await supabase
     .from("videos")
-    .select("listing_id")
+    .select("script_segments")
     .eq("id", videoId)
-    .maybeSingle();
-  if (!video?.listing_id) return { error: "No listing for this video." };
-  const { data: listing } = await supabase
-    .from("listings")
-    .select("photos")
-    .eq("id", video.listing_id)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!listing) return { error: "Listing not found." };
-  if (orderedUrls.length === 0) return { error: "Keep at least one photo." };
-
-  const byUrl = new Map(listingPhotos(listing.photos).map((p) => [p.url, p]));
-  // Exactly the given URLs, in order — keep existing photo objects (captions),
-  // create bare entries for newly-added URLs, drop anything not listed.
-  const photos = orderedUrls.map((u) => byUrl.get(u) ?? { url: u });
-
+  if (!video) return { error: "Video not found." };
+  const seg = (video.script_segments as Record<string, unknown> | null) ?? {};
   const { error } = await supabase
-    .from("listings")
-    .update({ photos: photos as unknown as Json })
-    .eq("id", video.listing_id)
+    .from("videos")
+    .update({ script_segments: { ...seg, tourPhotos: orderedUrls } as Json })
+    .eq("id", videoId)
     .eq("user_id", userId);
   if (error) return { error: error.message };
   revalidatePath(`/videos/${videoId}`);
@@ -520,7 +510,7 @@ export async function submitCinematicVideo(
     }
   }
 
-  const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
+  const photos = tourPhotosFor(video.script_segments, listing?.photos);
   if (photos.length === 0) {
     return fail("Add listing photos to generate a cinematic walkthrough.");
   }
@@ -632,7 +622,7 @@ export async function submitHypeReelVideo(
       return fail("Verify your twin's identity (Settings → Avatar → Cinematic mode) to use Hype Reel.");
     }
   }
-  const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
+  const photos = tourPhotosFor(video.script_segments, listing?.photos);
   if (photos.length === 0) return fail("Add listing photos to generate a Hype Reel.");
   const hero = photos[0];
 

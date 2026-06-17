@@ -39,3 +39,14 @@ export function listingPhotos(photos: unknown): PhotoJson[] {
     .filter((p) => p && typeof p.url === "string")
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
+
+/**
+ * The effective tour photo URLs for a video: its saved per-video order
+ * (`script_segments.tourPhotos`) if set, else all the listing's photos. The video's
+ * tour is a selection drawn from the listing's photo pool.
+ */
+export function tourPhotosFor(scriptSegments: unknown, listingPhotosJson: unknown): string[] {
+  const saved = (scriptSegments as { tourPhotos?: string[] } | null)?.tourPhotos;
+  if (saved?.length) return saved;
+  return listingPhotos(listingPhotosJson).map((p) => p.url);
+}

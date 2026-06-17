@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Json, Tables } from "@/lib/types/database";
-import { listingPhotos } from "@/lib/format";
+import { listingPhotos, tourPhotosFor } from "@/lib/format";
 import {
   generateOpeningPitch,
   generateRoomNarration,
@@ -99,7 +99,7 @@ export async function submitAiReel(
   if (!avatar?.agent_image_url) {
     return fail("Add an agent photo (Settings → Avatar) first.");
   }
-  const photos = listing ? listingPhotos(listing.photos).map((p) => p.url) : [];
+  const photos = tourPhotosFor(video.script_segments, listing?.photos);
   if (photos.length === 0) return fail("Add listing photos first.");
 
   const style: ReelStyle = opts.style ?? "classic";
