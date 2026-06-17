@@ -25,6 +25,7 @@ import {
   encodeCinematicJobs,
   isCinematic,
 } from "@/lib/video/cinematic";
+import { assembleAiReel, isAiReel } from "@/lib/video/ai-reel";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos } from "@/lib/format";
 import { wardrobePrompt, tuckClause } from "@/lib/video/wardrobe";
@@ -746,7 +747,9 @@ export async function pollVideoStatus(
   // this poll can re-drive it to completion.
   if (
     video.status === "submitting" &&
-    (isHypeReel(video.heygen_video_id) || isCinematic(video.heygen_video_id))
+    (isHypeReel(video.heygen_video_id) ||
+      isCinematic(video.heygen_video_id) ||
+      isAiReel(video.heygen_video_id))
   ) {
     const claimedMs = video.updated_at ? Date.parse(video.updated_at) : 0;
     const STALE_SUBMIT_MS = 4 * 60 * 1000; // > any real stitch, < the 5-min fn limit
@@ -764,6 +767,14 @@ export async function pollVideoStatus(
 
   const pollListing = video.listings as Tables<"listings"> | null;
   const photos = pollListing ? listingPhotos(pollListing.photos).map((p) => p.url) : [];
+
+  // Runway + ElevenLabs reel: render any missing scene clips, then narrate + stitch.
+  if (isAiReel(video.heygen_video_id) && video.status === "processing") {
+    await assembleAiReel(supabase, video);
+    const { data: latest } = await supabase
+      .from("videos").select("*").eq("id", videoId).single();
+    return latest ?? video;
+  }
 
   // Hype Reel: host bookends (v2) + accents (v3) → montage with music + overlays.
   // Intercept before the generic v2 branch (a "reel:" id is not a real HeyGen id).
