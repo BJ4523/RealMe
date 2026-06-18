@@ -786,6 +786,22 @@ export async function pollVideoStatus(
         .single();
       if (reset) video = reset;
     }
+  } else if (video.status === "submitting" && !video.heygen_video_id) {
+    // A submit that died BEFORE writing heygen_video_id (interrupted mid-fire: page
+    // reload, navigation, killed function) leaves the row `submitting` with NO clips —
+    // nothing to assemble, so it hangs forever. No work was lost (no clips fired), so
+    // reset it to script_ready: the page shows the generate button again.
+    const claimedMs = video.updated_at ? Date.parse(video.updated_at) : 0;
+    if (Date.now() - claimedMs > 90 * 1000) {
+      const { data: reset } = await supabase
+        .from("videos")
+        .update({ status: "script_ready", error: null })
+        .eq("id", videoId)
+        .eq("status", "submitting")
+        .select("*, listings(*)")
+        .single();
+      if (reset) video = reset;
+    }
   }
 
   const pollListing = video.listings as Tables<"listings"> | null;
