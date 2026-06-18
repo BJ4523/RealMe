@@ -510,8 +510,8 @@ export async function submitCinematicVideo(
     // Both BOOKENDS are lip-synced to SHORT spoken lines (~1 sentence) — a long
     // bookend makes the spoken slice far exceed the clip and HeyGen lipsync rejects
     // the >15% mismatch. The full pitch still seeds the room narration as context.
-    const openerBeat = shortLine(openingPitch, 16);
-    const closerBeat = shortLine(cta, 16);
+    const openerBeat = shortLine(openingPitch, 10);
+    const closerBeat = shortLine(cta, 10);
     // Beats order is [opener, ...rooms, closer]. Closer bookend = the backyard.
     const beats = [openerBeat, ...roomLines, closerBeat];
     const backyard = photos[photos.length - 1] ?? exterior;
@@ -617,7 +617,7 @@ export async function submitHypeReelVideo(
       roomWords,
     );
     // Bookend lines stay SHORT (≤1 sentence) so the lip-sync clip ↔ audio lengths match.
-    const beats = [shortLine(intro), ...roomLines, shortLine(outro)]
+    const beats = [shortLine(intro, 10), ...roomLines, shortLine(outro, 10)]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
     const backyard = photos[photos.length - 1] ?? hero; // closer = backyard

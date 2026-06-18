@@ -66,8 +66,8 @@ const [hook, roomLines] = await Promise.all([
   generateRoomNarration(roomPhotos, listing, openingPitch, "classic", roomWords),
 ]);
 const cta = hook.outro?.trim() || "Reach out today to come see it in person.";
-const openerBeat = shortLine(openingPitch, 16);
-const beats = [openerBeat, ...roomLines, cta];
+const openerBeat = shortLine(openingPitch, 10);
+const beats = [openerBeat, ...roomLines, shortLine(cta, 10)];
 console.log(`beats: opener(${openerBeat.split(/\s+/).length}w) + ${roomLines.length} rooms + closer(${cta.split(/\s+/).length}w)`);
 
 // --- fire the 2 twin bookend clips -----------------------------------------

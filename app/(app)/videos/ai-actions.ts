@@ -128,7 +128,7 @@ export async function submitAiReel(
     const cta = hook.outro?.trim() || "Reach out today to come see it in person.";
     // Short, balanced bookends so a 20s reel isn't all-intro — the full pitch still
     // seeds the room narration as context; clip durations track each beat's length.
-    const beats = [shortLine(openingPitch, 16), ...roomLines, shortLine(cta, 16)];
+    const beats = [shortLine(openingPitch, 10), ...roomLines, shortLine(cta, 10)];
 
     await supabase
       .from("videos")
