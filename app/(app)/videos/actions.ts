@@ -309,10 +309,16 @@ function cinematicExteriorPrompt(
     "NOT a moody cinematic film: no shallow-depth blur, no film grain, no heavy grade.",
     "Polished but real, like a top agent's viral social tour.",
     scene,
-    `${kind === "intro" ? `In front of ${place}` : `In the backyard of ${place}`}, a confident, charismatic, ANIMATED real-estate agent ${wardrobe}`,
+    `${kind === "intro" ? `In front of ${place}` : `In the backyard of ${place}`}, the real-estate agent ${wardrobe}`,
     kind === "intro"
       ? "OPENS facing the camera directly and SPEAKING a warm, welcoming greeting to the viewer, with a brief gesture toward the home."
       : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the backyard.",
+    // IDENTITY LOCK: cinematic_avatar regenerates the face per clip and can drift to a
+    // different/generic person. Pin it hard so the opener and closer are the SAME real twin.
+    "CRITICAL — this is ONE SPECIFIC real person: the provided avatar. Preserve their EXACT",
+    "face, facial features, bone structure, skin tone, hair and age PRECISELY and IDENTICALLY.",
+    "Do NOT invent, beautify, age, or substitute a different or generic-looking person — the",
+    "face must match the avatar exactly, the same in this shot as in every other shot.",
     // Being FILMED by a videographer — NOT a phone selfie. Both hands free.
     "The agent is being professionally FILMED by a separate camera operator — NOT a",
     "selfie: both hands are FREE to gesture, the agent is NOT holding a phone, camera",

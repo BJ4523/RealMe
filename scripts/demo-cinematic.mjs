@@ -30,11 +30,15 @@ const WARDROBE = "in a tailored navy blazer over a crisp white shirt";
 const exteriorPrompt = (role) =>
   [
     "Vertical 9:16 real-estate intro filmed on a smooth gimbal — BRIGHT, crisp, true-to-life.",
-    `A charismatic real-estate agent ${WARDROBE} stands ${role === "closer" ? "in the backyard / outdoor space" : "in front of the house"} shown in the reference image,`,
+    `The real-estate agent ${WARDROBE} stands ${role === "closer" ? "in the backyard / outdoor space" : "in front of the house"} shown in the reference image,`,
     "facing the camera and speaking warmly to the viewer — mouth moving naturally, head and",
     "shoulders prominent, face clearly visible the ENTIRE clip (this is the lip-sync anchor).",
     "Being professionally FILMED by a separate operator — NOT a selfie: both hands free, no",
-    "phone/device, no arm to the lens. EXACTLY ONE person. Keep the exact same face + outfit.",
+    "phone/device, no arm to the lens. EXACTLY ONE person.",
+    "CRITICAL — this is ONE SPECIFIC real person: the provided avatar. Preserve their EXACT",
+    "face, facial features, bone structure, skin tone, hair and age PRECISELY and IDENTICALLY.",
+    "Do NOT invent, beautify, age, or substitute a different/generic person — the face must",
+    "match the avatar exactly, the same in this shot as in the other bookend shot.",
   ].join(" ");
 
 // --- gather user / twin / listing -------------------------------------------
