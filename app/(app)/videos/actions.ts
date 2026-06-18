@@ -26,6 +26,8 @@ import {
   isCinematic,
 } from "@/lib/video/cinematic";
 import { assembleAiReel, isAiReel } from "@/lib/video/ai-reel";
+import { generateNarration } from "@/lib/video/assemble";
+import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos, tourPhotosFor } from "@/lib/format";
 import { shortLine } from "@/lib/video/timing";
@@ -368,19 +370,6 @@ function resolveLook(
 }
 
 /**
- * Estimate a clip's length from its spoken narration (~2.5 words/sec) and clamp
- * to HeyGen's 4–15s cinematic_avatar range. Sizing each clip to its OWN beat is
- * what keeps the bookend lip-sync robust for any script: the clip and its
- * narration match, so HeyGen accepts the lipsync (the assembler only has to
- * pad/speed-fit the small residual). Over-long beats cap at 15s and the assembler
- * speed-fits the narration into them.
- */
-function estClipSec(text: string): number {
-  const words = (text || "").trim().split(/\s+/).filter(Boolean).length;
-  return Math.min(15, Math.max(4, Math.round(words / 2.5)));
-}
-
-/**
  * Fire the silent cinematic_avatar beat clips shared by BOTH video paths:
  * exterior opener + one room clip per photo + backyard closer, all the real twin
  * in the chosen outfit. Each clip's duration is DYNAMIC to its beat narration
@@ -399,26 +388,42 @@ async function fireBookendClips(opts: {
   exterior: string;
   /** Closer reference — the BACKYARD photo (falls back to the exterior). */
   backyard?: string;
-  openerBeat: string;
-  closerBeat: string;
+  /** Clip durations sized to the ACTUAL spoken bookend slices (voice-first). */
+  openerSec: number;
+  closerSec: number;
 }): Promise<{ opener: string; closer: string }> {
-  const { lookId, wardrobe, listing, exterior, openerBeat, closerBeat } = opts;
+  const { lookId, wardrobe, listing, exterior, openerSec, closerSec } = opts;
   const backyard = opts.backyard || exterior;
+  const dur = (s: number) => Math.min(15, Math.max(4, Math.round(s)));
   const [opener, closer] = await Promise.all([
     generateCinematicClip({
       avatarLookId: lookId,
       referenceUrl: exterior,
       prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
-      duration: estClipSec(openerBeat),
+      duration: dur(openerSec),
     }),
     generateCinematicClip({
       avatarLookId: lookId,
       referenceUrl: backyard,
       prompt: cinematicExteriorPrompt(listing, "closer", wardrobe),
-      duration: estClipSec(closerBeat),
+      duration: dur(closerSec),
     }),
   ]);
   return { opener: opener.jobId, closer: closer.jobId };
+}
+
+/** Per-beat word counts → the opener/closer's share of a take's duration (seconds). */
+function bookendSeconds(
+  beats: string[],
+  narrationDur: number,
+): { openerSec: number; closerSec: number } {
+  const wc = (s: string) => (s || "").trim().split(/\s+/).filter(Boolean).length || 1;
+  const last = beats.length - 1;
+  const W = beats.reduce((n, b) => n + wc(b), 0) || 1;
+  return {
+    openerSec: (narrationDur * wc(beats[0])) / W,
+    closerSec: (narrationDur * wc(beats[last])) / W,
+  };
 }
 
 export async function submitCinematicVideo(
@@ -523,16 +528,26 @@ export async function submitCinematicVideo(
     // cinematic_avatar steers the closer's FACE toward whoever's in the reference (the
     // opener is always right because photos[0] is the clean house). Reuse the front.
     const backyard = exterior;
-    // Only the two TWIN bookends are AI-rendered; the rooms are Ken-Burns pans over
-    // the real photos, assembled from script_segments.roomPhotos.
+    // VOICE-FIRST: generate the whole-script narration ONCE, then size the two TWIN
+    // bookend clips to the ACTUAL spoken length of their lines — so lipsync fits with
+    // NO atempo / speed change. The assembler reuses this take (ttsAudio) — no 2nd TTS.
+    // (Rooms are Ken-Burns pans over the real photos from script_segments.roomPhotos.)
+    const narrStorage = adminConfigured ? createAdminClient() : supabase;
+    const narr = await generateNarration(
+      narrStorage,
+      beats.join("  "),
+      avatar.voice_id ?? null,
+      `${userId}/${videoId}-tts`,
+    );
+    const { openerSec, closerSec } = bookendSeconds(beats, narr.dur);
     const { opener, closer } = await fireBookendClips({
       lookId,
       wardrobe,
       listing,
       exterior,
       backyard,
-      openerBeat,
-      closerBeat,
+      openerSec,
+      closerSec,
     });
 
     await supabase
@@ -541,7 +556,13 @@ export async function submitCinematicVideo(
         heygen_video_id: encodeCinematicJobs(opener, closer, []),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
-        script_segments: { beats, captions, roomPhotos } as unknown as Json,
+        script_segments: {
+          beats,
+          captions,
+          roomPhotos,
+          ttsAudio: narr.audioUrl,
+          ttsDur: narr.dur,
+        } as unknown as Json,
       })
       .eq("id", videoId)
       .eq("user_id", userId);
@@ -628,17 +649,25 @@ export async function submitHypeReelVideo(
     const beats = [shortLine(intro, 10), ...roomLines, shortLine(outro, 10)]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
-    const backyard = hero; // NOT photos[last] (often the agent headshot) // closer = backyard
-    // Only the two TWIN bookends are AI-rendered; rooms are Ken-Burns pans over the
-    // real photos (script_segments.roomPhotos), with music ducked under in the final pass.
+    const backyard = hero; // NOT photos[last] (often the agent headshot)
+    // VOICE-FIRST: narration once → size the bookend clips to the actual speech (no
+    // atempo). Reused by the assembler via ttsAudio. Rooms = Ken-Burns over real photos.
+    const narrStorage = adminConfigured ? createAdminClient() : supabase;
+    const narr = await generateNarration(
+      narrStorage,
+      beats.join("  "),
+      avatar.voice_id ?? null,
+      `${userId}/${videoId}-tts`,
+    );
+    const { openerSec, closerSec } = bookendSeconds(beats, narr.dur);
     const { opener, closer } = await fireBookendClips({
       lookId,
       wardrobe,
       listing,
       exterior: hero,
       backyard,
-      openerBeat: beats[0] ?? intro,
-      closerBeat: beats[beats.length - 1] ?? outro,
+      openerSec,
+      closerSec,
     });
 
     await supabase.from("videos").update({
@@ -653,6 +682,8 @@ export async function submitHypeReelVideo(
         beats,
         captions,
         roomPhotos,
+        ttsAudio: narr.audioUrl,
+        ttsDur: narr.dur,
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
   } catch (e) {

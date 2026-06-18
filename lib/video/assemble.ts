@@ -201,6 +201,34 @@ async function sliceAudio(
   }
 }
 
+/**
+ * Generate the WHOLE-script narration once (cloned voice), host it, and probe its
+ * REAL spoken duration. The submit calls this BEFORE rendering the bookend clips so
+ * each clip can be sized to the actual speech (voice-first) — that's the only way to
+ * get lip-sync AND one continuous, un-stretched voice. Returns the hosted url + dur.
+ */
+export async function generateNarration(
+  storage: Storage,
+  fullScript: string,
+  voiceId: string | null,
+  path: string,
+): Promise<{ audioUrl: string; dur: number }> {
+  const { audioUrl, duration } = await generateSpeech(fullScript, voiceId ?? DEFAULT_VOICE_ID);
+  const hosted = await hostAudio(storage, audioUrl, `${path}.wav`);
+  let dur = duration || 0;
+  const dir = await mkdtemp(join(tmpdir(), "narr-"));
+  try {
+    const p = join(dir, "a.wav");
+    await writeFile(p, await fetchBuffer(hosted));
+    dur = (await probeDurSec(p)) || dur;
+  } catch {
+    /* keep the reported duration */
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+  return { audioUrl: hosted, dur };
+}
+
 export type LipsyncResult =
   | { status: "processing" }
   | { status: "failed"; error: string }
@@ -283,6 +311,8 @@ export async function advanceLipsync(
         roomNarration?: string;
         roomNarrationDur?: number;
         roomPhotos?: string[];
+        ttsAudio?: string;
+        ttsDur?: number;
       } | null) ?? {}
     );
   };
@@ -301,8 +331,18 @@ export async function advanceLipsync(
       .select("id");
     if (!claimed || claimed.length === 0) return { status: "processing" };
 
-    const fullScript = [openerBeat, ...roomBeats, closerBeat].filter(Boolean).join("  ");
-    const { audioUrl, duration: D } = await generateSpeech(fullScript, vId);
+    // Voice-first: the submit already generated the whole-script narration and SIZED
+    // the bookend clips to it, so here we just reuse it (no re-TTS) and slice it RAW —
+    // clip ≈ slice means lipsync fits with NO atempo (one continuous, un-stretched
+    // voice). Fall back to generating it for legacy rows without ttsAudio.
+    let audioUrl = state.ttsAudio ?? "";
+    let D = state.ttsDur ?? 0;
+    if (!audioUrl || !D) {
+      const fullScript = [openerBeat, ...roomBeats, closerBeat].filter(Boolean).join("  ");
+      const gen = await generateNarration(storage, fullScript, vId, `${userId}/${videoId}-tts`);
+      audioUrl = gen.audioUrl;
+      D = gen.dur;
+    }
     const fullBuf = await fetchBuffer(audioUrl);
     const wOpener = words(openerBeat);
     const wCloser = words(closerBeat);
