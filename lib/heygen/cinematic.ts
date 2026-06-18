@@ -55,14 +55,23 @@ export async function getCinematicClipStatus(
   jobId: string,
 ): Promise<CinematicClipStatus> {
   if (isMock) return { status: "completed", videoUrl: MOCK_VIDEO_URL };
-  const res = await heygenFetch<{
+  let res: {
     data?: {
       status?: string;
       video_url?: string;
       video_url_caption?: string;
       error?: { message?: string } | string;
     };
-  }>(ENDPOINTS.videoStatusV3(jobId));
+  };
+  try {
+    res = await heygenFetch(ENDPOINTS.videoStatusV3(jobId));
+  } catch {
+    // HeyGen sometimes 500s ("internal_error") on a lookup for a clip that's actually
+    // fine. heygenFetch throws on non-200, which would otherwise FAIL the whole video
+    // — instead treat a transient lookup error as "still processing" so the next
+    // poll/cron retries. (A genuinely failed clip reports status:"failed" in the body.)
+    return { status: "processing" };
+  }
   const d = res.data ?? {};
   const status =
     d.status === "completed" || d.status === "success"
