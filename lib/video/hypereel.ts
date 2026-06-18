@@ -66,16 +66,25 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
   "processing" | "completed" | "failed"
 > {
   if (!isHypeReel(reel.heygen_video_id)) return "processing";
-  const { accents } = decodeReelJobs(reel.heygen_video_id!);
+  const { intro, outro } = decodeReelJobs(reel.heygen_video_id!);
+  if (!intro || !outro) {
+    await supabase
+      .from("videos")
+      .update({ status: "failed", error: "No bookend clips were created." })
+      .eq("id", reel.id);
+    return "failed";
+  }
   try {
     const beats = (reel.beats ?? []).map((b) => (b ?? "").trim());
 
-    // Bookend-lipsync core: lipsync the opener + closer, VO the rooms, stitch the
-    // body (all voice baked in). Hype then adds music + overlays over it.
+    // Bookend-lipsync core: lip-sync the twin opener + closer, Ken-Burns the REAL
+    // room photos with the middle voice slice, stitch the body (one continuous voice
+    // baked in). Hype then adds the music bed over it.
     const res = await advanceLipsync(supabase, {
       videoId: reel.id,
       userId: reel.user_id,
-      clipIds: accents,
+      openerClip: intro,
+      closerClip: outro,
       beats,
       voiceId: reel.voiceId ?? null,
       captions: reel.captions ?? false,

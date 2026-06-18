@@ -282,49 +282,6 @@ export async function submitVideo(videoId: string) {
  * clearly visible because this clip is lip-synced to the cloned voice afterward
  * (HeyGen Lipsync-Precision). The reference photo steers the room.
  */
-function cinematicPrompt(
-  listing: Tables<"listings"> | null,
-  index: number,
-  total: number,
-  wardrobe: string,
-): string {
-  // Keep the FACE toward camera on every move (lip-sync needs a visible face).
-  const moves = [
-    "a slow cinematic dolly-in pushes toward the agent as they face the camera and gesture to the room",
-    "a steady tracking shot glides with the agent as they walk forward facing the camera, presenting the room",
-    "the camera slowly arcs to stay in front of the agent as they move through, keeping their face to camera",
-    "a smooth gimbal move leads the agent backward through the space as they address the camera",
-  ];
-  const move = moves[index % moves.length];
-  const place = listing?.address ? `the home at ${listing.address}` : "this home";
-  return [
-    "High-energy vertical 9:16 real-estate WALKING TOUR filmed on a smooth gimbal that",
-    "follows the agent — BRIGHT, clean natural daylight, crisp and sharp with EVERYTHING",
-    "in focus, true-to-life color. NOT a moody cinematic film: no shallow-depth background",
-    "blur, no film grain, no heavy color grade. Polished but real, like a top agent's viral",
-    "social home tour.",
-    // FIDELITY FIRST: faithfully recreate the EXACT room in the reference image.
-    "Recreate the room in the reference image accurately: the same layout, furniture,",
-    "wall colors, flooring, windows, fixtures and finishes. Do NOT invent or rearrange.",
-    `Inside that recreated room of ${place}, a charismatic, confident real-estate agent ${wardrobe}`,
-    "walks through and SHOWS the space — moving naturally, gesturing to its features,",
-    "glancing around the room. This is B-ROLL: the agent is touring/presenting, NOT",
-    "talking to the camera — mouth relaxed and CLOSED, not speaking (the voiceover plays",
-    "over this). Calm, natural, premium.",
-    // Being FILMED by a videographer — NOT a phone selfie. Both hands free.
-    "The agent is being professionally FILMED by a separate camera operator — NOT a",
-    "selfie: both hands free, not holding a phone/camera, no arm extended to the lens.",
-    "Keep the agent in frame throughout (never an empty room); they may look toward the",
-    "space or the camera, but are NOT mid-sentence — no talking-head, no lip movement.",
-    // Single subject.
-    "EXACTLY ONE person in the scene — the agent, completely alone. No other people,",
-    "bystanders, background figures, reflections or photos of other people.",
-    `Camera: ${move}; cinematic, steady, bright.`,
-    `Full body visible — the SAME person in the SAME outfit (${wardrobe}) in every shot.`,
-    `Room ${index + 1} of ${total}.`,
-  ].join(" ");
-}
-
 /**
  * Motion brief for the EXTERIOR opener/closer Seedance shot — the LIP-SYNC ANCHOR.
  * Unlike the room walkthroughs (which read as voice-over over cinematic motion),
@@ -424,37 +381,31 @@ function estClipSec(text: string): number {
  * in the chosen outfit. Each clip's duration is DYNAMIC to its beat narration
  * (`beats` is 1:1 with the clips). Returns the clip ids in playback order.
  */
-async function fireBeatClips(opts: {
+/**
+ * Fire ONLY the two TWIN bookend clips — the agent talking to camera in front of the
+ * house (opener) and in the backyard (closer). The room-walk is no longer AI-rendered:
+ * the b-roll is Ken-Burns pans over the REAL listing photos (faithful, fast, cheap),
+ * assembled later. Returns the two clip job ids.
+ */
+async function fireBookendClips(opts: {
   lookId: string;
   wardrobe: string;
   listing: Tables<"listings"> | null;
   exterior: string;
   /** Closer reference — the BACKYARD photo (falls back to the exterior). */
   backyard?: string;
-  roomPhotos: string[];
-  /** Per-clip narration: [openerBeat, roomBeats…, closerBeat]. */
-  beats: string[];
-}): Promise<string[]> {
-  const { lookId, wardrobe, listing, exterior, roomPhotos, beats } = opts;
+  openerBeat: string;
+  closerBeat: string;
+}): Promise<{ opener: string; closer: string }> {
+  const { lookId, wardrobe, listing, exterior, openerBeat, closerBeat } = opts;
   const backyard = opts.backyard || exterior;
-  const closerBeat = beats[beats.length - 1] ?? "";
-  const [opener, rooms, closer] = await Promise.all([
+  const [opener, closer] = await Promise.all([
     generateCinematicClip({
       avatarLookId: lookId,
       referenceUrl: exterior,
       prompt: cinematicExteriorPrompt(listing, "intro", wardrobe),
-      duration: estClipSec(beats[0] ?? ""),
+      duration: estClipSec(openerBeat),
     }),
-    Promise.all(
-      roomPhotos.map((url, i) =>
-        generateCinematicClip({
-          avatarLookId: lookId,
-          referenceUrl: url,
-          prompt: cinematicPrompt(listing, i, roomPhotos.length, wardrobe),
-          duration: estClipSec(beats[i + 1] ?? ""),
-        }),
-      ),
-    ),
     generateCinematicClip({
       avatarLookId: lookId,
       referenceUrl: backyard,
@@ -462,7 +413,7 @@ async function fireBeatClips(opts: {
       duration: estClipSec(closerBeat),
     }),
   ]);
-  return [opener.jobId, ...rooms.map((j) => j.jobId), closer.jobId];
+  return { opener: opener.jobId, closer: closer.jobId };
 }
 
 export async function submitCinematicVideo(
@@ -555,27 +506,28 @@ export async function submitCinematicVideo(
         ? "Okay this one is straight-up elite — DM me right now before it's gone!"
         : hook.outro?.trim() || "Reach out today to see it in person.";
 
-    // Beats first, so each clip can be sized to its OWN narration. Order is
-    // [opener, ...rooms, closer]. Closer bookend = the backyard (last photo).
+    // Beats order is [opener, ...rooms, closer]. Closer bookend = the backyard.
     const beats = [openingPitch, ...roomLines, cta];
     const backyard = photos[photos.length - 1] ?? exterior;
-    const allClips = await fireBeatClips({
+    // Only the two TWIN bookends are AI-rendered; the rooms are Ken-Burns pans over
+    // the real photos, assembled from script_segments.roomPhotos.
+    const { opener, closer } = await fireBookendClips({
       lookId,
       wardrobe,
       listing,
       exterior,
       backyard,
-      roomPhotos,
-      beats,
+      openerBeat: openingPitch,
+      closerBeat: cta,
     });
 
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs("", "", allClips),
+        heygen_video_id: encodeCinematicJobs(opener, closer, []),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
-        script_segments: { beats, captions } as unknown as Json,
+        script_segments: { beats, captions, roomPhotos } as unknown as Json,
       })
       .eq("id", videoId)
       .eq("user_id", userId);
@@ -662,19 +614,20 @@ export async function submitHypeReelVideo(
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
     const backyard = photos[photos.length - 1] ?? hero; // closer = backyard
-    // Clips sized dynamically to each beat (bookends lip-sync; rooms VO).
-    const allClips = await fireBeatClips({
+    // Only the two TWIN bookends are AI-rendered; rooms are Ken-Burns pans over the
+    // real photos (script_segments.roomPhotos), with music ducked under in the final pass.
+    const { opener, closer } = await fireBookendClips({
       lookId,
       wardrobe,
       listing,
       exterior: hero,
       backyard,
-      roomPhotos,
-      beats,
+      openerBeat: beats[0] ?? intro,
+      closerBeat: beats[beats.length - 1] ?? outro,
     });
 
     await supabase.from("videos").update({
-      heygen_video_id: encodeReelJobs("", "", allClips),
+      heygen_video_id: encodeReelJobs(opener, closer, []),
       status: "processing",
       thumbnail_url: hero,
       script_segments: {
@@ -684,6 +637,7 @@ export async function submitHypeReelVideo(
         },
         beats,
         captions,
+        roomPhotos,
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
   } catch (e) {

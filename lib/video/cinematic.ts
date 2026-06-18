@@ -72,11 +72,11 @@ export async function assembleCinematicVideo(
   voiceId: string | null,
 ): Promise<"processing" | "completed" | "failed"> {
   if (!isCinematic(video.heygen_video_id)) return "processing";
-  const { rooms } = decodeCinematicJobs(video.heygen_video_id!);
-  if (rooms.length === 0) {
+  const { intro, outro } = decodeCinematicJobs(video.heygen_video_id!);
+  if (!intro || !outro) {
     await supabase
       .from("videos")
-      .update({ status: "failed", error: "No cinematic clips were created." })
+      .update({ status: "failed", error: "No bookend clips were created." })
       .eq("id", video.id);
     return "failed";
   }
@@ -84,12 +84,14 @@ export async function assembleCinematicVideo(
   try {
     const beats = (video.beats ?? []).map((b) => (b ?? "").trim());
 
-    // Bookend-lipsync core: lipsync the opener + closer clips, VO the rooms, and
-    // stitch into one body with all audio baked in.
+    // Bookend-lipsync core: lip-sync the twin opener + closer, Ken-Burns the REAL
+    // room photos (from script_segments.roomPhotos) with the middle voice slice, and
+    // stitch into one body with one continuous voice baked in.
     const res = await advanceLipsync(supabase, {
       videoId: video.id,
       userId: video.user_id,
-      clipIds: rooms,
+      openerClip: intro,
+      closerClip: outro,
       beats,
       voiceId,
       captions: video.captions ?? false,

@@ -12,6 +12,7 @@ import { getCinematicClipStatus } from "@/lib/heygen/cinematic";
 import { createLipsync, getLipsyncStatus } from "@/lib/heygen/lipsync";
 import { generateSpeech } from "@/lib/heygen/voice";
 import { assembleMontage, sweepStaleTmp } from "@/lib/video/scenes";
+import { motionForIndex } from "@/lib/video/kenburns";
 
 type Db = SupabaseClient<Database>;
 type Storage = Db | ReturnType<typeof createAdminClient>;
@@ -227,43 +228,45 @@ export async function advanceLipsync(
   opts: {
     videoId: string;
     userId: string;
-    /** [opener, room1, …, closer] in playback order. */
-    clipIds: string[];
-    /** Per-clip narration, 1:1 with clipIds: [openerBeat, roomBeats…, closerBeat]. */
+    /** The two TWIN bookend clip ids — the talking opener + closer to lip-sync. */
+    openerClip: string;
+    closerClip: string;
+    /** [openerBeat, roomBeats…, closerBeat] — room beats are 1:1 with roomPhotos. */
     beats: string[];
     voiceId: string | null;
     captions?: boolean;
   },
 ): Promise<LipsyncResult> {
-  const { videoId, userId, clipIds, beats } = opts;
+  const { videoId, userId, beats } = opts;
   const vId = opts.voiceId ?? DEFAULT_VOICE_ID;
   const storage = adminConfigured ? createAdminClient() : supabase;
   const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length || 1;
 
-  // STAGE A — the silent cinematic_avatar clips.
-  const clipS = await Promise.all(clipIds.map(getCinematicClipStatus));
-  if (clipS.some((s) => s.status === "failed")) {
+  // STAGE A — the two silent TWIN bookend clips (talking opener + closer).
+  const [openerS, closerS] = await Promise.all([
+    getCinematicClipStatus(opts.openerClip),
+    getCinematicClipStatus(opts.closerClip),
+  ]);
+  if (openerS.status === "failed" || closerS.status === "failed") {
     return {
       status: "failed",
       error:
-        clipS.find((s) => s.status === "failed")?.error ??
-        "A cinematic shot failed to render.",
+        (openerS.status === "failed" ? openerS.error : closerS.error) ??
+        "A bookend clip failed to render.",
     };
   }
-  if (clipS.some((s) => s.status !== "completed")) return { status: "processing" };
-  const clipUrls = clipS.map((s) => s.videoUrl).filter(Boolean) as string[];
-  if (clipUrls.length !== clipIds.length) return { status: "processing" };
+  if (openerS.status !== "completed" || closerS.status !== "completed")
+    return { status: "processing" };
+  const openerUrl = openerS.videoUrl;
+  const closerUrl = closerS.videoUrl;
+  if (!openerUrl || !closerUrl) return { status: "processing" };
 
-  const lastIdx = clipIds.length - 1;
-  const beatFor = (i: number) =>
-    (
-      beats[i] ||
-      (i === 0
-        ? "Welcome — come take a look at this home."
-        : i === lastIdx
-          ? "Reach out today to come see it in person."
-          : "")
-    ).trim();
+  const lastIdx = beats.length - 1;
+  const openerBeat = (beats[0] || "Welcome — come take a look at this home.").trim();
+  const closerBeat = (
+    beats[lastIdx] || "Reach out today to come see it in person."
+  ).trim();
+  const roomBeats = beats.slice(1, Math.max(1, lastIdx)).map((b) => (b ?? "").trim());
 
   const readState = async () => {
     const { data } = await supabase
@@ -279,15 +282,16 @@ export async function advanceLipsync(
         closerNarration?: string;
         roomNarration?: string;
         roomNarrationDur?: number;
+        roomPhotos?: string[];
       } | null) ?? {}
     );
   };
   const state = await readState();
+  const roomPhotos = state.roomPhotos ?? [];
 
-  // STAGE B — ONE continuous TTS of the whole script, sliced by word count: lip-sync
-  // the opener + closer slices on the talking bookend clips, VO the middle slice over
-  // the b-roll room clips. The slices are consecutive pieces of the SAME take, so the
-  // reel's voice is one continuous flow (no per-clip speed drift).
+  // STAGE B — ONE continuous TTS sliced by word count: lip-sync the opener + closer
+  // slices on the talking twin bookend clips; the middle slice is the b-roll voice.
+  // The slices are consecutive cuts of the SAME take → one continuous voice.
   if (!state.lipOpener) {
     const { data: claimed } = await supabase
       .from("videos")
@@ -297,26 +301,27 @@ export async function advanceLipsync(
       .select("id");
     if (!claimed || claimed.length === 0) return { status: "processing" };
 
-    const fullScript = clipIds.map((_, i) => beatFor(i)).filter(Boolean).join("  ");
+    const fullScript = [openerBeat, ...roomBeats, closerBeat].filter(Boolean).join("  ");
     const { audioUrl, duration: D } = await generateSpeech(fullScript, vId);
     const fullBuf = await fetchBuffer(audioUrl);
-    const w = clipIds.map((_, i) => words(beatFor(i)));
-    const W = w.reduce((a, b) => a + b, 0) || 1;
-    const openerEnd = (D * w[0]) / W;
-    const closerStart = (D * (W - w[lastIdx])) / W;
-    const hasRooms = lastIdx > 1;
+    const wOpener = words(openerBeat);
+    const wCloser = words(closerBeat);
+    const wRooms = roomBeats.reduce((n, b) => n + words(b), 0);
+    const W = wOpener + wRooms + wCloser || 1;
+    const openerEnd = (D * wOpener) / W;
+    const closerStart = (D * (wOpener + wRooms)) / W;
 
     const openerSlice = await sliceAudio(storage, fullBuf, 0, openerEnd, `${userId}/${videoId}-vo-open`);
     const closerSlice = await sliceAudio(storage, fullBuf, closerStart, D, `${userId}/${videoId}-vo-close`);
-    const roomSlice = hasRooms
+    const roomSlice = roomPhotos.length
       ? await sliceAudio(storage, fullBuf, openerEnd, closerStart, `${userId}/${videoId}-vo-rooms`)
       : null;
 
     // Raw slices to lipsync — enable_dynamic_duration fits the CLIP to the audio, so
     // the audio (the slice) is untouched and the seams stay continuous.
     const [lo, lc] = await Promise.all([
-      createLipsync({ videoUrl: clipUrls[0], audioUrl: openerSlice, enableCaption: opts.captions ?? false }),
-      createLipsync({ videoUrl: clipUrls[lastIdx], audioUrl: closerSlice, enableCaption: opts.captions ?? false }),
+      createLipsync({ videoUrl: openerUrl, audioUrl: openerSlice, enableCaption: opts.captions ?? false }),
+      createLipsync({ videoUrl: closerUrl, audioUrl: closerSlice, enableCaption: opts.captions ?? false }),
     ]);
 
     const seg = (await readState()) as Record<string, unknown>;
@@ -338,7 +343,7 @@ export async function advanceLipsync(
     return { status: "processing" };
   }
 
-  // STAGE C — poll both bookend lipsyncs; once resolved, stitch [opener][b-roll][closer].
+  // STAGE C — poll both bookend lipsyncs; stitch [twin opener][Ken-Burns rooms][twin closer].
   const [lo, lc] = await Promise.all([
     getLipsyncStatus(state.lipOpener),
     getLipsyncStatus(state.lipCloser ?? state.lipOpener),
@@ -372,30 +377,38 @@ export async function advanceLipsync(
         })
       : clipBuf;
   };
-  const openerBuf = await bookend(lo.status === "completed", lo.videoUrl, clipUrls[0], seg2.openerNarration);
-  const closerBuf = await bookend(lc.status === "completed", lc.videoUrl, clipUrls[lastIdx], seg2.closerNarration);
+  const openerBuf = await bookend(lo.status === "completed", lo.videoUrl, openerUrl, seg2.openerNarration);
+  const closerBuf = await bookend(lc.status === "completed", lc.videoUrl, closerUrl, seg2.closerNarration);
 
-  // B-roll rooms: the twin walking/showing (not talking) with the middle voice slice
-  // muxed over the silent room clips, each sized to its share of that slice.
+  // B-ROLL — beautiful Ken-Burns pans over the REAL room photos (faithful to the
+  // actual rooms, no AI remakes), with the middle voice slice over them. Each photo
+  // is sized to its share of that slice.
   let roomsBuf: Buffer | null = null;
-  const roomUrls = clipUrls.slice(1, lastIdx);
-  if (roomUrls.length) {
-    const roomBufs = await Promise.all(roomUrls.map(fetchBuffer));
-    const roomNarrBuf = seg2.roomNarration
-      ? await fetchBuffer(seg2.roomNarration).catch(() => null)
-      : null;
-    const perRoomMs = Math.max(
-      1500,
-      Math.round(((seg2.roomNarrationDur ?? roomUrls.length * 5) / roomUrls.length) * 1000),
-    );
-    roomsBuf = await assembleMontage({
-      scenes: roomBufs.map((b) => ({ kind: "video" as const, videoBuf: b, durationMs: perRoomMs })),
-      audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
-    });
+  if (roomPhotos.length) {
+    const photoBufs = await Promise.all(roomPhotos.map((u) => fetchBuffer(u).catch(() => null)));
+    const valid = photoBufs.filter((b): b is Buffer => !!b);
+    if (valid.length) {
+      const roomNarrBuf = seg2.roomNarration
+        ? await fetchBuffer(seg2.roomNarration).catch(() => null)
+        : null;
+      const perPhotoMs = Math.max(
+        1800,
+        Math.round(((seg2.roomNarrationDur ?? valid.length * 4) / valid.length) * 1000),
+      );
+      roomsBuf = await assembleMontage({
+        scenes: valid.map((b, i) => ({
+          kind: "photo" as const,
+          imageBuf: b,
+          motion: motionForIndex(i),
+          durationMs: perPhotoMs,
+        })),
+        audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
+      });
+    }
   }
 
-  // Stitch [opener][b-roll rooms][closer] — each keeps its own baked audio, so the
-  // three consecutive slices play back as one continuous voice.
+  // Stitch [twin opener][Ken-Burns rooms][twin closer] — each keeps its own baked
+  // audio, so the three consecutive slices play back as one continuous voice.
   const body = await assembleMontage({
     scenes: [openerBuf, ...(roomsBuf ? [roomsBuf] : []), closerBuf].map((b) => ({
       kind: "video" as const,
