@@ -317,11 +317,14 @@ export async function advanceLipsync(
       ? await sliceAudio(storage, fullBuf, openerEnd, closerStart, `${userId}/${videoId}-vo-rooms`)
       : null;
 
-    // Raw slices to lipsync — enable_dynamic_duration fits the CLIP to the audio, so
-    // the audio (the slice) is untouched and the seams stay continuous.
+    // FIT each bookend slice to its clip's length (pad short / atempo long) so HeyGen
+    // lipsync ALWAYS accepts it (it rejects >15% audio↔video mismatch). With short
+    // bookend beats the fit is tiny, so the voice stays effectively continuous.
+    const openerFit = await padAudioToClip(storage, openerUrl, openerSlice, `${userId}/${videoId}-fit-open`);
+    const closerFit = await padAudioToClip(storage, closerUrl, closerSlice, `${userId}/${videoId}-fit-close`);
     const [lo, lc] = await Promise.all([
-      createLipsync({ videoUrl: openerUrl, audioUrl: openerSlice, enableCaption: opts.captions ?? false }),
-      createLipsync({ videoUrl: closerUrl, audioUrl: closerSlice, enableCaption: opts.captions ?? false }),
+      createLipsync({ videoUrl: openerUrl, audioUrl: openerFit, enableCaption: opts.captions ?? false }),
+      createLipsync({ videoUrl: closerUrl, audioUrl: closerFit, enableCaption: opts.captions ?? false }),
     ]);
 
     const seg = (await readState()) as Record<string, unknown>;
@@ -333,8 +336,8 @@ export async function advanceLipsync(
           ...seg,
           lipOpener: lo.lipsyncId,
           lipCloser: lc.lipsyncId,
-          openerNarration: openerSlice,
-          closerNarration: closerSlice,
+          openerNarration: openerFit,
+          closerNarration: closerFit,
           roomNarration: roomSlice,
           roomNarrationDur: closerStart - openerEnd,
         } as never,

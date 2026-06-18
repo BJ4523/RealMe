@@ -40,6 +40,17 @@ const DEFAULT_CINEMATIC_ROOMS = 2;
 const HYPE_REEL_ROOMS = 2;
 
 /**
+ * First sentence of a script, capped to `maxWords` — the SHORT spoken line a TWIN
+ * bookend clip is lip-synced to. Long bookend lines make the spoken audio far longer
+ * than the ≤15s clip, which HeyGen lipsync rejects (>15% length mismatch).
+ */
+function shortLine(text: string, maxWords = 16): string {
+  const first = (text.split(/(?<=[.!?])\s+/)[0] || text).trim();
+  const w = first.split(/\s+/).filter(Boolean);
+  return w.length > maxWords ? w.slice(0, maxWords).join(" ") : first;
+}
+
+/**
  * Create a draft video for a listing and return its id (no redirect) so a CLIENT
  * surface (e.g. the dashboard Studio) can navigate to /videos/[id] — the single
  * place where the agent reviews the script and picks the type (Cinematic
@@ -506,8 +517,12 @@ export async function submitCinematicVideo(
         ? "Okay this one is straight-up elite — DM me right now before it's gone!"
         : hook.outro?.trim() || "Reach out today to see it in person.";
 
+    // The opener BOOKEND is lip-synced to a SHORT spoken line (~1 sentence) — a long
+    // opener makes the spoken slice far exceed the clip and HeyGen lipsync rejects the
+    // >15% mismatch. The full pitch still seeds the room narration as context.
+    const openerBeat = shortLine(openingPitch, 16);
     // Beats order is [opener, ...rooms, closer]. Closer bookend = the backyard.
-    const beats = [openingPitch, ...roomLines, cta];
+    const beats = [openerBeat, ...roomLines, cta];
     const backyard = photos[photos.length - 1] ?? exterior;
     // Only the two TWIN bookends are AI-rendered; the rooms are Ken-Burns pans over
     // the real photos, assembled from script_segments.roomPhotos.
@@ -517,7 +532,7 @@ export async function submitCinematicVideo(
       listing,
       exterior,
       backyard,
-      openerBeat: openingPitch,
+      openerBeat,
       closerBeat: cta,
     });
 
@@ -610,7 +625,8 @@ export async function submitHypeReelVideo(
       style,
       roomWords,
     );
-    const beats = [intro, ...roomLines, outro]
+    // Bookend lines stay SHORT (≤1 sentence) so the lip-sync clip ↔ audio lengths match.
+    const beats = [shortLine(intro), ...roomLines, shortLine(outro)]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
     const backyard = photos[photos.length - 1] ?? hero; // closer = backyard

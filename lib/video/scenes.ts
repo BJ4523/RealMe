@@ -120,11 +120,17 @@ async function renderScene(
 ): Promise<void> {
   const durSec = (scene.durationMs / 1000).toFixed(3);
   if (scene.kind === "photo") {
+    const frames = Math.max(1, Math.round((scene.durationMs / 1000) * FPS));
     const filter = kenBurnsFilter("[0:v]", "[v]", scene.motion, scene.durationMs);
+    // zoompan's `d` is frames-PER-INPUT-FRAME, so the image input must stay a SINGLE
+    // frame: `-loop 1` with NO input `-t` (a `-t` on the looped input would feed
+    // zoompan dozens of frames → d× explosion, e.g. 3s → ~225s). Cap the OUTPUT to
+    // exactly `frames` (= durSec) instead.
     await ff([
-      "-y", "-loop", "1", "-t", durSec, "-i", inPath,
+      "-y", "-loop", "1", "-i", inPath,
       "-f", "lavfi", "-t", durSec, "-i", "anullsrc=r=44100:cl=stereo",
       "-filter_complex", filter, "-map", "[v]", "-map", "1:a:0",
+      "-frames:v", String(frames),
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
       "-r", String(FPS), outPath,
