@@ -74,7 +74,7 @@ console.log(`beats: opener(${openerBeat.split(/\s+/).length}w) + ${roomLines.len
 console.log("firing twin bookend clips (opener + closer)…");
 const [opener, closer] = await Promise.all([
   generateCinematicClip({ avatarLookId: lookId, referenceUrl: exterior, prompt: exteriorPrompt("intro"), duration: estClipSec(openerBeat) }),
-  generateCinematicClip({ avatarLookId: lookId, referenceUrl: backyard, prompt: exteriorPrompt("closer"), duration: estClipSec(cta) }),
+  generateCinematicClip({ avatarLookId: lookId, referenceUrl: backyard, prompt: exteriorPrompt("closer"), duration: estClipSec(shortLine(cta, 10)) }),
 ]);
 console.log("bookend jobs:", opener.jobId.slice(0, 10), closer.jobId.slice(0, 10));
 
