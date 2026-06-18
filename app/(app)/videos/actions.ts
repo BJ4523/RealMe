@@ -297,22 +297,20 @@ function cinematicExteriorPrompt(
   wardrobe: string,
 ): string {
   const place = listing?.address ? `the home at ${listing.address}` : "this home";
-  // Opener = FRONT of the house; closer = the BACKYARD (each recreated faithfully
-  // from its OWN reference photo — they are different areas, so don't force a match).
+  // BOTH bookends use the clean front-exterior reference (the closer no longer uses
+  // photos[last], which is often the listing agent's headshot — see submit).
   const scene =
-    kind === "intro"
-      ? "Recreate the house FRONT EXTERIOR in the reference image EXACTLY and faithfully: the same architecture, materials, roof, windows, and the front yard — lawn, landscaping, walkway and driveway, in the same positions. Do not invent or rearrange."
-      : "Recreate the BACKYARD / rear outdoor space in the reference image EXACTLY and faithfully: the same patio or deck, yard and landscaping, pool or fire-pit if present, fencing and structures, in the same positions. Do not invent or rearrange.";
+    "Recreate the house FRONT EXTERIOR in the reference image EXACTLY and faithfully: the same architecture, materials, roof, windows, and the front yard — lawn, landscaping, walkway and driveway, in the same positions. Do not invent or rearrange.";
   return [
     "Bright, crisp, high-energy vertical 9:16 real-estate tour shot filmed on a smooth",
     "gimbal — clean natural daylight, sharp with everything in focus, true-to-life color.",
     "NOT a moody cinematic film: no shallow-depth blur, no film grain, no heavy grade.",
     "Polished but real, like a top agent's viral social tour.",
     scene,
-    `${kind === "intro" ? `In front of ${place}` : `In the backyard of ${place}`}, the real-estate agent ${wardrobe}`,
+    `In front of ${place}, the real-estate agent ${wardrobe}`,
     kind === "intro"
       ? "OPENS facing the camera directly and SPEAKING a warm, welcoming greeting to the viewer, with a brief gesture toward the home."
-      : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the backyard.",
+      : "faces the camera directly and SPEAKS a warm closing invitation to the viewer, with an open gesture toward the home.",
     // IDENTITY LOCK: cinematic_avatar regenerates the face per clip and can drift to a
     // different/generic person. Pin it hard so the opener and closer are the SAME real twin.
     "CRITICAL — this is ONE SPECIFIC real person: the provided avatar. Preserve their EXACT",
@@ -518,9 +516,13 @@ export async function submitCinematicVideo(
     // the >15% mismatch. The full pitch still seeds the room narration as context.
     const openerBeat = shortLine(openingPitch, 10);
     const closerBeat = shortLine(cta, 10);
-    // Beats order is [opener, ...rooms, closer]. Closer bookend = the backyard.
+    // Beats order is [opener, ...rooms, closer].
     const beats = [openerBeat, ...roomLines, closerBeat];
-    const backyard = photos[photos.length - 1] ?? exterior;
+    // CLOSER reference must be a clean, person-FREE property photo. NOT photos[last] —
+    // portals (Zillow/Redfin) append the LISTING AGENT'S HEADSHOT there, and
+    // cinematic_avatar steers the closer's FACE toward whoever's in the reference (the
+    // opener is always right because photos[0] is the clean house). Reuse the front.
+    const backyard = exterior;
     // Only the two TWIN bookends are AI-rendered; the rooms are Ken-Burns pans over
     // the real photos, assembled from script_segments.roomPhotos.
     const { opener, closer } = await fireBookendClips({
@@ -626,7 +628,7 @@ export async function submitHypeReelVideo(
     const beats = [shortLine(intro, 10), ...roomLines, shortLine(outro, 10)]
       .map((s) => s?.trim())
       .filter(Boolean) as string[];
-    const backyard = photos[photos.length - 1] ?? hero; // closer = backyard
+    const backyard = hero; // NOT photos[last] (often the agent headshot) // closer = backyard
     // Only the two TWIN bookends are AI-rendered; rooms are Ken-Burns pans over the
     // real photos (script_segments.roomPhotos), with music ducked under in the final pass.
     const { opener, closer } = await fireBookendClips({

@@ -106,7 +106,7 @@ export async function submitAiReel(
   const style: ReelStyle = opts.style ?? "classic";
   const rooms = Math.min(Math.max(1, Math.round(opts.roomCount ?? 4)), 12);
   const exterior = photos[0];
-  const backyard = photos[photos.length - 1] ?? exterior;
+  const backyard = exterior; // NOT photos[last] (often the agent headshot)
   const interiors = photos.slice(1, Math.max(1, photos.length - 1)).slice(0, rooms);
   const scenes = [exterior, ...interiors, backyard];
 

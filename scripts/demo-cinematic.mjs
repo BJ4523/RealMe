@@ -30,7 +30,7 @@ const WARDROBE = "in a tailored navy blazer over a crisp white shirt";
 const exteriorPrompt = (role) =>
   [
     "Vertical 9:16 real-estate intro filmed on a smooth gimbal — BRIGHT, crisp, true-to-life.",
-    `The real-estate agent ${WARDROBE} stands ${role === "closer" ? "in the backyard / outdoor space" : "in front of the house"} shown in the reference image,`,
+    `The real-estate agent ${WARDROBE} stands in front of the house shown in the reference image,`,
     "facing the camera and speaking warmly to the viewer — mouth moving naturally, head and",
     "shoulders prominent, face clearly visible the ENTIRE clip (this is the lip-sync anchor).",
     "Being professionally FILMED by a separate operator — NOT a selfie: both hands free, no",
@@ -59,7 +59,7 @@ const photos = listingPhotos(listing.photos).map((p) => p.url);
 console.log(`user ${uid.slice(0, 8)} | look ${lookId?.slice(0, 10)} | listing "${listing.address}" (${photos.length} photos)`);
 
 const exterior = photos[0];
-const backyard = photos[photos.length - 1] ?? exterior;
+const backyard = exterior; // NOT photos[last] (often the agent headshot)
 const roomPhotos = photos.slice(1, Math.max(1, photos.length - 1)).slice(0, ROOMS);
 
 // --- beats (Claude) ---------------------------------------------------------
