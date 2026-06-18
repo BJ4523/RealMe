@@ -249,10 +249,20 @@ export async function assembleMontage(opts: {
     }
     const overlayFilter = buildOverlayFilter("[0:v]", "[vout]", overlays, FONT);
 
+    // Narration RE-ENCODE: raw TTS mp3 timestamps are unreliable and get TRUNCATED
+    // when muxed as the audio track (symptom: the reel's voice cuts off early). Convert
+    // any narration to clean AAC up front so it decodes to its full length in the mux.
+    let narrClean: string | null = null;
+    if (opts.audio.narration) {
+      const rawN = join(dir, "narr-raw");
+      narrClean = join(dir, "narr.m4a");
+      await writeFile(rawN, opts.audio.narration);
+      await ff(["-y", "-i", rawN, "-c:a", "aac", "-b:a", "192k", narrClean]);
+    }
+
     if (opts.audio.narration) {
       // Cinematic: single narration track, trim video to narration (-shortest).
-      const narrPath = join(dir, "narr.wav");
-      await writeFile(narrPath, opts.audio.narration);
+      const narrPath = narrClean as string;
       await ff([
         "-y", "-i", concatV, "-i", narrPath,
         "-filter_complex", overlayFilter,
@@ -266,11 +276,7 @@ export async function assembleMontage(opts: {
       // clip's own audio track is unreliable), else the concat's kept audio.
       const musicPath = join(dir, "music");
       await writeFile(musicPath, opts.audio.music);
-      let narrPath: string | null = null;
-      if (opts.audio.narration) {
-        narrPath = join(dir, "narr-mix");
-        await writeFile(narrPath, opts.audio.narration);
-      }
+      const narrPath: string | null = narrClean; // clean AAC (re-encoded above)
       const voiceSrc = narrPath ? "[2:a]" : "[0:a]";
 
       // Length = the body's own length (driven by the Rooms + Length pickers), so

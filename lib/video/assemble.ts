@@ -214,19 +214,41 @@ export async function generateNarration(
   path: string,
 ): Promise<{ audioUrl: string; dur: number }> {
   const { audioUrl, duration } = await generateSpeech(fullScript, voiceId ?? DEFAULT_VOICE_ID);
-  const hosted = await hostAudio(storage, audioUrl, `${path}.wav`);
-  let dur = duration || 0;
   const dir = await mkdtemp(join(tmpdir(), "narr-"));
   try {
-    const p = join(dir, "a.wav");
-    await writeFile(p, await fetchBuffer(hosted));
-    dur = (await probeDurSec(p)) || dur;
+    // RE-ENCODE the raw TTS (mp3) to clean AAC. The raw mp3's timestamps are
+    // unreliable and get TRUNCATED when it's later muxed as the narration track
+    // (symptom: the reel's audio cuts off several seconds early). A clean AAC decodes
+    // to its full length everywhere.
+    const inP = join(dir, "in");
+    const outP = join(dir, "narr.m4a");
+    await writeFile(inP, await fetchBuffer(audioUrl));
+    await new Promise<void>((res, rej) =>
+      execFile(
+        ffmpegPath as string,
+        ["-y", "-i", inP, "-c:a", "aac", "-b:a", "192k", outP],
+        { maxBuffer: 1 << 24 },
+        (e) => (e ? rej(e) : res()),
+      ),
+    );
+    const buf = await readFile(outP);
+    const dur = (await probeDurSec(outP)) || duration || 0;
+    const up = await storage.storage
+      .from("video-cache")
+      .upload(`${path}.m4a`, buf, { contentType: "audio/mp4", upsert: true });
+    if (up.error) {
+      return { audioUrl: await hostAudio(storage, audioUrl, `${path}.wav`), dur };
+    }
+    const { data } = await storage.storage
+      .from("video-cache")
+      .createSignedUrl(`${path}.m4a`, 60 * 60 * 24 * 7);
+    return { audioUrl: data?.signedUrl ?? audioUrl, dur };
   } catch {
-    /* keep the reported duration */
+    // Fallback: host the raw audio as-is (better a possibly-short reel than none).
+    return { audioUrl: await hostAudio(storage, audioUrl, `${path}.wav`), dur: duration || 0 };
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
-  return { audioUrl: hosted, dur };
 }
 
 /** Probe a media buffer's duration in seconds (0 on failure). */
