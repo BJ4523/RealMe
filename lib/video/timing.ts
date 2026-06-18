@@ -15,10 +15,23 @@ export const CLOSER_SEC = 4;
  * clip is lip-synced to. A long bookend line makes the spoken audio far exceed the
  * ≤15s clip, which HeyGen lipsync rejects (>15% length mismatch).
  */
-export function shortLine(text: string, maxWords = 16): string {
-  const first = (text.split(/(?<=[.!?])\s+/)[0] || text).trim();
-  const w = first.split(/\s+/).filter(Boolean);
-  return w.length > maxWords ? w.slice(0, maxWords).join(" ") : first;
+export function shortLine(text: string, maxWords = 16, minWords = 7): string {
+  const sentences = (text || "").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  // Accumulate whole sentences until we have a real line (≥ minWords), stopping
+  // before we'd exceed maxWords — so a tiny first sentence ("Hi there.") still picks
+  // up the next, and a long pitch is capped to one clean opening line.
+  const out: string[] = [];
+  let count = 0;
+  for (const s of sentences) {
+    const n = s.split(/\s+/).filter(Boolean).length;
+    if (count >= minWords && count + n > maxWords) break;
+    out.push(s);
+    count += n;
+    if (count >= maxWords) break;
+  }
+  const line = out.join(" ").trim() || (text || "").trim();
+  const w = line.split(/\s+/).filter(Boolean);
+  return w.length > maxWords ? w.slice(0, maxWords).join(" ") : line;
 }
 
 /**

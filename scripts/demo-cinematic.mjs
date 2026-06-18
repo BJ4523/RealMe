@@ -10,6 +10,7 @@ import {
   generateHypeReelScript,
 } from "../lib/ai/script.ts";
 import { listingPhotos } from "../lib/format.ts";
+import { planReel, shortLine } from "../lib/video/timing.ts";
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -19,13 +20,12 @@ const sb = createClient(
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const estClipSec = (t) =>
   Math.min(15, Math.max(3, Math.round(((t || "").split(/\s+/).filter(Boolean).length || 8) / 2.5)));
-const shortLine = (t, max = 16) => {
-  const f = (t.split(/(?<=[.!?])\s+/)[0] || t).trim();
-  const w = f.split(/\s+/).filter(Boolean);
-  return w.length > max ? w.slice(0, max).join(" ") : f;
-};
 
+// Mirror the app: a real seconds TARGET + room count → planReel → per-room words.
+const TARGET_SEC = 20;
 const ROOMS = 3;
+const { roomWords, estSec } = planReel(TARGET_SEC, ROOMS);
+console.log(`plan: target ${TARGET_SEC}s · ${ROOMS} rooms → ${roomWords} words/room · est ${estSec}s`);
 const WARDROBE = "in a tailored navy blazer over a crisp white shirt";
 const exteriorPrompt = (role) =>
   [
@@ -63,7 +63,7 @@ console.log("writing script…");
 const openingPitch = await generateOpeningPitch(listing);
 const [hook, roomLines] = await Promise.all([
   generateHypeReelScript(listing),
-  generateRoomNarration(roomPhotos, listing, openingPitch, "classic", 10),
+  generateRoomNarration(roomPhotos, listing, openingPitch, "classic", roomWords),
 ]);
 const cta = hook.outro?.trim() || "Reach out today to come see it in person.";
 const openerBeat = shortLine(openingPitch, 16);

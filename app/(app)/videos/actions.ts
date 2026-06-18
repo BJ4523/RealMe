@@ -507,12 +507,13 @@ export async function submitCinematicVideo(
         ? "Okay this one is straight-up elite — DM me right now before it's gone!"
         : hook.outro?.trim() || "Reach out today to see it in person.";
 
-    // The opener BOOKEND is lip-synced to a SHORT spoken line (~1 sentence) — a long
-    // opener makes the spoken slice far exceed the clip and HeyGen lipsync rejects the
-    // >15% mismatch. The full pitch still seeds the room narration as context.
+    // Both BOOKENDS are lip-synced to SHORT spoken lines (~1 sentence) — a long
+    // bookend makes the spoken slice far exceed the clip and HeyGen lipsync rejects
+    // the >15% mismatch. The full pitch still seeds the room narration as context.
     const openerBeat = shortLine(openingPitch, 16);
+    const closerBeat = shortLine(cta, 16);
     // Beats order is [opener, ...rooms, closer]. Closer bookend = the backyard.
-    const beats = [openerBeat, ...roomLines, cta];
+    const beats = [openerBeat, ...roomLines, closerBeat];
     const backyard = photos[photos.length - 1] ?? exterior;
     // Only the two TWIN bookends are AI-rendered; the rooms are Ken-Burns pans over
     // the real photos, assembled from script_segments.roomPhotos.
@@ -523,7 +524,7 @@ export async function submitCinematicVideo(
       exterior,
       backyard,
       openerBeat,
-      closerBeat: cta,
+      closerBeat,
     });
 
     await supabase
