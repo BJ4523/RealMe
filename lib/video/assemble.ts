@@ -251,20 +251,6 @@ export async function generateNarration(
   }
 }
 
-/** Probe a media buffer's duration in seconds (0 on failure). */
-async function probeBufDur(buf: Buffer): Promise<number> {
-  const dir = await mkdtemp(join(tmpdir(), "pdur-"));
-  try {
-    const p = join(dir, "m");
-    await writeFile(p, buf);
-    return (await probeDurSec(p)) || 0;
-  } catch {
-    return 0;
-  } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-}
-
 export type LipsyncResult =
   | { status: "processing" }
   | { status: "failed"; error: string }
@@ -451,81 +437,50 @@ export async function advanceLipsync(
       )
     : [];
 
-  // ONE continuous take = the EXACT audio the bookends were lip-synced to. Laying it
-  // over the WHOLE stitched video as a SINGLE track removes the per-segment AAC seams
-  // that cause a blip at the bookend↔b-roll joins. The b-roll is sized to fill exactly
-  // (take − bookend clips) so the take's slices stay aligned with the clips (mouth-sync).
-  const takeBuf = seg2.ttsAudio ? await fetchBuffer(seg2.ttsAudio).catch(() => null) : null;
-  let body: Buffer;
-  if (takeBuf && seg2.ttsDur) {
-    let roomsBuf: Buffer | null = null;
-    if (photoBufs.length) {
-      const [dOpen, dClose] = await Promise.all([
-        probeBufDur(openerVid),
-        probeBufDur(closerVid),
-      ]);
-      const roomsDur = Math.max(1.5, seg2.ttsDur - dOpen - dClose);
-      const perPhotoMs = Math.max(800, Math.round((roomsDur / photoBufs.length) * 1000));
-      roomsBuf = await assembleMontage({
-        scenes: photoBufs.map((b, i) => ({
-          kind: "photo" as const,
-          imageBuf: b,
-          motion: motionForIndex(i),
-          durationMs: perPhotoMs,
-        })),
-        audio: {},
-      });
-    }
-    body = await assembleMontage({
-      scenes: [openerVid, ...(roomsBuf ? [roomsBuf] : []), closerVid].map((b) => ({
-        kind: "video" as const,
-        videoBuf: b,
-        durationMs: FULL_MS,
+  // PER-SLICE (keeps lip-sync aligned): each bookend is TRIMMED to its OWN audio slice
+  // (withVO's -shortest trims the clip's padding to the slice), the rooms carry the
+  // middle slice, and the three consecutive slices play back as one continuous voice.
+  // (A single continuous-take overlay desynced the bookends + cut words at the joins,
+  // because the rendered clip lengths don't exactly match the word-count slices.)
+  const withVO = async (b: Buffer, u?: string): Promise<Buffer> => {
+    const n = u ? await fetchBuffer(u).catch(() => null) : null;
+    return n
+      ? assembleMontage({
+          scenes: [{ kind: "video" as const, videoBuf: b, durationMs: FULL_MS }],
+          audio: { narration: n },
+        })
+      : b;
+  };
+  const openerBuf = await withVO(openerVid, seg2.openerNarration);
+  const closerBuf = await withVO(closerVid, seg2.closerNarration);
+  let roomsBuf: Buffer | null = null;
+  if (photoBufs.length) {
+    const roomNarrBuf = seg2.roomNarration
+      ? await fetchBuffer(seg2.roomNarration).catch(() => null)
+      : null;
+    const perPhotoMs = Math.max(
+      1800,
+      Math.round(((seg2.roomNarrationDur ?? photoBufs.length * 4) / photoBufs.length) * 1000),
+    );
+    roomsBuf = await assembleMontage({
+      scenes: photoBufs.map((b, i) => ({
+        kind: "photo" as const,
+        imageBuf: b,
+        motion: motionForIndex(i),
+        durationMs: perPhotoMs,
       })),
-      audio: { narration: takeBuf },
-    });
-  } else {
-    // Fallback (legacy rows with no stored take): per-segment baked audio.
-    const withVO = async (b: Buffer, u?: string): Promise<Buffer> => {
-      const n = u ? await fetchBuffer(u).catch(() => null) : null;
-      return n
-        ? assembleMontage({
-            scenes: [{ kind: "video" as const, videoBuf: b, durationMs: FULL_MS }],
-            audio: { narration: n },
-          })
-        : b;
-    };
-    const openerBuf = await withVO(openerVid, seg2.openerNarration);
-    const closerBuf = await withVO(closerVid, seg2.closerNarration);
-    let roomsBuf: Buffer | null = null;
-    if (photoBufs.length) {
-      const roomNarrBuf = seg2.roomNarration
-        ? await fetchBuffer(seg2.roomNarration).catch(() => null)
-        : null;
-      const perPhotoMs = Math.max(
-        1800,
-        Math.round(((seg2.roomNarrationDur ?? photoBufs.length * 4) / photoBufs.length) * 1000),
-      );
-      roomsBuf = await assembleMontage({
-        scenes: photoBufs.map((b, i) => ({
-          kind: "photo" as const,
-          imageBuf: b,
-          motion: motionForIndex(i),
-          durationMs: perPhotoMs,
-        })),
-        audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
-      });
-    }
-    body = await assembleMontage({
-      scenes: [openerBuf, ...(roomsBuf ? [roomsBuf] : []), closerBuf].map((b) => ({
-        kind: "video" as const,
-        videoBuf: b,
-        durationMs: FULL_MS,
-        keepAudio: true,
-      })),
-      audio: {},
+      audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
     });
   }
+  const body = await assembleMontage({
+    scenes: [openerBuf, ...(roomsBuf ? [roomsBuf] : []), closerBuf].map((b) => ({
+      kind: "video" as const,
+      videoBuf: b,
+      durationMs: FULL_MS,
+      keepAudio: true,
+    })),
+    audio: {},
+  });
 
   const bodyPath = `${userId}/${videoId}-body.mp4`;
   const up = await storage.storage
