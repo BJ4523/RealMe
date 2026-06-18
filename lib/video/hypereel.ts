@@ -66,7 +66,7 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
   "processing" | "completed" | "failed"
 > {
   if (!isHypeReel(reel.heygen_video_id)) return "processing";
-  const { intro, outro } = decodeReelJobs(reel.heygen_video_id!);
+  const { intro, outro, accents } = decodeReelJobs(reel.heygen_video_id!);
   if (!intro || !outro) {
     await supabase
       .from("videos")
@@ -85,6 +85,7 @@ export async function assembleHypeReel(supabase: Db, reel: AssemblableReel): Pro
       userId: reel.user_id,
       openerClip: intro,
       closerClip: outro,
+      roomClips: accents, // cinematic b-roll clips (empty → Ken-Burns the real photos)
       beats,
       voiceId: reel.voiceId ?? null,
       captions: reel.captions ?? false,

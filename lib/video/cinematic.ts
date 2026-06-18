@@ -72,7 +72,7 @@ export async function assembleCinematicVideo(
   voiceId: string | null,
 ): Promise<"processing" | "completed" | "failed"> {
   if (!isCinematic(video.heygen_video_id)) return "processing";
-  const { intro, outro } = decodeCinematicJobs(video.heygen_video_id!);
+  const { intro, outro, rooms } = decodeCinematicJobs(video.heygen_video_id!);
   if (!intro || !outro) {
     await supabase
       .from("videos")
@@ -92,6 +92,7 @@ export async function assembleCinematicVideo(
       userId: video.user_id,
       openerClip: intro,
       closerClip: outro,
+      roomClips: rooms, // cinematic b-roll clips (empty → Ken-Burns the real photos)
       beats,
       voiceId,
       captions: video.captions ?? false,

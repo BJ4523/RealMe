@@ -281,8 +281,12 @@ export async function advanceLipsync(
     /** The two TWIN bookend clip ids — the talking opener + closer to lip-sync. */
     openerClip: string;
     closerClip: string;
-    /** [openerBeat, roomBeats…, closerBeat] — room beats are 1:1 with roomPhotos. */
+    /** [openerBeat, roomBeats…, closerBeat] — room beats are 1:1 with the rooms. */
     beats: string[];
+    /** Optional CINEMATIC b-roll: one cinematic_avatar clip id per room (the twin in
+     *  an AI-recreated room). When set, the b-roll is these clips + VO instead of
+     *  Ken-Burns pans over the real photos. */
+    roomClips?: string[];
     voiceId: string | null;
     captions?: boolean;
   },
@@ -310,6 +314,21 @@ export async function advanceLipsync(
   const openerUrl = openerS.videoUrl;
   const closerUrl = closerS.videoUrl;
   if (!openerUrl || !closerUrl) return { status: "processing" };
+
+  // CINEMATIC b-roll (optional): poll the per-room cinematic_avatar clips too.
+  const roomClips = opts.roomClips ?? [];
+  let roomClipUrls: string[] = [];
+  if (roomClips.length) {
+    const rs = await Promise.all(roomClips.map(getCinematicClipStatus));
+    if (rs.some((s) => s.status === "failed")) {
+      return {
+        status: "failed",
+        error: rs.find((s) => s.status === "failed")?.error ?? "A b-roll clip failed to render.",
+      };
+    }
+    if (rs.some((s) => s.status !== "completed")) return { status: "processing" };
+    roomClipUrls = rs.map((s) => s.videoUrl).filter(Boolean) as string[];
+  }
 
   const lastIdx = beats.length - 1;
   const openerBeat = (beats[0] || "Welcome — come take a look at this home.").trim();
@@ -453,11 +472,20 @@ export async function advanceLipsync(
   };
   const openerBuf = await withVO(openerVid, seg2.openerNarration);
   const closerBuf = await withVO(closerVid, seg2.closerNarration);
+  const roomNarrBuf = seg2.roomNarration
+    ? await fetchBuffer(seg2.roomNarration).catch(() => null)
+    : null;
   let roomsBuf: Buffer | null = null;
-  if (photoBufs.length) {
-    const roomNarrBuf = seg2.roomNarration
-      ? await fetchBuffer(seg2.roomNarration).catch(() => null)
-      : null;
+  if (roomClipUrls.length) {
+    // CINEMATIC b-roll: the twin in each AI-recreated room. Stitch the clips (their
+    // own natural length) and VO the middle voice slice over them.
+    const clipBufs = await Promise.all(roomClipUrls.map((u) => fetchBuffer(u)));
+    roomsBuf = await assembleMontage({
+      scenes: clipBufs.map((b) => ({ kind: "video" as const, videoBuf: b, durationMs: FULL_MS })),
+      audio: roomNarrBuf ? { narration: roomNarrBuf } : {},
+    });
+  } else if (photoBufs.length) {
+    // Ken-Burns b-roll: pans over the real room photos.
     const perPhotoMs = Math.max(
       1800,
       Math.round(((seg2.roomNarrationDur ?? photoBufs.length * 4) / photoBufs.length) * 1000),
