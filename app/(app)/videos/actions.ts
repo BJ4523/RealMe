@@ -426,6 +426,45 @@ function bookendSeconds(
   };
 }
 
+const clipSec = (t: string) =>
+  Math.min(15, Math.max(4, Math.round((t.trim().split(/\s+/).filter(Boolean).length || 8) / 2.5)));
+
+/** Cinematic-b-roll room prompt: the twin walking the AI-recreated room, face locked. */
+function cinematicRoomPrompt(listing: Tables<"listings"> | null, wardrobe: string): string {
+  const place = listing?.address ? `the home at ${listing.address}` : "this home";
+  return [
+    "Bright, crisp vertical 9:16 real-estate WALKING TOUR on a smooth gimbal — clean daylight,",
+    "sharp with everything in focus, true-to-life color.",
+    "Recreate the room in the reference image FAITHFULLY: same layout, furniture, wall colors,",
+    "flooring, windows and finishes. Do NOT invent or rearrange.",
+    `Inside that recreated room of ${place}, the real-estate agent ${wardrobe} walks through and`,
+    "presents the space — moving naturally, gesturing to its features, cinematic and premium.",
+    "CRITICAL: the EXACT face of the provided avatar — do NOT substitute a different, younger, or",
+    "generic-looking person. EXACTLY ONE person, alone.",
+  ].join(" ");
+}
+
+/** Fire one cinematic_avatar clip per room photo (the twin in the AI-recreated room). */
+async function fireRoomClips(opts: {
+  lookId: string;
+  wardrobe: string;
+  listing: Tables<"listings"> | null;
+  roomPhotos: string[];
+  roomBeats: string[];
+}): Promise<string[]> {
+  const jobs = await Promise.all(
+    opts.roomPhotos.map((url, i) =>
+      generateCinematicClip({
+        avatarLookId: opts.lookId,
+        referenceUrl: url,
+        prompt: cinematicRoomPrompt(opts.listing, opts.wardrobe),
+        duration: clipSec(opts.roomBeats[i] ?? ""),
+      }),
+    ),
+  );
+  return jobs.map((j) => j.jobId);
+}
+
 export async function submitCinematicVideo(
   videoId: string,
   outfitId?: string,
@@ -434,6 +473,7 @@ export async function submitCinematicVideo(
   tucked: boolean = true,
   style: ReelStyle = "classic",
   roomWords: number = 14,
+  brollStyle: "kenburns" | "cinematic" = "kenburns",
 ) {
   const rooms = Math.min(
     Math.max(Math.round(roomCount ?? DEFAULT_CINEMATIC_ROOMS), 1),
@@ -540,20 +580,20 @@ export async function submitCinematicVideo(
       `${userId}/${videoId}-tts`,
     );
     const { openerSec, closerSec } = bookendSeconds(beats, narr.dur);
-    const { opener, closer } = await fireBookendClips({
-      lookId,
-      wardrobe,
-      listing,
-      exterior,
-      backyard,
-      openerSec,
-      closerSec,
-    });
+    // Bookends always render; CINEMATIC b-roll also renders one cinematic_avatar clip
+    // per room (the twin in the AI-recreated room). Ken-Burns b-roll renders no room
+    // clips (the assembler pans the real photos from script_segments.roomPhotos).
+    const [{ opener, closer }, roomClipIds] = await Promise.all([
+      fireBookendClips({ lookId, wardrobe, listing, exterior, backyard, openerSec, closerSec }),
+      brollStyle === "cinematic"
+        ? fireRoomClips({ lookId, wardrobe, listing, roomPhotos, roomBeats: roomLines })
+        : Promise.resolve([] as string[]),
+    ]);
 
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs(opener, closer, []),
+        heygen_video_id: encodeCinematicJobs(opener, closer, roomClipIds),
         status: "processing",
         thumbnail_url: photos[0] ?? null,
         script_segments: {
@@ -583,6 +623,7 @@ export async function submitHypeReelVideo(
   style: ReelStyle = "classic",
   roomWords: number = 14,
   roomCount: number = HYPE_REEL_ROOMS,
+  brollStyle: "kenburns" | "cinematic" = "kenburns",
 ) {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -660,18 +701,15 @@ export async function submitHypeReelVideo(
       `${userId}/${videoId}-tts`,
     );
     const { openerSec, closerSec } = bookendSeconds(beats, narr.dur);
-    const { opener, closer } = await fireBookendClips({
-      lookId,
-      wardrobe,
-      listing,
-      exterior: hero,
-      backyard,
-      openerSec,
-      closerSec,
-    });
+    const [{ opener, closer }, roomClipIds] = await Promise.all([
+      fireBookendClips({ lookId, wardrobe, listing, exterior: hero, backyard, openerSec, closerSec }),
+      brollStyle === "cinematic"
+        ? fireRoomClips({ lookId, wardrobe, listing, roomPhotos, roomBeats: roomLines })
+        : Promise.resolve([] as string[]),
+    ]);
 
     await supabase.from("videos").update({
-      heygen_video_id: encodeReelJobs(opener, closer, []),
+      heygen_video_id: encodeReelJobs(opener, closer, roomClipIds),
       status: "processing",
       thumbnail_url: hero,
       script_segments: {

@@ -82,6 +82,9 @@ export function VideoDetail({
     "cinematic",
   );
   const [durationSec, setDurationSec] = useState(20);
+  // B-roll for the room tour: Ken-Burns pans over the REAL photos (faithful) vs
+  // cinematic AI remakes (the twin walking AI-recreated rooms).
+  const [brollStyle, setBrollStyle] = useState<"kenburns" | "cinematic">("kenburns");
   const [previewing, setPreviewing] = useState(false);
 
   // Rooms come from the INTERIOR photos (between the opening + closing shots), so
@@ -177,6 +180,7 @@ export function VideoDetail({
           "classic",
           roomWords,
           effRooms,
+          brollStyle,
         );
       } else {
         // Cinematic (classic voice) or Gen Z (cinematic walking tour, hyped slang).
@@ -188,6 +192,7 @@ export function VideoDetail({
           tucked,
           m === "genz" ? "genz" : "classic",
           roomWords,
+          brollStyle,
         );
       }
       const latest = await pollVideoStatus(video.id);
@@ -410,6 +415,29 @@ export function VideoDetail({
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* B-roll style (HeyGen modes only): Ken-Burns real photos vs cinematic
+                      AI remakes (the twin walking AI-recreated rooms). */}
+                  {mode !== "ai" && (
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <span>B-roll</span>
+                      <Select
+                        value={brollStyle}
+                        onValueChange={(v) => setBrollStyle(v as typeof brollStyle)}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          aria-label="B-roll style"
+                          className="w-auto rounded-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="kenburns">Real photos (Ken Burns)</SelectItem>
+                          <SelectItem value="cinematic">Cinematic AI rooms</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   {/* Captions toggle (on = burned, muted-friendly). */}
                   <button
                     type="button"
