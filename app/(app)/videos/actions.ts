@@ -28,6 +28,7 @@ import {
 import { assembleAiReel, isAiReel } from "@/lib/video/ai-reel";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos, tourPhotosFor } from "@/lib/format";
+import { shortLine } from "@/lib/video/timing";
 import { wardrobePrompt, tuckClause } from "@/lib/video/wardrobe";
 import type { Json, Tables } from "@/lib/types/database";
 
@@ -38,17 +39,6 @@ const DEFAULT_CINEMATIC_ROOMS = 2;
 /** AI room clips in a Hype Reel's middle tour (between the host bookends). Must
  * match ROOM_PHOTO_SHOTS in lib/video/hypereel.ts (beat-synced durations). */
 const HYPE_REEL_ROOMS = 2;
-
-/**
- * First sentence of a script, capped to `maxWords` — the SHORT spoken line a TWIN
- * bookend clip is lip-synced to. Long bookend lines make the spoken audio far longer
- * than the ≤15s clip, which HeyGen lipsync rejects (>15% length mismatch).
- */
-function shortLine(text: string, maxWords = 16): string {
-  const first = (text.split(/(?<=[.!?])\s+/)[0] || text).trim();
-  const w = first.split(/\s+/).filter(Boolean);
-  return w.length > maxWords ? w.slice(0, maxWords).join(" ") : first;
-}
 
 /**
  * Create a draft video for a listing and return its id (no redirect) so a CLIENT

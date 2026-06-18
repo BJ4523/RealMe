@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Json, Tables } from "@/lib/types/database";
 import { listingPhotos, tourPhotosFor } from "@/lib/format";
+import { shortLine } from "@/lib/video/timing";
 import {
   generateOpeningPitch,
   generateRoomNarration,
@@ -75,7 +76,7 @@ export async function setupAiAvatar(input: {
  */
 export async function submitAiReel(
   videoId: string,
-  opts: { roomCount?: number; style?: ReelStyle; trackId?: string } = {},
+  opts: { roomCount?: number; roomWords?: number; style?: ReelStyle; trackId?: string } = {},
 ): Promise<{ error?: string } | void> {
   const { userId } = await requireUser();
   const supabase = await createClient();
@@ -116,10 +117,18 @@ export async function submitAiReel(
       (await generateOpeningPitch(listing as Tables<"listings">, style));
     const [hook, roomLines] = await Promise.all([
       generateHypeReelScript(listing as Tables<"listings">),
-      generateRoomNarration(interiors, listing as Tables<"listings">, openingPitch, style),
+      generateRoomNarration(
+        interiors,
+        listing as Tables<"listings">,
+        openingPitch,
+        style,
+        opts.roomWords ?? 12,
+      ),
     ]);
     const cta = hook.outro?.trim() || "Reach out today to come see it in person.";
-    const beats = [openingPitch, ...roomLines, cta];
+    // Short opener so a 20s reel isn't all-intro — the full pitch still seeds the
+    // room narration as context, and the clip durations track each beat's length.
+    const beats = [shortLine(openingPitch, 16), ...roomLines, cta];
 
     await supabase
       .from("videos")

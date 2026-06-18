@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "./status-badge";
 import { PhotoReorder } from "./photo-reorder";
+import { planReel } from "@/lib/video/timing";
 
 type Video = Tables<"videos">;
 
@@ -80,23 +81,17 @@ export function VideoDetail({
   const [mode, setMode] = useState<"cinematic" | "hype" | "genz" | "ai">(
     "cinematic",
   );
-  const [length, setLength] = useState<"short" | "standard" | "long">("standard");
+  const [durationSec, setDurationSec] = useState(20);
   const [previewing, setPreviewing] = useState(false);
 
   // Rooms come from the INTERIOR photos (between the opening + closing shots), so
   // never offer more rooms than the listing actually has photos for.
   const maxRooms = Math.min(12, Math.max(1, photos.length - 2));
   const effRooms = Math.min(roomCount, maxRooms);
-  // Length picker → words per room line → clip seconds (clip ≈ words / 2.5).
-  const roomWords = length === "short" ? 8 : length === "long" ? 22 : 14;
-  const perRoomSec = Math.min(15, Math.max(4, Math.round(roomWords / 2.5)));
-  // Rough total: opener + rooms + ~4s closer. Cinematic/Gen-Z open with the ~15s
-  // pitch; Hype opens with a punchy ~5s hook and is floored at 15s.
-  const openerSec = mode === "hype" ? 5 : 15;
-  const estSecs = Math.max(
-    mode === "hype" ? 15 : 0,
-    openerSec + effRooms * perRoomSec + 4,
-  );
+  // Dynamic: the chosen DURATION + ROOM count plan the per-room narration so the reel
+  // lands near the target. Same math runs in the submit (short lip-synced bookends +
+  // room budget split across the photos). estSecs reflects the real outcome.
+  const { roomWords, estSec: estSecs } = planReel(durationSec, effRooms);
   const [pending, startTransition] = useTransition();
   const [rewriting, startRewrite] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -171,7 +166,7 @@ export function VideoDetail({
       await updateScript(video.id, script);
       if (m === "ai") {
         // Runway + ElevenLabs pipeline (real footage + expressive VO, no lipsync).
-        await submitAiReel(video.id, { roomCount: effRooms, style: "classic" });
+        await submitAiReel(video.id, { roomCount: effRooms, roomWords, style: "classic" });
       } else if (m === "hype") {
         await submitHypeReelVideo(
           video.id,
@@ -391,24 +386,27 @@ export function VideoDetail({
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Length picker — per-room pacing (drives total duration). */}
+                  {/* Duration picker — a real seconds TARGET. With the room count it
+                      plans the per-room narration so the reel lands near the target. */}
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <span>Length</span>
+                    <span>Duration</span>
                     <Select
-                      value={length}
-                      onValueChange={(v) => setLength(v as typeof length)}
+                      value={String(durationSec)}
+                      onValueChange={(v) => setDurationSec(Number(v))}
                     >
                       <SelectTrigger
                         size="sm"
-                        aria-label="Video length / pace"
+                        aria-label="Target video duration"
                         className="w-auto rounded-full"
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="short">Short &amp; snappy</SelectItem>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="long">Detailed</SelectItem>
+                        {[15, 20, 30, 45, 60].map((s) => (
+                          <SelectItem key={s} value={String(s)}>
+                            {s}s
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
