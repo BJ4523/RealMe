@@ -10,11 +10,14 @@ import { priceShort, useIsMobile } from "@/components/site/shared";
 // are illustrative; the addresses + footage are real.
 const REELS = [
   { id: "dunleer", address: "2746 Dunleer Pl", city: "Los Angeles, CA", price: 2495000, beds: 4, baths: 3, sqft: 2180, agent: "AVERY.BROOKS",
-    video: "/demo/dunleer.mp4", poster: "/demo/dunleer.jpg", thumb: "/demo/thumb-dunleer.jpg" },
+    video: "/demo/dunleer.mp4", poster: "/demo/dunleer.jpg", thumb: "/demo/thumb-dunleer.jpg",
+    photos: ["/demo/photos/dunleer-1.jpg", "/demo/photos/dunleer-2.jpg", "/demo/photos/dunleer-3.jpg", "/demo/photos/dunleer-4.jpg"] },
   { id: "midvale", address: "2357 Midvale Ave", city: "Los Angeles, CA", price: 2150000, beds: 3, baths: 3, sqft: 1840, agent: "MARCUS.REED",
-    video: "/demo/midvale.mp4", poster: "/demo/midvale.jpg", thumb: "/demo/thumb-midvale.jpg" },
+    video: "/demo/midvale.mp4", poster: "/demo/midvale.jpg", thumb: "/demo/thumb-midvale.jpg",
+    photos: ["/demo/photos/midvale-1.jpg", "/demo/photos/midvale-2.jpg", "/demo/photos/midvale-3.jpg", "/demo/photos/midvale-4.jpg"] },
   { id: "eyring", address: "645 S Eyring Pl", city: "Grantsville, UT", price: 689000, beds: 5, baths: 3, sqft: 3260, agent: "SIERRA.HALE",
-    video: "/demo/eyring.mp4", poster: "/demo/eyring.jpg", thumb: "/demo/thumb-eyring.jpg" },
+    video: "/demo/eyring.mp4", poster: "/demo/eyring.jpg", thumb: "/demo/thumb-eyring.jpg",
+    photos: ["/demo/photos/eyring-1.jpg", "/demo/photos/eyring-2.jpg", "/demo/photos/eyring-3.jpg", "/demo/photos/eyring-4.jpg"] },
 ];
 
 const GEN_STEPS = [
@@ -207,6 +210,28 @@ export function DemoStudioSection() {
               })}
             </div>
 
+            {/* Photos from the selected listing — what the reel is built from. */}
+            <div style={{ ...stepLbl, marginTop: 24, marginBottom: 10 }}>
+              From {reel.photos.length} listing photos
+            </div>
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+              {reel.photos.map((src, i) => (
+                <div
+                  key={src}
+                  style={{
+                    flex: "0 0 auto",
+                    width: 92,
+                    height: 66,
+                    borderRadius: 10,
+                    backgroundImage: `url(${src})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    border: "1px solid var(--rule)",
+                  }}
+                />
+              ))}
+            </div>
+
             <div style={{ ...stepLbl, marginTop: 26 }}>2 · Generate</div>
             <button
               onClick={generate}
@@ -336,16 +361,19 @@ function PhoneStage({ reel, status, progress, steps, muted, onToggleSound, video
     );
   }
 
-  // GENERATING — the render visual (poster + scanline + steps).
+  // GENERATING — the render visual (cuts through the real B-roll + scanline + steps).
   if (status === "generating") {
+    const broll = [...reel.photos, reel.poster];
+    const frame = broll[Math.min(broll.length - 1, Math.floor((progress / 100) * broll.length))];
     return (
       <div
         style={{
           position: "absolute",
           inset: 0,
-          backgroundImage: `url(${reel.poster})`,
+          backgroundImage: `url(${frame})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
+          transition: "background-image 0.15s",
         }}
       >
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.78) 100%)" }} />
