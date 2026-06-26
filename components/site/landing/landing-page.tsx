@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useIsMobile } from "@/components/site/shared";
 import { TopNav, Hero, TrustMarquee, HowItWorks, MobileActionBar } from "./top";
 import {
-  LiveDemoSection,
   CalendarPreview,
   EmailSection,
   LeadsSection,
@@ -15,6 +14,7 @@ import {
   FinalCTA,
   Footer,
 } from "./lower";
+import { DemoStudioSection } from "./demo-studio";
 import { RentalsAndLiveSection } from "./rentals-section";
 
 export function LandingPageClient() {
@@ -36,9 +36,9 @@ export function LandingPageClient() {
     <div className="realme-surface" data-screen-label="01 Landing">
       <TopNav onOpenApp={onOpenApp} onOpenLive={onOpenLive} authed={authed} />
       <Hero onOpenApp={onOpenApp} />
+      <DemoStudioSection />
       <TrustMarquee />
       <HowItWorks />
-      <LiveDemoSection onOpenApp={onOpenApp} />
       <CalendarPreview />
       <EmailSection />
       <LeadsSection />
