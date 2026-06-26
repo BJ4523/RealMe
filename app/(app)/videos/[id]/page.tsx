@@ -48,9 +48,6 @@ export default async function VideoPage({
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
-  // AI mode needs a photo (Runway likeness); voice is optional (silent test reel).
-  const aiAv = avatar as { el_voice_id?: string | null; agent_image_url?: string | null } | null;
-  const aiReady = !!aiAv?.agent_image_url;
   const isTwin = !!(
     avatar?.status === "ready" &&
     avatar.heygen_asset_id &&
@@ -87,7 +84,6 @@ export default async function VideoPage({
         initialVideo={videoRow}
         cinematicReady={cinematicReady}
         hasTwin={isTwin}
-        aiReady={aiReady}
         photos={photos}
         listingPool={pool}
         tracks={TRACKS.map((t) => ({

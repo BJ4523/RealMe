@@ -24,10 +24,6 @@ export const env = {
   // Firecrawl: powers URL import past bot walls (Zillow/Realtor/Redfin).
   // When unset, URL import falls back to the dependency-free scraper.
   firecrawlApiKey: process.env.FIRECRAWL_API_KEY ?? "",
-  // Runway (Gen-4.5 image-to-video) — realistic agent-in-scene footage.
-  runwayApiSecret: process.env.RUNWAYML_API_SECRET ?? "",
-  // ElevenLabs — expressive cloned-voice narration (eleven_v3) + voice cloning.
-  elevenLabsApiKey: process.env.ELEVENLABS_API_KEY ?? "",
   cronSecret: process.env.CRON_SECRET ?? "",
 
   // Comma-separated allowlist of emails permitted to use the /admin routes.

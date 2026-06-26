@@ -40,7 +40,7 @@ export function shortLine(text: string, maxWords = 16, minWords = 7): string {
  * bookends + the remaining budget split across the room photos. `roomWords` is what
  * the script generator is told to write per room → the spoken length (and the clip
  * durations, which are sized to it) track the target. Per-room is clamped [3s, 12s]
- * (a Ken-Burns pan / Runway clip reads well in that band), so very few rooms for a
+ * (a Ken-Burns pan reads well in that band), so very few rooms for a
  * long target, or many rooms for a short one, will drift — `estSec` reflects reality.
  */
 export function planReel(

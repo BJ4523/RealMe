@@ -4,7 +4,6 @@ import { getVideoStatus } from "@/lib/heygen/video";
 import { reconcileAvatar } from "@/lib/avatars/reconcile";
 import { assembleCinematicVideo, isCinematic } from "@/lib/video/cinematic";
 import { assembleHypeReel, isHypeReel } from "@/lib/video/hypereel";
-import { assembleAiReel, isAiReel, AI_PREFIX } from "@/lib/video/ai-reel";
 import { listingPhotos } from "@/lib/format";
 import { env } from "@/lib/env";
 
@@ -182,29 +181,6 @@ export async function GET(request: NextRequest) {
     if (result === "completed") reelsAssembled++;
   }
 
-  // Runway + ElevenLabs reels (render scene clips → narrate → stitch). Same
-  // stale-lock reset + idempotent resume as the other passes.
-  const { data: aiVideos } = await supabase
-    .from("videos")
-    .select("id, user_id, heygen_video_id, status, script_segments")
-    .in("status", ["processing", "submitting"])
-    .like("heygen_video_id", `${AI_PREFIX}%`)
-    .limit(20);
-
-  let aiAssembled = 0;
-  for (const v of aiVideos ?? []) {
-    if (!isAiReel(v.heygen_video_id)) continue;
-    if (v.status === "submitting") {
-      await supabase
-        .from("videos")
-        .update({ status: "processing" })
-        .eq("id", v.id)
-        .eq("status", "submitting");
-    }
-    const result = await assembleAiReel(supabase, v);
-    if (result === "completed") aiAssembled++;
-  }
-
   return NextResponse.json({
     checked: stuck?.length ?? 0,
     reconciled,
@@ -214,7 +190,5 @@ export async function GET(request: NextRequest) {
     cinematicAssembled,
     reelsChecked: reelVideos?.length ?? 0,
     reelsAssembled,
-    aiChecked: aiVideos?.length ?? 0,
-    aiAssembled,
   });
 }

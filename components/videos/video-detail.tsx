@@ -18,7 +18,6 @@ import {
   submitCinematicVideo,
   submitHypeReelVideo,
 } from "@/app/(app)/videos/actions";
-import { submitAiReel } from "@/app/(app)/videos/ai-actions";
 import {
   updateScript,
   pollVideoStatus,
@@ -48,7 +47,6 @@ export function VideoDetail({
   initialVideo,
   cinematicReady = false,
   hasTwin = false,
-  aiReady = false,
   photos = [],
   listingPool = [],
   tracks = [],
@@ -58,8 +56,6 @@ export function VideoDetail({
   cinematicReady?: boolean;
   /** True when the active avatar is a ready digital twin (consent may still be pending). */
   hasTwin?: boolean;
-  /** True when the AI avatar (Runway photo + ElevenLabs voice) is set up. */
-  aiReady?: boolean;
   /** This video's tour order (first = opener, last = closer) — reorderable. */
   photos?: { url: string; caption?: string }[];
   /** The listing's full photo pool — the "Add" modal draws from this. */
@@ -78,7 +74,7 @@ export function VideoDetail({
   );
   const [captions, setCaptions] = useState(false);
   const [tucked, setTucked] = useState(true);
-  const [mode, setMode] = useState<"cinematic" | "hype" | "genz" | "ai">(
+  const [mode, setMode] = useState<"cinematic" | "hype" | "genz">(
     "cinematic",
   );
   const [durationSec, setDurationSec] = useState(20);
@@ -162,15 +158,12 @@ export function VideoDetail({
     });
   }
 
-  function handleGenerate(forceMode?: "cinematic" | "hype" | "genz" | "ai") {
+  function handleGenerate(forceMode?: "cinematic" | "hype" | "genz") {
     const m = forceMode ?? mode;
     setVideo((v) => ({ ...v, status: "submitting" }));
     startTransition(async () => {
       await updateScript(video.id, script);
-      if (m === "ai") {
-        // Runway + ElevenLabs pipeline (real footage + expressive VO, no lipsync).
-        await submitAiReel(video.id, { roomCount: effRooms, roomWords, style: "classic" });
-      } else if (m === "hype") {
+      if (m === "hype") {
         await submitHypeReelVideo(
           video.id,
           trackId,
@@ -415,29 +408,27 @@ export function VideoDetail({
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* B-roll style (HeyGen modes only): Ken-Burns real photos vs cinematic
-                      AI remakes (the twin walking AI-recreated rooms). */}
-                  {mode !== "ai" && (
-                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <span>B-roll</span>
-                      <Select
-                        value={brollStyle}
-                        onValueChange={(v) => setBrollStyle(v as typeof brollStyle)}
+                  {/* B-roll style: Ken-Burns real photos vs cinematic AI remakes
+                      (the twin walking AI-recreated rooms). */}
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span>B-roll</span>
+                    <Select
+                      value={brollStyle}
+                      onValueChange={(v) => setBrollStyle(v as typeof brollStyle)}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        aria-label="B-roll style"
+                        className="w-auto rounded-full"
                       >
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="B-roll style"
-                          className="w-auto rounded-full"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="kenburns">Real photos (Ken Burns)</SelectItem>
-                          <SelectItem value="cinematic">Cinematic AI rooms</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kenburns">Real photos (Ken Burns)</SelectItem>
+                        <SelectItem value="cinematic">Cinematic AI rooms</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {/* Captions toggle (on = burned, muted-friendly). */}
                   <button
                     type="button"
@@ -511,8 +502,7 @@ export function VideoDetail({
                           { id: "cinematic", label: "Cinematic" },
                           { id: "hype", label: "Hype reel" },
                           { id: "genz", label: "Gen Z 🔥" },
-                          ...(aiReady ? [{ id: "ai", label: "AI ✨" }] : []),
-                        ] as { id: "cinematic" | "hype" | "genz" | "ai"; label: string }[]
+                        ] as { id: "cinematic" | "hype" | "genz"; label: string }[]
                       ).map((m) => (
                         <button
                           key={m.id}
@@ -535,12 +525,8 @@ export function VideoDetail({
                         ? "Faithful walking tour of your photos, polished voice."
                         : mode === "hype"
                           ? "Same tour set to music — punchy and social."
-                          : mode === "genz"
-                            ? "Walking tour with hyped, Gen-Z slang narration."
-                            : "Realistic Runway footage + one continuous ElevenLabs voiceover in your cloned voice."}{" "}
-                      {mode !== "ai" && (
-                        <span className="font-medium text-foreground">≈ {estSecs}s</span>
-                      )}
+                          : "Walking tour with hyped, Gen-Z slang narration."}{" "}
+                      <span className="font-medium text-foreground">≈ {estSecs}s</span>
                     </p>
                   </div>
                   <Button
