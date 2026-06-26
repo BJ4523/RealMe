@@ -10,13 +10,13 @@ import { priceShort, useIsMobile } from "@/components/site/shared";
 // are illustrative; the addresses + footage are real.
 const REELS = [
   { id: "dunleer", address: "2746 Dunleer Pl", city: "Los Angeles, CA", price: 2495000, beds: 4, baths: 3, sqft: 2180, agent: "AVERY.BROOKS",
-    video: "/demo/dunleer.mp4", poster: "/demo/dunleer.jpg", thumb: "/demo/thumb-dunleer.jpg",
+    video: "/demo/dunleer.mp4", poster: "/demo/dunleer.jpg", thumb: "/demo/agent-dunleer.jpg",
     photos: ["/demo/photos/dunleer-1.jpg", "/demo/photos/dunleer-2.jpg", "/demo/photos/dunleer-3.jpg", "/demo/photos/dunleer-4.jpg"] },
   { id: "midvale", address: "2357 Midvale Ave", city: "Los Angeles, CA", price: 2150000, beds: 3, baths: 3, sqft: 1840, agent: "MARCUS.REED",
-    video: "/demo/midvale.mp4", poster: "/demo/midvale.jpg", thumb: "/demo/thumb-midvale.jpg",
+    video: "/demo/midvale.mp4", poster: "/demo/midvale.jpg", thumb: "/demo/agent-midvale.jpg",
     photos: ["/demo/photos/midvale-1.jpg", "/demo/photos/midvale-2.jpg", "/demo/photos/midvale-3.jpg", "/demo/photos/midvale-4.jpg"] },
   { id: "eyring", address: "645 S Eyring Pl", city: "Grantsville, UT", price: 689000, beds: 5, baths: 3, sqft: 3260, agent: "SIERRA.HALE",
-    video: "/demo/eyring.mp4", poster: "/demo/eyring.jpg", thumb: "/demo/thumb-eyring.jpg",
+    video: "/demo/eyring.mp4", poster: "/demo/eyring.jpg", thumb: "/demo/agent-eyring.jpg",
     photos: ["/demo/photos/eyring-1.jpg", "/demo/photos/eyring-2.jpg", "/demo/photos/eyring-3.jpg", "/demo/photos/eyring-4.jpg"] },
 ];
 
@@ -170,13 +170,14 @@ export function DemoStudioSection() {
                   >
                     <div
                       style={{
-                        width: 76,
+                        width: 56,
                         height: 56,
-                        borderRadius: 10,
+                        borderRadius: 12,
                         flexShrink: 0,
                         backgroundImage: `url(${r.thumb})`,
                         backgroundSize: "cover",
-                        backgroundPosition: "center",
+                        backgroundPosition: "center top",
+                        border: on ? "1px solid rgba(246,242,234,0.25)" : "1px solid var(--rule)",
                       }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
