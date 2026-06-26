@@ -38,6 +38,7 @@ export function DemoStudioSection() {
   const [elapsed, setElapsed] = useState(0);
   const [muted, setMuted] = useState(true);
   const videoRef = useRef(null);
+  const phoneRef = useRef(null);
 
   const reel = REELS.find((r) => r.id === selected);
 
@@ -54,6 +55,10 @@ export function DemoStudioSection() {
     setProgress(0);
     setSteps([]);
     setMuted(true);
+    // On mobile the phone sits below the controls — bring the payoff into view.
+    if (isMobile && phoneRef.current) {
+      phoneRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
 
   // Drive the (simulated) render — ~3.5s of progress, then play the real reel.
@@ -128,18 +133,19 @@ export function DemoStudioSection() {
           className="card"
           style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 320px",
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) 320px",
             gap: isMobile ? 28 : 48,
             alignItems: "center",
-            padding: isMobile ? 20 : 36,
-            borderRadius: 28,
+            padding: isMobile ? 16 : 36,
+            borderRadius: isMobile ? 22 : 28,
             background: "var(--bg-warm)",
             border: "1px solid var(--rule)",
             boxShadow: "var(--shadow-pop)",
+            overflow: "hidden",
           }}
         >
           {/* ---- Left: picker + generate ---- */}
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={stepLbl}>1 · Pick a listing</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
               {REELS.map((r) => {
@@ -214,19 +220,31 @@ export function DemoStudioSection() {
             <div style={{ ...stepLbl, marginTop: 24, marginBottom: 10 }}>
               From {reel.photos.length} listing photos
             </div>
-            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
-              {reel.photos.map((src, i) => (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                overflowX: "auto",
+                paddingBottom: 4,
+                minWidth: 0,
+                scrollSnapType: "x mandatory",
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "none",
+              }}
+            >
+              {reel.photos.map((src) => (
                 <div
                   key={src}
                   style={{
                     flex: "0 0 auto",
-                    width: 92,
-                    height: 66,
+                    width: isMobile ? "28%" : 92,
+                    aspectRatio: "3 / 2",
                     borderRadius: 10,
                     backgroundImage: `url(${src})`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                     border: "1px solid var(--rule)",
+                    scrollSnapAlign: "start",
                   }}
                 />
               ))}
@@ -281,7 +299,7 @@ export function DemoStudioSection() {
           </div>
 
           {/* ---- Right: phone preview ---- */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div ref={phoneRef} style={{ display: "flex", justifyContent: "center", scrollMarginTop: 80 }}>
             <div className="phone" style={{ maxWidth: "100%" }}>
               <div className="phone-notch" />
               <div className="phone-screen">
