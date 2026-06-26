@@ -230,14 +230,16 @@ function HeroDemo() {
         </div>
       </div>
 
-      {/* ONE status pill — calm, white card */}
+      {/* ONE status pill — a toast attached to the phone's bottom */}
       <div style={{
-        position: "absolute", bottom: 50, left: isMobile ? 0 : -8, zIndex: 4,
+        position: "absolute", bottom: isMobile ? 28 : 36, left: "50%",
+        transform: "translateX(-50%)", zIndex: 4,
         maxWidth: "calc(100% - 16px)",
         background: "var(--ink)", color: "var(--bg-warm)",
         padding: "10px 16px", borderRadius: 999,
         display: "flex", alignItems: "center", gap: 10,
-        fontSize: 12, fontWeight: 500,
+        fontSize: isMobile ? 11 : 12, fontWeight: 500,
+        whiteSpace: isMobile ? "normal" : "nowrap", textAlign: "center",
         boxShadow: "var(--shadow-pop)",
       }}>
         <CheckIcon size={12} /> Posted to Instagram, TikTok, YouTube · 2 min ago
