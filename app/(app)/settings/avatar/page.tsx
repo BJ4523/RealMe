@@ -66,10 +66,10 @@ export default async function AvatarSettingsPage() {
   return (
     <>
       <Link
-        href="/settings"
+        href="/app"
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Settings
+        <ArrowLeft className="size-4" /> Dashboard
       </Link>
       <PageHeader
         title="Your avatar"

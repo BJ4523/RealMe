@@ -117,14 +117,14 @@ function RentalHeroToday({ setSection }) {
           </h2>
           <p style={{ fontSize: 15, color: "rgba(246,242,234,0.75)", maxWidth: 540, lineHeight: 1.5 }}>
             <strong style={{ color: "var(--bg-warm)" }}>{stale.type} · {rentShort(stale.rent)}/mo</strong> —
-            inquiries down 32% week-over-week. RealMe suggests "two weeks free" + a
+            inquiries down 32% week-over-week. REAL ME AI suggests "two weeks free" + a
             fresh price-drop reel. Posts to 8 ILSes the same minute you say yes.
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
             <button className="btn btn-lime" onClick={() => setSection("concessions")} style={{ fontSize: 14 }}>
               Run the concession campaign →
             </button>
-            <button className="btn btn-ghost" style={{ color: "var(--bg-warm)", fontSize: 14 }}>See it on RealMe Live</button>
+            <button className="btn btn-ghost" style={{ color: "var(--bg-warm)", fontSize: 14 }}>See it on REAL ME Live</button>
           </div>
         </div>
         <div style={{
@@ -293,10 +293,10 @@ function RentalDigest() {
     <div className="card" style={{ padding: 20, background: "var(--ink)", color: "var(--bg-warm)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--lime)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11 }}>R</span>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(246,242,234,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>RealMe · 6:48 AM</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(246,242,234,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>REAL ME AI · 6:48 AM</span>
       </div>
       <div style={{ marginTop: 14, fontSize: 16, lineHeight: 1.45, fontFamily: "var(--font-display)", letterSpacing: "-0.015em" }}>
-        Penthouse PH-A has 22 saved hearts on RealMe Live but zero applications.
+        Penthouse PH-A has 22 saved hearts on REAL ME Live but zero applications.
         I'd cut a 12-second "what $7,200 actually gets you" reel and pin it.
         Render it?
       </div>
@@ -586,9 +586,9 @@ export function SyndicationView() {
               Your listings shipped<br />to {channels.filter(c => c.syndicated).length} channels.
             </h2>
             <p style={{ fontSize: 15, color: "rgba(246,242,234,0.75)", maxWidth: 540 }}>
-              One unit. One video. RealMe formats it for every ILS's spec — vertical reel for
+              One unit. One video. REAL ME AI formats it for every ILS's spec — vertical reel for
               Zillow, square for Facebook, 4:3 for Apartments.com, hosted natively on
-              RealMe Live. Inquiries flow back into one pipeline.
+              REAL ME Live. Inquiries flow back into one pipeline.
             </p>
           </div>
           <div style={{ display: "flex", gap: 28, alignItems: "baseline" }}>
@@ -631,7 +631,7 @@ export function SyndicationView() {
                   }}>{c.logo}</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em" }}>{c.name}</div>
-                    <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{c.reach}{c.kind === "owned" && " · RealMe-hosted"}</div>
+                    <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>{c.reach}{c.kind === "owned" && " · REAL ME AI-hosted"}</div>
                   </div>
                 </div>
                 {c.syndicated ? (

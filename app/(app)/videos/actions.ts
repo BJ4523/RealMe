@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
@@ -26,6 +27,7 @@ import {
   isCinematic,
 } from "@/lib/video/cinematic";
 import { generateNarration } from "@/lib/video/assemble";
+import { selfDriveAssembly } from "@/lib/video/drive";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { isMock } from "@/lib/heygen/client";
 import { listingPhotos, tourPhotosFor } from "@/lib/format";
@@ -589,10 +591,11 @@ export async function submitCinematicVideo(
         : Promise.resolve([] as string[]),
     ]);
 
+    const cineId = encodeCinematicJobs(opener, closer, roomClipIds);
     await supabase
       .from("videos")
       .update({
-        heygen_video_id: encodeCinematicJobs(opener, closer, roomClipIds),
+        heygen_video_id: cineId,
         status: "processing",
         thumbnail_url: photos[0] ?? null,
         script_segments: {
@@ -605,6 +608,29 @@ export async function submitCinematicVideo(
       })
       .eq("id", videoId)
       .eq("user_id", userId);
+
+    // Self-drive to completion in the background so the reel finishes without the
+    // video page staying open or waiting on the reconcile cron's cadence. Uses the
+    // service-role client (no user session after the response) and is best-effort:
+    // the cron + page poll remain as backstops for anything it leaves unfinished.
+    const driveClient = adminConfigured ? createAdminClient() : supabase;
+    after(() =>
+      selfDriveAssembly(driveClient, videoId, () =>
+        assembleCinematicVideo(
+          driveClient,
+          {
+            id: videoId,
+            user_id: userId,
+            script: video.script,
+            beats,
+            captions,
+            heygen_video_id: cineId,
+            photos,
+          },
+          avatar.voice_id ?? null,
+        ),
+      ),
+    );
   } catch (e) {
     await fail(e instanceof Error ? e.message : "Cinematic generation failed.");
     return;
@@ -707,8 +733,9 @@ export async function submitHypeReelVideo(
         : Promise.resolve([] as string[]),
     ]);
 
+    const reelId = encodeReelJobs(opener, closer, roomClipIds);
     await supabase.from("videos").update({
-      heygen_video_id: encodeReelJobs(opener, closer, roomClipIds),
+      heygen_video_id: reelId,
       status: "processing",
       thumbnail_url: hero,
       script_segments: {
@@ -723,6 +750,25 @@ export async function submitHypeReelVideo(
         ttsDur: narr.dur,
       } as unknown as Json,
     }).eq("id", videoId).eq("user_id", userId);
+
+    // Self-drive to completion in the background (see submitCinematicVideo).
+    const driveClient = adminConfigured ? createAdminClient() : supabase;
+    after(() =>
+      selfDriveAssembly(driveClient, videoId, () =>
+        assembleHypeReel(driveClient, {
+          id: videoId,
+          user_id: userId,
+          heygen_video_id: reelId,
+          photos,
+          facts: reelFacts(listing),
+          featureCallouts: script.featureCallouts,
+          trackId: trackId ?? "default",
+          beats,
+          captions,
+          voiceId: avatar.voice_id ?? null,
+        }),
+      ),
+    );
   } catch (e) {
     await fail(e instanceof Error ? e.message : "Hype Reel generation failed.");
     return;

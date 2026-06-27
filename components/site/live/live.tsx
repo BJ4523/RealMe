@@ -103,7 +103,7 @@ function rentShort(n) {
   return "$" + n;
 }
 
-// RealMe Live — Public-facing ILS (renter marketplace)
+// REAL ME Live — Public-facing ILS (renter marketplace)
 // Where renters discover units via AI agent reels
 
 export function RealMeLive({ onBackToSite, heroReelUrl = null, heroPoster = null }) {
@@ -130,7 +130,7 @@ export function RealMeLive({ onBackToSite, heroReelUrl = null, heroPoster = null
   };
 
   return (
-    <div data-screen-label="04 RealMe Live (Public ILS)" style={{ background: "var(--bg)", minHeight: "100vh", overflowX: "hidden", maxWidth: "100vw" }}>
+    <div data-screen-label="04 REAL ME Live (Public ILS)" style={{ background: "var(--bg)", minHeight: "100vh", overflowX: "hidden", maxWidth: "100vw" }}>
       <LiveNav savedCount={savedIds.size} onBackToSite={onBackToSite} />
       <LiveHero filters={filters} setFilters={setFilters} resultCount={visible.length} />
       {heroReelUrl ? <LiveHeroReel url={heroReelUrl} poster={heroPoster} /> : null}
@@ -162,7 +162,7 @@ function LiveHeroReel({ url, poster }) {
             See the agent walk you through it — in their own voice.
           </h2>
           <p style={{ fontSize: 15, color: "var(--ink-soft)", marginTop: 14, maxWidth: 440 }}>
-            Every RealMe listing comes with a real agent-on-camera reel. Tap play —
+            Every REAL ME AI listing comes with a real agent-on-camera reel. Tap play —
             this is generated from the listing, automatically.
           </p>
         </div>
@@ -201,7 +201,11 @@ function LiveNav({ savedCount, onBackToSite }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         gap: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          onClick={onBackToSite}
+          title="Back to the REAL ME AI home page"
+          style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        >
           <div style={{
             width: 26, height: 26, borderRadius: 7,
             background: "var(--ink)", color: "var(--lime)",
@@ -209,16 +213,16 @@ function LiveNav({ savedCount, onBackToSite }) {
             fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 14,
           }}>R</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 19, letterSpacing: "-0.03em" }}>RealMe</span>
+            <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 19, letterSpacing: "-0.03em", color: "var(--ink)" }}>REAL ME</span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--coral)", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Live</span>
           </div>
-        </div>
+        </button>
         {!isMobile && (
           <div style={{ display: "flex", gap: 24, alignItems: "center", fontSize: 14, fontWeight: 500 }}>
             <a href="#live">Rentals</a>
             <a href="#live">Neighborhoods</a>
             <a href="#live">Agents</a>
-            <a href="#live">How RealMe works</a>
+            <a href="#live">How REAL ME AI works</a>
           </div>
         )}
         <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center" }}>
@@ -227,11 +231,9 @@ function LiveNav({ savedCount, onBackToSite }) {
               <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: "var(--coral)", color: "#fff", fontSize: 9, fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{savedCount}</span>
             )}
           </button>
-          {!isMobile && (
-            <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
-              <ChevronLeft size={14} style={{ marginRight: 4, verticalAlign: "-3px" }} />agents
-            </button>
-          )}
+          <button onClick={onBackToSite} className="btn btn-ghost btn-sm" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }} title="Back to the REAL ME AI home page">
+            <ChevronLeft size={14} style={{ marginRight: isMobile ? 0 : 4, verticalAlign: "-3px" }} />{!isMobile && "Home"}
+          </button>
           <button className="btn btn-primary btn-sm">Sign up</button>
         </div>
       </div>
@@ -245,7 +247,7 @@ function LiveHero({ filters, setFilters, resultCount }) {
   return (
     <section style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "32px 16px 24px" : "56px 32px 32px" }}>
       <div style={{ maxWidth: 980 }}>
-        <span className="eyebrow" style={{ color: "var(--coral)" }}>RealMe Live · Bay Area rentals</span>
+        <span className="eyebrow" style={{ color: "var(--coral)" }}>REAL ME Live · Bay Area rentals</span>
         <h1 className="display" style={{ fontSize: isMobile ? "clamp(34px, 11vw, 52px)" : "clamp(56px, 8vw, 124px)", margin: "12px 0 0", lineHeight: 0.92 }}>
           Rent from a <span style={{ position: "relative", display: "inline-block" }}>
             human,
@@ -257,7 +259,7 @@ function LiveHero({ filters, setFilters, resultCount }) {
           </span> not<br />a stock photo.
         </h1>
         <p style={{ fontSize: 19, color: "var(--ink-soft)", maxWidth: 640, lineHeight: 1.45, marginTop: 24, letterSpacing: "-0.005em" }}>
-          Every unit on RealMe Live comes with a 30-second video — the actual leasing
+          Every unit on REAL ME Live comes with a 30-second video — the actual leasing
           agent, on camera, walking you through the place. No fake renderings.
           No bait listings.
         </p>
@@ -341,7 +343,7 @@ function FeaturedAgents() {
     <section style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "20px 16px 28px" : "20px 32px 28px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, gap: 12 }}>
         <div>
-          <span className="eyebrow">Bay Area agents on RealMe Live</span>
+          <span className="eyebrow">Bay Area agents on REAL ME Live</span>
           <h3 className="display" style={{ fontSize: isMobile ? 22 : 28, margin: "6px 0 0" }}>Follow an agent. Get their drops first.</h3>
         </div>
         <a href="#live" style={{ flexShrink: 0, fontSize: 13, fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>See all 240 agents →</a>
@@ -685,16 +687,16 @@ function UnitDetailOverlay({ unit, onClose, saved, onSave }) {
 function LiveWhyDifferent() {
   const isMobile = useIsMobile();
   const points = [
-    { n: "01", h: "Every listing has a real human on video", b: "No render farms, no agent-less ghost listings. If it's on RealMe Live, an actual leasing agent is on camera walking you through it." },
+    { n: "01", h: "Every listing has a real human on video", b: "No render farms, no agent-less ghost listings. If it's on REAL ME Live, an actual leasing agent is on camera walking you through it." },
     { n: "02", h: "Self-tour codes that actually work",       b: "Verified renters get an SMS code to tour the unit themselves. No back-and-forth. No 'is this still available?'" },
-    { n: "03", h: "Apply once, use everywhere",                b: "One application, screened once. Use it across every RealMe Live listing — agents see your score, you see their response time." },
+    { n: "03", h: "Apply once, use everywhere",                b: "One application, screened once. Use it across every REAL ME Live listing — agents see your score, you see their response time." },
   ];
   return (
     <section style={{ background: "var(--ink)", color: "var(--bg-warm)", padding: isMobile ? "56px 0" : "84px 0", marginTop: 60 }}>
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "0 16px" : "0 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: isMobile ? 32 : 48 }}>
           <div>
-            <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>Why renters pick RealMe Live</span>
+            <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>Why renters pick REAL ME Live</span>
             <h2 className="display" style={{ fontSize: isMobile ? "clamp(32px, 9vw, 48px)" : "clamp(48px, 6vw, 80px)", margin: "12px 0 0", maxWidth: 800, lineHeight: 0.95 }}>
               Stock photos and<br />ghost listings, no.<br />
               <span style={{ color: "var(--coral)" }}>People, yes.</span>
@@ -728,12 +730,12 @@ function LiveFooter({ onBackToSite }) {
       <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1.5fr 1fr 1fr 1fr", gap: isMobile ? 24 : 40 }}>
         <div style={{ gridColumn: isMobile ? "1 / -1" : undefined }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.03em" }}>RealMe</span>
+            <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.03em" }}>REAL ME</span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--coral)", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>Live</span>
           </div>
           <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8, lineHeight: 1.55, maxWidth: 320 }}>
             The rental marketplace where every listing comes with a real agent on camera.
-            Powered by RealMe — the AI marketing agent for real estate agents.
+            Powered by REAL ME AI — the AI marketing agent for real estate agents.
           </p>
           <button onClick={onBackToSite} className="btn btn-outline btn-sm" style={{ marginTop: 16, fontSize: 12 }}>
             I'm an agent →
@@ -741,7 +743,7 @@ function LiveFooter({ onBackToSite }) {
         </div>
         {[
           { h: "Renters", l: ["Browse rentals", "Save searches", "Apply once", "Self-tour", "Rent calculator"] },
-          { h: "Agents",  l: ["List on RealMe", "Generate reels", "Syndicate to ILSes", "Lease pipeline", "Pricing"] },
+          { h: "Agents",  l: ["List on REAL ME AI", "Generate reels", "Syndicate to ILSes", "Lease pipeline", "Pricing"] },
           { h: "Markets", l: ["Oakland", "San Francisco", "Berkeley", "Alameda", "All Bay Area"] },
         ].map((c, i) => (
           <div key={i}>
@@ -753,7 +755,7 @@ function LiveFooter({ onBackToSite }) {
         ))}
       </div>
       <div style={{ maxWidth: 1400, margin: "32px auto 0", paddingTop: 18, borderTop: "1px solid var(--rule)", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 8 : 0, justifyContent: "space-between", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink-soft)" }}>
-        <span>© 2026 RealMe, Inc. · Equal Housing Opportunity</span>
+        <span>© 2026 REAL ME AI, Inc. · Equal Housing Opportunity</span>
         <span>San Francisco · Oakland · Berkeley</span>
       </div>
     </footer>

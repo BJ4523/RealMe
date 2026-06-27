@@ -9,6 +9,31 @@ import type { FFmpeg } from "@ffmpeg/ffmpeg";
 
 let ffmpegPromise: Promise<FFmpeg> | null = null;
 
+// Hard ceilings so the avatar uploader can never sit on "Compressing…" forever.
+// The wasm core init can hang on some browsers (notably Safari/macOS); the
+// transcode can stall on a codec the core can't decode (e.g. iPhone HEVC).
+const FFMPEG_LOAD_TIMEOUT_MS = 60_000;
+const FFMPEG_EXEC_TIMEOUT_MS = 120_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s.`)),
+      ms,
+    );
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 /** Lazy-load and initialise a single shared ffmpeg.wasm instance. */
 async function getFFmpeg(): Promise<FFmpeg> {
   if (!ffmpegPromise) {
@@ -19,12 +44,21 @@ async function getFFmpeg(): Promise<FFmpeg> {
       ]);
       const ff = new FFmpeg();
       // Same-origin core; toBlobURL sidesteps the worker's cross-origin rules.
-      await ff.load({
-        coreURL: await toBlobURL("/ffmpeg/ffmpeg-core.js", "text/javascript"),
-        wasmURL: await toBlobURL("/ffmpeg/ffmpeg-core.wasm", "application/wasm"),
-      });
+      await withTimeout(
+        ff.load({
+          coreURL: await toBlobURL("/ffmpeg/ffmpeg-core.js", "text/javascript"),
+          wasmURL: await toBlobURL("/ffmpeg/ffmpeg-core.wasm", "application/wasm"),
+        }),
+        FFMPEG_LOAD_TIMEOUT_MS,
+        "Video engine load",
+      );
       return ff;
-    })();
+    })().catch((e) => {
+      // Never cache a failed/hung init — otherwise every later attempt re-awaits
+      // the same rejection (or hang) and the uploader can never recover.
+      ffmpegPromise = null;
+      throw e;
+    });
   }
   return ffmpegPromise;
 }
@@ -97,7 +131,7 @@ export async function compressVideo(
       "-movflags",
       "+faststart",
       outName,
-    ]);
+    ], FFMPEG_EXEC_TIMEOUT_MS);
 
     const data = (await ff.readFile(outName)) as Uint8Array;
     // Copy into a fresh ArrayBuffer-backed view so it's a valid BlobPart.

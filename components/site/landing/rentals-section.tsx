@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ILS_CHANNELS, UNITS, BUILDINGS, RENTAL_MANAGER, buildingOf, rentShort, useIsMobile } from "@/components/site/shared";
 import { ArrowUpRight, Zap, Play } from "lucide-react";
 
-// RealMe — Rentals + RealMe Live landing section
+// REAL ME AI — Rentals + REAL ME Live landing section
 // Drops into the landing page to introduce the rental + ILS extension
 
 export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
@@ -42,7 +42,7 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
               Same engine, built for portfolios. Sync every unit, generate a reel per
               vacancy, and push it to <strong style={{ color: "var(--ink)" }}>8 ILSes at once</strong> —
               Zillow, Apartments.com, Zumper, plus our own marketplace
-              <strong style={{ color: "var(--coral)" }}> RealMe Live</strong>.
+              <strong style={{ color: "var(--coral)" }}> REAL ME Live</strong>.
             </p>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 36, alignItems: "center" }}>
@@ -50,7 +50,7 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
                 Open rentals dashboard →
               </button>
               <button className="btn btn-outline" onClick={onOpenLive} style={{ padding: "16px 24px", fontSize: 15, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                Visit RealMe Live <ArrowUpRight size={15} />
+                Visit REAL ME Live <ArrowUpRight size={15} />
               </button>
             </div>
           </div>
@@ -67,7 +67,7 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
           {[
             { n: "136", l: "units across 4 buildings", s: "Portfolio view" },
             { n: "8", l: "ILS channels per push", s: "One render, eight platforms" },
-            { n: "12.4d", l: "avg days vacant", s: "Down from 22d before RealMe" },
+            { n: "12.4d", l: "avg days vacant", s: "Down from 22d before REAL ME AI" },
             { n: "94%", l: "of tours self-served", s: "SMS code · no agent required" },
           ].map((s, i) => (
             <div key={i} style={{
@@ -82,7 +82,7 @@ export function RentalsAndLiveSection({ onOpenApp, onOpenLive }) {
         </div>
       </div>
 
-      {/* RealMe Live preview slab */}
+      {/* REAL ME Live preview slab */}
       <RealMeLivePreview onOpenLive={onOpenLive} />
     </section>
   );
@@ -200,7 +200,7 @@ function ILSFanVisual({ isMobile }) {
   );
 }
 
-// Preview of the RealMe Live marketplace within the landing
+// Preview of the REAL ME Live marketplace within the landing
 function RealMeLivePreview({ onOpenLive }) {
   const isMobile = useIsMobile();
   return (
@@ -211,13 +211,13 @@ function RealMeLivePreview({ onOpenLive }) {
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "0 20px" : "0 32px" }}>
         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 20 : 0, justifyContent: "space-between", alignItems: isMobile ? "start" : "end", marginBottom: isMobile ? 28 : 48 }}>
           <div>
-            <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>RealMe Live · the in-house marketplace</span>
+            <span className="eyebrow" style={{ color: "rgba(246,242,234,0.55)" }}>REAL ME Live · the in-house marketplace</span>
             <h2 className="display" style={{ fontSize: isMobile ? "clamp(32px, 9vw, 48px)" : "clamp(48px, 6vw, 84px)", margin: "12px 0 0", maxWidth: 980, lineHeight: 0.95 }}>
               Your units, on a marketplace<br />where every listing has a <span style={{ color: "var(--coral)" }}>face</span>.
             </h2>
           </div>
           <button onClick={onOpenLive} className="btn btn-lime" style={{ padding: "14px 20px", fontSize: 14 }}>
-            Open RealMe Live →
+            Open REAL ME Live →
           </button>
         </div>
 

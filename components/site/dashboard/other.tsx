@@ -280,7 +280,7 @@ Watch the 32-second walkthrough below, or DM me back and I'll show you privately
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <Label>Body · drafted by RealMe</Label>
+              <Label>Body · drafted by REAL ME AI</Label>
               <textarea className="field" value={body} onChange={e => setBody(e.target.value)} rows={11} style={{ fontFamily: "var(--font-body)", fontSize: 14, lineHeight: 1.6, resize: "vertical" }} />
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 <SmartChip><RefreshCw size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> Rewrite warmer</SmartChip>
@@ -672,7 +672,7 @@ function LeadDrawer({ lead, onClose }) {
         </div>
 
         <div style={{ marginTop: 22 }}>
-          <span className="eyebrow">From RealMe</span>
+          <span className="eyebrow">From REAL ME AI</span>
           <div style={{ marginTop: 8, padding: 16, background: "var(--ink)", color: "var(--bg-warm)", borderRadius: 12, fontSize: 15, lineHeight: 1.5, fontFamily: "var(--font-display)", letterSpacing: "-0.015em" }}>
             Call her before 11. She watched your walkthrough <em>twice</em>, opened
             yesterday's email, and saved the listing. Lead with the kitchen — she

@@ -5,13 +5,13 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AGENT, LISTINGS, CheckIcon, listingBg, priceShort, useCount, useIsMobile } from "@/components/site/shared";
 import { Heart, MessageCircle, ArrowUpRight } from "lucide-react";
 
-// RealMe — Landing page
+// REAL ME AI — Landing page
 
 export function Logo({ size = 22, href = "/" }) {
   return (
     <a
       href={href}
-      aria-label="RealMe home"
+      aria-label="REAL ME AI home"
       style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}
     >
       <div style={{
@@ -24,7 +24,7 @@ export function Logo({ size = 22, href = "/" }) {
       <span style={{
         fontFamily: "var(--font-display)", fontWeight: 800, fontSize: size * 0.85,
         letterSpacing: "-0.03em", color: "var(--ink)",
-      }}>RealMe</span>
+      }}>REAL ME AI</span>
     </a>
   );
 }
@@ -148,7 +148,7 @@ export function Hero({ onOpenApp }) {
             fontSize: 24, lineHeight: 1.32, color: "var(--ink)",
             maxWidth: 560, margin: 0, fontWeight: 400, letterSpacing: "-0.01em",
           }}>
-            An AI marketing agent for real estate agents. RealMe pulls every listing,
+            An AI marketing agent for real estate agents. REAL ME AI pulls every listing,
             generates videos of you talking about each one, posts them across
             Instagram, TikTok, YouTube — then writes the email blast and books the
             showings.
@@ -369,7 +369,7 @@ export function TrustMarquee() {
         padding: "20px 0", overflow: "hidden",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "0 32px 12px", maxWidth: 1400, margin: "0 auto" }}>
-          <span className="eyebrow">Brokerages running on RealMe</span>
+          <span className="eyebrow">Brokerages running on REAL ME AI</span>
         </div>
         <div className="marquee-track">
           {all.map((l, i) => (
@@ -404,7 +404,7 @@ export function HowItWorks() {
       n: "01",
       tag: "ONE TIME · 90 SECONDS",
       title: "Train your AI twin",
-      body: "Upload one photo or a 30-second clip. RealMe builds a video model of you — your face, your voice, your cadence — locked to your account.",
+      body: "Upload one photo or a 30-second clip. REAL ME AI builds a video model of you — your face, your voice, your cadence — locked to your account.",
     },
     {
       n: "02",
@@ -416,7 +416,7 @@ export function HowItWorks() {
       n: "03",
       tag: "AUTOPILOT",
       title: "Walk away",
-      body: "Daily, weekly, or whenever a listing drops. RealMe writes the script, generates the video, schedules the posts, sends the blast, books the showings.",
+      body: "Daily, weekly, or whenever a listing drops. REAL ME AI writes the script, generates the video, schedules the posts, sends the blast, books the showings.",
     },
   ];
   const isMobile = useIsMobile();

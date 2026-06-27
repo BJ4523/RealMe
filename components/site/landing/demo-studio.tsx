@@ -102,9 +102,11 @@ export function DemoStudioSection() {
 
   return (
     <section
+      id="demo"
       style={{
         background: "var(--bg)",
         padding: isMobile ? "56px 20px 8px" : "96px 32px 24px",
+        scrollMarginTop: 72,
       }}
     >
       <div style={{ maxWidth: 1240, margin: "0 auto" }}>

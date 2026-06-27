@@ -1,7 +1,7 @@
 // @ts-nocheck
 /* eslint-disable */
 "use client";
-// RealMe — shared mock data and small components (ported from the design prototype)
+// REAL ME AI — shared mock data and small components (ported from the design prototype)
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 export const CheckIcon = ({ size = 14 }) => (
@@ -460,7 +460,7 @@ export const UNITS = [
 
 // ILS distribution channels
 export const ILS_CHANNELS = [
-  { id: "realme",      name: "RealMe Live",      tint: "#D6FF3D", ink: "#111", logo: "R", reach: "Owned",  views: 18420, kind: "owned",  syndicated: true },
+  { id: "realme",      name: "REAL ME Live",      tint: "#D6FF3D", ink: "#111", logo: "R", reach: "Owned",  views: 18420, kind: "owned",  syndicated: true },
   { id: "zillow",      name: "Zillow Rentals",   tint: "#1277E1", ink: "#fff", logo: "Z", reach: "192M /mo", views: 12_140, kind: "ils", syndicated: true },
   { id: "apartments",  name: "Apartments.com",   tint: "#001E62", ink: "#fff", logo: "A", reach: "97M /mo",  views: 8_420,  kind: "ils", syndicated: true },
   { id: "zumper",      name: "Zumper",           tint: "#FF4438", ink: "#fff", logo: "z", reach: "12M /mo",  views: 3_910,  kind: "ils", syndicated: true },
@@ -482,14 +482,14 @@ export const LEASE_STAGES = [
 
 export const RENTAL_LEADS = [
   { id: "rl-1", name: "Mae Lin",          stage: "inquiry",    unit: "u-1", source: "Zillow · 2h",      score: 88, hot: true,  budget: 3500, moveIn: "Jun 1",  pets: "Cat",   employer: "Stripe",        photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=70" },
-  { id: "rl-2", name: "Jordan Hsu",        stage: "inquiry",   unit: "u-5", source: "RealMe Live · 3h", score: 79,             budget: 2500, moveIn: "Now",    pets: "None",  employer: "OUSD teacher",  photo: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&auto=format&fit=crop&q=70" },
+  { id: "rl-2", name: "Jordan Hsu",        stage: "inquiry",   unit: "u-5", source: "REAL ME Live · 3h", score: 79,             budget: 2500, moveIn: "Now",    pets: "None",  employer: "OUSD teacher",  photo: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&auto=format&fit=crop&q=70" },
   { id: "rl-3", name: "Bea & Tom Carter",  stage: "tour",      unit: "u-8", source: "TikTok reel · 1d", score: 84, hot: true,  budget: 4200, moveIn: "Jul 1",  pets: "Dog",   employer: "Kaiser · GS-13", photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=70" },
   { id: "rl-4", name: "Ravi Anand",        stage: "tour",      unit: "u-9", source: "Apartments.com",   score: 71,             budget: 4000, moveIn: "Now",    pets: "None",  employer: "Genentech",     photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&auto=format&fit=crop&q=70" },
   { id: "rl-5", name: "Naomi Park",        stage: "toured",    unit: "u-1", source: "Open House · Sat", score: 92, hot: true,  budget: 3500, moveIn: "Jun 1",  pets: "None",  employer: "Anthropic",     photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&auto=format&fit=crop&q=70" },
   { id: "rl-6", name: "Diego Salazar",     stage: "toured",    unit: "u-6", source: "Instagram DM",     score: 76,             budget: 3200, moveIn: "Jun 15", pets: "None",  employer: "BART",          photo: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=200&auto=format&fit=crop&q=70" },
   { id: "rl-7", name: "Wren Foley",        stage: "application", unit: "u-10", source: "Zumper",        score: 94, hot: true, budget: 5500, moveIn: "Jun 15", pets: "Dog",   employer: "Pixar",         photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=70" },
   { id: "rl-8", name: "Quinn Park",        stage: "application", unit: "u-11", source: "Direct · 5d",   score: 81,             budget: 3700, moveIn: "Jul 1",  pets: "None",  employer: "UCSF",          photo: "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=200&auto=format&fit=crop&q=70" },
-  { id: "rl-9", name: "Hana & Otis",       stage: "approved",    unit: "u-4", source: "RealMe Live",   score: 100,            budget: 7500, moveIn: "Aug 1",  pets: "None",  employer: "Roblox · L7",   photo: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=200&auto=format&fit=crop&q=70" },
+  { id: "rl-9", name: "Hana & Otis",       stage: "approved",    unit: "u-4", source: "REAL ME Live",   score: 100,            budget: 7500, moveIn: "Aug 1",  pets: "None",  employer: "Roblox · L7",   photo: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=200&auto=format&fit=crop&q=70" },
 ];
 
 export const CONCESSION_PRESETS = [

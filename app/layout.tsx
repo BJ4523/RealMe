@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Real Me — AI walkthrough videos for real estate agents",
+  title: "REAL ME AI — walkthrough videos for real estate agents",
   description:
     "Turn any listing into a personalized AI walkthrough video starring your own avatar. Connect a listing, generate a script, and get a shareable video in minutes.",
 };

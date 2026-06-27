@@ -17,7 +17,7 @@ export function Logo({
       )}
     >
       <span className="inline-block size-3 rounded-full bg-accent ring-2 ring-foreground/10" />
-      real<span className="text-muted-foreground">me</span>
+      REAL ME<span className="text-muted-foreground"> AI</span>
     </Link>
   );
 }

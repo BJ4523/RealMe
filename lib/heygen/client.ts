@@ -74,21 +74,40 @@ export const isMock = env.heygenMock || env.heygenApiKey.length === 0;
 
 type HeygenFetchInit = RequestInit & { json?: unknown };
 
+/**
+ * Hard ceiling on any single HeyGen call. Without it a hung connection (seen on
+ * twin creation) leaves the avatar uploader stuck on "Creating your AI twin…"
+ * forever — the request never resolves, so the server action never returns.
+ * Callers can override with their own `signal`.
+ */
+const HEYGEN_TIMEOUT_MS = 45_000;
+
 /** Authenticated JSON fetch against the HeyGen REST API. */
 export async function heygenFetch<T>(
   url: string,
   init: HeygenFetchInit = {},
 ): Promise<T> {
-  const { json, headers, ...rest } = init;
-  const res = await fetch(url, {
-    ...rest,
-    headers: {
-      "X-Api-Key": env.heygenApiKey,
-      ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...headers,
-    },
-    body: json !== undefined ? JSON.stringify(json) : init.body,
-  });
+  const { json, headers, signal, ...rest } = init;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      signal: signal ?? AbortSignal.timeout(HEYGEN_TIMEOUT_MS),
+      headers: {
+        "X-Api-Key": env.heygenApiKey,
+        ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...headers,
+      },
+      body: json !== undefined ? JSON.stringify(json) : init.body,
+    });
+  } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      throw new Error(
+        `HeyGen request timed out after ${HEYGEN_TIMEOUT_MS / 1000}s: ${url}`,
+      );
+    }
+    throw e;
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

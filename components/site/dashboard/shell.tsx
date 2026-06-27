@@ -46,13 +46,13 @@ import {
   ConcessionsView,
 } from "@/components/site/dashboard/rentals";
 
-// RealMe — Dashboard shell + nav + Today overview
+// REAL ME AI — Dashboard shell + nav + Today overview
 
 function Logo({ size = 22 }) {
   return (
     <a
       href="/app"
-      aria-label="RealMe dashboard home"
+      aria-label="REAL ME AI dashboard home"
       style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}
     >
       <div style={{
@@ -65,7 +65,7 @@ function Logo({ size = 22 }) {
       <span style={{
         fontFamily: "var(--font-display)", fontWeight: 800, fontSize: size * 0.85,
         letterSpacing: "-0.03em", color: "var(--ink)",
-      }}>RealMe</span>
+      }}>REAL ME AI</span>
     </a>
   );
 }
@@ -445,7 +445,7 @@ function TodayActivity() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
         <div>
           <span className="eyebrow">Today · auto-pilot log</span>
-          <div className="display" style={{ fontSize: 22, marginTop: 4 }}>What RealMe did while you slept</div>
+          <div className="display" style={{ fontSize: 22, marginTop: 4 }}>What REAL ME AI did while you slept</div>
         </div>
         <span className="tag mono">Live</span>
       </div>
@@ -563,7 +563,7 @@ function TodayDigest() {
     <div className="card" style={{ padding: 20, background: "var(--ink)", color: "var(--bg-warm)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--lime)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 11 }}>R</span>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(246,242,234,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>RealMe · 7:14 AM</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(246,242,234,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>REAL ME AI · 7:14 AM</span>
       </div>
       <div style={{ marginTop: 14, fontSize: 16, lineHeight: 1.45, fontFamily: "var(--font-display)", letterSpacing: "-0.015em" }}>
         Heads up — your walkthroughs are crushing it lately. Like, 3× better than the

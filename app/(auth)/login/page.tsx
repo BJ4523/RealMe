@@ -110,7 +110,7 @@ export default function LoginPage({
   return (
     <Card className="rounded-3xl">
       <CardHeader>
-        <CardTitle className="font-heading text-2xl">Sign in to RealMe</CardTitle>
+        <CardTitle className="font-heading text-2xl">Sign in to REAL ME AI</CardTitle>
         <CardDescription>
           No password — we&apos;ll email you a magic link and a one-time code.
         </CardDescription>

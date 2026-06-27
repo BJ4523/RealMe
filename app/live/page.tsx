@@ -2,7 +2,7 @@ import { LivePageClient } from "@/components/site/live/live-page";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 
 export const metadata = {
-  title: "RealMe LIVE — every listing, with the agent on camera",
+  title: "REAL ME LIVE — every listing, with the agent on camera",
 };
 
 // Public page — fetch the latest finished reel (service-role) and re-sign fresh
