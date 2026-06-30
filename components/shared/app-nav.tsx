@@ -63,7 +63,7 @@ export function AppNav({ email }: { email: string | null }) {
     <>
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border/60 p-5 md:flex">
-        <Logo href="/app" />
+        <Logo href="/" />
         <nav className="mt-8 flex flex-col gap-1">
           {NAV.map((item) => (
             <NavLink key={item.href} {...item} active={isActive(item.href)} />
@@ -102,7 +102,7 @@ export function AppNav({ email }: { email: string | null }) {
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border/60 bg-background/80 px-5 py-3 backdrop-blur md:hidden">
-        <Logo href="/app" />
+        <Logo href="/" />
         <div className="flex items-center gap-4">
           <Link
             href="/settings"

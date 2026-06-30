@@ -51,8 +51,8 @@ import {
 function Logo({ size = 22 }) {
   return (
     <a
-      href="/app"
-      aria-label="REAL ME AI dashboard home"
+      href="/"
+      aria-label="REAL ME AI home"
       style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}
     >
       <div style={{
