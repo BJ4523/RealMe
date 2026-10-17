@@ -7,6 +7,7 @@ Project docs for the AI walkthrough-video app for real estate agents.
 | [architecture.md](./architecture.md) | System design, data model + RLS, the integration layers, and the async video job loop |
 | [heygen.md](./heygen.md) | HeyGen API research — avatar creation, video generation, voices, templates, pricing, webhooks, and the mock-mode strategy |
 | [setup.md](./setup.md) | Local development: prerequisites, Supabase ports, env vars, and verification scripts |
+| [listing-research.md](./listing-research.md) | Optional Parallel Search MCP workflow to find and verify public listing sources before import |
 | [production.md](./production.md) | Going-to-production checklist: switching off mocks, wiring real keys, deploying to Vercel |
 
 Start with [setup.md](./setup.md) to run it locally, then [architecture.md](./architecture.md)
