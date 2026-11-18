@@ -55,36 +55,54 @@ room.
 
 ## 3. Proposed pipeline
 
+**Decision (2026-11-18): the walkthrough is AI video of the agent walking through the home
+reciting the script.** That is HeyGen's **Cinematic Avatar**, not Avatar 6 — Avatar 6
+animates a talking presenter from the twin's footage and cannot walk a scene.
+
+What makes this workable now: Cinematic Avatar on the **HeyGen Video model**
+(`type:"cinematic_avatar"`, `model:"heygen_video_1"`) casts the twin look **and its linked
+voice**, and speaks any line written in quotes in the prompt, with audio generated in the
+same pass. The docs state there is "no separate speech pass, lip-sync step". So the
+TTS → slice → lipsync chain (§1 #4) is replaced by putting the line in the prompt.
+
 Principle: **HeyGen renders and composes; we only sequence.** No ffmpeg, no lipsync job,
 no TTS slicing in the default path.
 
 ```
-submit ──▶ Stage 1 (parallel)                 ──▶ Stage 2 (one job)            ──▶ done
-           Avatar 6 opener  (twin talks,           studio composition:              re-host MP4
-           Avatar 6 closer   real lip-sync)        [opener clip]                    in video-cache
-                                                   [room scenes × N, real photos]
-                                                   [closer clip]
+submit ──▶ Stage 1 (parallel, queued)             ──▶ Stage 2 (one job)      ──▶ done
+           one walking+talking clip per beat:          studio composition:        re-host MP4
+           opener · room 1 … room N · closer           clips in order             in video-cache
 ```
 
-- **Stage 1 — bookends on Avatar 6.** Two `type:"avatar"` jobs, `script` = opener/closer
-  beat, `voice_id` = cloned voice, 9:16, 1080p, `motion_prompt` from the existing wardrobe/
-  direction text. Voice and mouth come out of one model, so the padding/atempo/slice logic
-  goes away.
-- **Stage 2 — one studio job.** `video` scenes for the two bookend clips (silent mode =
-  plays at its own length with its own audio); one scene per room photo in between. Room
-  scene style is a product decision (§7): **(a)** `avatar_video` with the twin cut out over
-  the **real photo** (Avatar V, `remove_background`), or **(b)** narrated `image` scene (real
-  photo full-frame, cloned voice, no agent on screen). Captions via the global `caption`
-  option instead of burn-in through lipsync.
-- **Result:** 3 HeyGen jobs, 2 stages, 0 ffmpeg passes — versus 4+ jobs, 3 stages, ~5 passes.
+- **Stage 1 — one clip per script beat.** Each is a `cinematic_avatar` job on
+  `heygen_video_1`, 9:16, with the room's real photo(s) as `references` (up to 9 images, so
+  several angles of one room can go in) and a prompt that describes the walk and contains
+  the beat as a quoted line. Constraints from the docs: **5–15s per clip, 720p**, dialogue
+  paces at ~2.5 words/sec, so **a beat is capped at ~35 words**; the script generator must
+  plan beats to that budget (it already plans per-room word counts).
+- **Stage 2 — one studio job.** A `video` scene per clip in silent mode (plays at its own
+  length with its own audio) → one MP4.
+- **Queueing.** Pay-as-you-go allows 10 concurrent jobs. An 8-room tour is 10 clips, so the
+  reducer submits in waves and tops up as webhooks arrive, instead of firing everything.
+- **Per-clip retry.** A failed or misspoken clip re-renders alone; finished clips are kept.
 
-Cinematic AI room remakes (Seedance) stay available as an opt-in b-roll style only; they
-plug in as extra Stage 1 jobs feeding `video` scenes, same machinery.
+Known limits to be honest about:
+
+- **Rooms are AI recreations steered by the photos, not the real rooms.** The existing
+  in-UI disclosure stays. Presenter mode remains the faithful option.
+- **720p** on HeyGen Video. Seedance 2 does 1080p but is what we use today, silent.
+- **Captions:** studio captions are derived from avatar/narrated scenes, not from `video`
+  scenes, so burned-in captions need another route (_verify_; we do have the script text
+  and can supply an SRT-based approach later).
+- **Cinematic Avatar rejects `callback_url`** (400). Completion comes only through the
+  registered webhook endpoint, matched on the HeyGen video id.
+- **Avatar 6's role shrinks** to an optional direct-to-camera opener/closer where exact
+  likeness matters most (it uses the twin's real footage). Decide after the spike.
 
 ### Orchestration
 
 - **`video_jobs` table** (new migration, RLS owner-scoped, written by service role): one row
-  per HeyGen job — `video_id`, `role` (`opener|closer|room:<n>|final`), `heygen_id`,
+  per HeyGen job — `video_id`, `role` (`opener|room:<n>|closer|final`), `heygen_id`,
   `status`, `result_url`, `failure_code`, `error`, `attempts`. Replaces the `cine:`/`reel:`
   string and the lipsync keys in `script_segments`. Add `videos.stage` for UI progress.
 - **One reducer, `advanceVideo(videoId)`** in `lib/video/pipeline.ts`: reads the job rows,
@@ -94,7 +112,7 @@ plug in as extra Stage 1 jobs feeding `video` scenes, same machinery.
   webhook or a cron overlap is a no-op — no time-based lock.
 - **Webhook is the driver.** `app/api/webhooks/heygen` verifies the `signature` HMAC over
   the raw body, de-dupes on `video_id + event_type`, updates the job row (found by
-  `heygen_id`; `callback_id` = `<videoId>:<role>` as a cross-check), calls `advanceVideo`,
+  `heygen_id`; cinematic jobs accept no callback fields), calls `advanceVideo`,
   returns 2xx. Every step is a short HTTP call, so it fits the 10s window.
 - **Cron is only a safety net.** For videos in flight longer than a few minutes it fetches
   `GET /v3/videos/{id}` per pending job and calls the same reducer. Same code path, so the
@@ -126,37 +144,37 @@ in `next.config.ts` once hype reel moves off it (below).
 | # | Scope | Outcome |
 |---|---|---|
 | 0 | Spike with a real key (§6). | Assumptions confirmed or the plan adjusted. |
-| 1 | `video_jobs` + reducer + signed webhook + cron backstop + read-only client. Presenter mode on one studio job. v1/v2 calls migrated. | Reliability fixed; nothing left on sunset endpoints. |
-| 2 | Avatar 6 bookends + studio composition as the default walkthrough. Engine eligibility + consent gate in the UI. | The accuracy upgrade. |
-| 3 | Hype reel: music bed + Ken-Burns motion + overlays. Studio has no music track, so this needs either HeyGen **HyperFrames** (HTML composition rendered by HeyGen, own webhook) or one remaining ffmpeg audio-mix pass. Decide after M2. | ffmpeg fully removed, or reduced to one stream-copy mux. |
-
-M1 and M2 are independent of M3; hype reel keeps its current path until M3.
+| 1 | `video_jobs` + reducer + job queue + signed webhook + cron backstop + read-only client. Presenter mode on one studio job. v1/v2 calls migrated. | Reliability fixed; nothing left on sunset endpoints. |
+| 2 | Walking+talking clips on Cinematic Avatar / HeyGen Video, composed by one studio job. Beat planning to the ~35-word cap. Consent gate (already exists). | The new default walkthrough. |
+| 3 | Hype reel music bed and overlays, captions on walking clips. Studio has no music track, so this needs HeyGen **HyperFrames** (HTML composition rendered by HeyGen) or one remaining ffmpeg audio-mix pass. | ffmpeg removed, or reduced to one stream-copy mux. |
 
 ## 6. Spike checklist (needs `HEYGEN_API_KEY`, spends a few credits)
 
-1. `GET /v3/avatars/looks/{look_id}` on the real twin: does `supported_api_engines` list
-   `heygen-avatar-6`? Is the group's `consent_status` `validated`?
-2. Avatar 6 `type:"avatar"` at 9:16 with the cloned voice: quality, render time, and whether
-   it accepts `remove_background` / `background` / `output_format:"webm"`. The Avatar 6 page
-   doesn't list them. If it does, the bookends can stand in front of the real exterior photo;
-   if not, the opener shows the twin's recorded backdrop.
-3. Studio job mixing a `video` scene (the Avatar 6 clip by URL), an `avatar_video` scene with
-   `remove_background` over a listing photo, and a narrated `image` scene, at 9:16. Check
-   framing/padding and whether the twin look was trained with matting (required for the
-   cutout; otherwise a 400).
-4. Register a webhook endpoint against a preview deploy; confirm the `signature` header, the
-   payload shape, and that `callback_id` round-trips for `avatar` and `studio` jobs.
-5. Per-second cost of Avatar 6 vs Turbo vs Avatar V (pricing is behind the
-   `platform.heygen.com` login — not visible from the docs).
-6. Hit the current v2 presenter path once and log the `Deprecation`/`warning` response, to
-   see how broken production already is.
-7. Confirm `/v3/voices/speech` (current TTS) is still a live path; the docs now point at
-   `POST /v3/models/audio/tts`.
+1. **Does the twin recite the line verbatim, in the cloned voice?** One `cinematic_avatar`
+   clip on `heygen_video_1` with a real room photo and a ~25-word quoted line. Check words,
+   voice match (is the cloned voice "linked" to the look, or does it need linking?), lip
+   sync, likeness, and how faithful the room is. This is the make-or-break test.
+2. Voice and look consistency **across** three consecutive clips (pace, tone, wardrobe).
+3. Same shot on Seedance 2 at 1080p for comparison (speech support there is unclear).
+4. If recital is unreliable: fallback of generating the walk silent and running
+   `POST /v3/lipsyncs` per clip (what we do today, but driven by the new reducer).
+5. Studio job concatenating three such clips as silent `video` scenes at 9:16: framing,
+   audio continuity at the seams, and whether `caption` produces anything.
+6. Register a webhook endpoint against a preview deploy; confirm the `signature` header and
+   that `avatar_video.success` fires for cinematic and studio jobs.
+7. Avatar 6 direct-to-camera opener: `supported_api_engines` on the twin look, quality, and
+   whether it accepts `remove_background`/`background`.
+8. Cost per clip-second for HeyGen Video vs Seedance 2 vs Avatar 6 (pricing is behind the
+   `platform.heygen.com` login).
+9. Hit the current v2 presenter path once and log the `Deprecation`/`warning` response.
+10. Confirm `/v3/voices/speech` (current TTS) is still live; docs now point at
+    `POST /v3/models/audio/tts`.
 
-## 7. Decisions needed
+## 7. Decisions
 
-1. **Room scenes:** (a) twin cut out over the real photo, (b) narrated real photo with no
-   agent on screen, or (c) keep AI room remakes as default. Recommendation: **(a)**, with (b)
-   as automatic fallback when the look has no matting. (c) is the inaccurate one.
-2. **Avatar 6 vs Turbo** for bookends — pick after seeing spike cost and render time.
-3. **Hype reel compositor** (HyperFrames vs one ffmpeg mux) — defer to after M2.
+1. **Room scenes — decided:** AI video of the agent walking through the home reciting the
+   script (Cinematic Avatar).
+2. **Model** (HeyGen Video 720p with native speech vs Seedance 2 1080p + lipsync) — after
+   spike items 1–4.
+3. **Avatar 6 opener/closer** — optional, after spike item 7.
+4. **Hype reel compositor / captions** — defer to M3.
