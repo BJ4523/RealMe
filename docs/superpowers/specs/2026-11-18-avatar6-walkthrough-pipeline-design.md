@@ -70,8 +70,8 @@ no TTS slicing in the default path.
 
 ```
 submit ──▶ Stage 1 (parallel, queued)             ──▶ Stage 2 (one job)      ──▶ done
-           one walking+talking clip per beat:          studio composition:        re-host MP4
-           opener · room 1 … room N · closer           clips in order             in video-cache
+           walking+talking clip per room beat          studio composition:        re-host MP4
+           Avatar 6 opener + closer (real footage)      clips in order             in video-cache
 ```
 
 - **Stage 1 — one clip per script beat.** Each is a `cinematic_avatar` job on
@@ -96,8 +96,17 @@ Known limits to be honest about:
   and can supply an SRT-based approach later).
 - **Cinematic Avatar rejects `callback_url`** (400). Completion comes only through the
   registered webhook endpoint, matched on the HeyGen video id.
-- **Avatar 6's role shrinks** to an optional direct-to-camera opener/closer where exact
-  likeness matters most (it uses the twin's real footage). Decide after the spike.
+- **Bookends move to Avatar 6 (decided 2026-11-18).** User feedback: the current opener and
+  closer look fake — AI-generated body movement. They are Seedance generations with the
+  voice lip-synced on afterwards. Avatar 6 instead animates the twin from the **agent's own
+  recorded footage** (`engine.reference_look_id`), lip-synced natively, so gestures and
+  posture are the agent's real ones. Use `motion_expressiveness: "less"` and a restrained
+  `motion_prompt`. Trade-off (_verify_): unless Avatar 6 accepts background removal, the
+  bookends show the agent in their recorded setting, not in front of the house.
+- **The same risk applies to the room clips.** Walking shots come from the same family of
+  generative model as today's bookends, so they may show the same fake movement. Spike item
+  1 judges this on real output before M2 is built. If they don't pass, the fallback is real
+  photos with the agent's voice-over between Avatar 6 bookends.
 
 ### Orchestration
 
@@ -176,5 +185,6 @@ in `next.config.ts` once hype reel moves off it (below).
    script (Cinematic Avatar).
 2. **Model** (HeyGen Video 720p with native speech vs Seedance 2 1080p + lipsync) — after
    spike items 1–4.
-3. **Avatar 6 opener/closer** — optional, after spike item 7.
+3. **Bookends — decided:** Avatar 6 from the agent's real footage, replacing the generated
+   bookends.
 4. **Hype reel compositor / captions** — defer to M3.
